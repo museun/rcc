@@ -1,3 +1,5 @@
+#![feature(nll)]
+
 #[macro_use]
 mod util;
 pub use util::*;
@@ -9,4 +11,4 @@ mod token;
 pub use token::*;
 
 mod gen;
-pub use gen::generate;
+pub use gen::*;

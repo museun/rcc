@@ -20,13 +20,13 @@ fn main() {
     let mut iter = &mut tokens.into_iter();
     let root = Node::expr(&mut iter);
 
-    // eprintln!("{:#?}", root);
+    let mut gen = Generate::new();
+    let mut vec = gen.gen_ir(&root);
+    let mut vec = gen.allocate_registers(&mut vec);
 
     println!(".intel_syntax noprefix");
     println!(".global main");
     println!("main:");
 
-    // generate code while descending the parse tree
-    println!("  mov rax, {}", generate(&mut 0, &iter, &root));
-    println!("\tret");
+    gen.generate(&mut vec);
 }
