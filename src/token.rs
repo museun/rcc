@@ -1,21 +1,9 @@
 #[derive(Debug, PartialEq)]
-pub enum TokenType {
+pub enum Token {
     Add,
     Sub,
     Num(u32),
     EOF,
-}
-
-#[derive(Debug)]
-pub struct Token<'a> {
-    pub ty: TokenType,
-    pub s: &'a str,
-}
-
-impl<'a> Token<'a> {
-    pub fn new(s: &'a str, ty: TokenType) -> Self {
-        Self { ty, s }
-    }
 }
 
 pub fn tokenize(s: &str) -> Vec<Token> {
@@ -33,8 +21,8 @@ pub fn tokenize(s: &str) -> Vec<Token> {
         }
 
         let token = match c {
-            '+' => Token::new(&s[i..], TokenType::Add),
-            '-' => Token::new(&s[i..], TokenType::Sub),
+            '+' => Token::Add,
+            '-' => Token::Sub,
             c if c.is_ascii_digit() => {
                 let k: u32 = s[i..]
                     .chars()
@@ -43,7 +31,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
                     .inspect(|_| skip += 1)
                     .fold(0, |a, n| 10 * a + n);
                 skip -= 1; // this is off by 1 one because of the filter_map
-                Token::new(&s[i + skip..], TokenType::Num(k))
+                Token::Num(k)
             }
             _ => {
                 fail!("cannot tokenize: {} @ {} '{}'", c, i, &s[i..]);
@@ -53,6 +41,6 @@ pub fn tokenize(s: &str) -> Vec<Token> {
         tokens.push(token)
     }
 
-    tokens.push(Token::new("", TokenType::EOF));
+    tokens.push(Token::EOF);
     tokens
 }
