@@ -1,5 +1,4 @@
 use super::*;
-use node::Node;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -7,7 +6,7 @@ pub enum IRType {
     Imm,
     Mov,
     Return,
-    Alloca,
+    Alloca, // this needs to go for function calls to work
     Load,
     Store,
 
@@ -25,18 +24,6 @@ pub enum IRType {
     Nop,
 }
 
-impl From<Token> for IRType {
-    fn from(tok: Token) -> Self {
-        match tok {
-            Token::Add => IRType::Add(None),
-            Token::Sub => IRType::Sub,
-            Token::Mul => IRType::Mul,
-            Token::Div => IRType::Div,
-            _ => fail!("invalid node type"),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct IR {
     pub(crate) ty: IRType,
@@ -44,17 +31,12 @@ pub struct IR {
     pub(crate) rhs: i32,
 }
 
-impl IR {
-    fn new(ty: IRType, lhs: i32, rhs: i32) -> Self {
-        Self { ty, lhs, rhs }
-    }
-}
-
 #[derive(Debug)]
 pub struct Generate {
     inst: Vec<IR>,
-    label: i32,
     map: HashMap<String, i32>, // pointer offset.
+
+    label: i32,
     basereg: i32,
     offset: i32, // incr by 8 bytes each time
 }
@@ -68,8 +50,9 @@ impl Generate {
 
         let mut this = Self {
             inst: Vec::with_capacity(MAX_INST),
-            label: 0,
             map: HashMap::new(),
+
+            label: 0,
             basereg: 0,
             offset: 0,
         };
@@ -150,11 +133,18 @@ impl Generate {
             Node::Expression { lhs, rhs, tok } => {
                 let lhs = self.gen_expr(lhs.as_ref().unwrap());
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
-                self.add(tok.clone().into(), lhs, rhs);
+                let ir = match tok {
+                    Token::Add => IRType::Add(None),
+                    Token::Sub => IRType::Sub,
+                    Token::Mul => IRType::Mul,
+                    Token::Div => IRType::Div,
+                    _ => fail!("invalid node type"),
+                };
+                self.add(ir, lhs, rhs);
                 self.add(IRType::Kill, rhs, -1);
                 lhs
             }
-            _ => unreachable!(),
+            _ => fail!("unknown node: {:?}", node),
         }
     }
 
@@ -178,6 +168,6 @@ impl Generate {
     }
 
     fn add(&mut self, ty: IRType, lhs: i32, rhs: i32) {
-        self.inst.push(IR::new(ty, lhs, rhs))
+        self.inst.push(IR { ty, lhs, rhs })
     }
 }
