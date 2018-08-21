@@ -11,19 +11,21 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Token {
     Add,
     Sub,
     Mul,
     Div,
     Ret,
-    Eos, // end of statement (expression? what are they called in legallese C)
+    Ident(String), // trust me on the heap allocation
+    Assign,
+    EOS, // end of statement (expression? what are they called in legallese C)
     Num(u32),
     EOF,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Tokens<'a> {
     data: Vec<(usize, Token)>,
     input: &'a str,
@@ -59,7 +61,7 @@ impl<'a> Tokens<'a> {
         tok
     }
 
-    pub fn peek(&mut self) -> Option<&(usize, Token)> {
+    pub fn peek(&self) -> Option<&(usize, Token)> {
         self.data.get(self.pos)
     }
 
@@ -105,7 +107,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '-' => Token::Sub,
             '*' => Token::Mul,
             '/' => Token::Div,
-            ';' => Token::Eos,
+            ';' => Token::EOS,
+            '=' => Token::Assign,
 
             // digits
             c if c.is_ascii_digit() => {
@@ -119,21 +122,21 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                 Token::Num(k)
             }
 
-            // keywords
+            // identifiers
             c if c.is_alphabetic() => {
                 let name = s[i..]
                     .chars()
                     .take_while(|c| c.is_alphanumeric() || *c == '_')
                     .collect::<String>();
-                let name = &name[..];
-                if !KEYWORDS.contains_key(name) {
-                    fail!("unknown identifier: {}", name);
+                skip += name.len() - 1;
+
+                if KEYWORDS.contains_key(name.as_str()) {
+                    KEYWORDS[name.as_str()].clone()
+                } else {
+                    Token::Ident(name)
                 }
-                skip += name.len();
-                KEYWORDS[name].clone()
             }
 
-            // TODO bindings
             _ => fail!("cannot tokenize: '{}' @ {} --> '{}'", c, i, &s[i..]),
         };
 
@@ -144,6 +147,62 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     data
 }
 
+use std::fmt;
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Token::Add => write!(f, "{}", "Add"),
+            Token::Sub => write!(f, "{}", "Sub"),
+            Token::Mul => write!(f, "{}", "Mul"),
+            Token::Div => write!(f, "{}", "Div"),
+            Token::Ret => write!(f, "{}", "Ret"),
+            Token::Ident(name) => write!(f, "Ident({})", name),
+            Token::Assign => write!(f, "{}", "Assign"),
+            Token::EOS => write!(f, "{}", "EOS"),
+            Token::Num(n) => write!(f, "Num({})", n),
+            Token::EOF => write!(f, "{}", "EOF"),
+        }
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Token::Add => write!(f, "{}", "+"),
+            Token::Sub => write!(f, "{}", "-"),
+            Token::Mul => write!(f, "{}", "*"),
+            Token::Div => write!(f, "{}", "/"),
+            Token::Ret => write!(f, "{}", "return"),
+            Token::Ident(name) => write!(f, "{}", name),
+            Token::Assign => write!(f, "{}", "="),
+            Token::EOS => write!(f, "{}", ";"),
+            Token::Num(n) => write!(f, "{}", n),
+            Token::EOF => write!(f, "{}", "▯"),
+        }
+    }
+}
+
+impl<'a> fmt::Debug for Tokens<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (pos, tok) in &self.data {
+            writeln!(f, "{}> {:?}", pos, tok)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> fmt::Display for Tokens<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (_pos, tok) in &self.data {
+            write!(f, "{} ", tok)?;
+            if let Token::EOS = tok {
+                writeln!(f)?
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,10 +211,10 @@ mod tests {
     #[ignore]
     fn test_keywords() {
         let input = r#"
-            return 42;
+            int a = 4; return a;
         "#;
 
-        let out = scan(&input);
-        eprintln!("{:#?}", out);
+        let out = Tokens::tokenize(&input);
+        eprintln!("{:?}", out);
     }
 }

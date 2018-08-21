@@ -4,25 +4,28 @@ use token::{Token, Tokens};
 pub enum NodeType {
     Return,
     Compound,
-    Expression(Token), // this is totally the wrong name for this
+    Assign,
+    Ident(String), // borrowed &str is out of the question
     Constant(u32),
+    Expression(Token), // this is totally the wrong name for this
 }
 
 #[derive(Debug)]
 pub struct Node {
     pub ty: NodeType,
 
-    // what to do about these? they should be in the expression type..
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
 
     pub expr: Option<Box<Node>>,
-
-    // XXX: is this box really needed?
-    pub stmts: Vec<Box<Node>>,
+    pub stmts: Vec<Node>,
 }
 
 impl Node {
+    pub fn parse(tokens: &mut Tokens) -> Self {
+        Self::stmt(tokens)
+    }
+
     fn new(ty: NodeType, lhs: Option<Node>, rhs: Option<Node>) -> Self {
         Self {
             ty,
@@ -35,15 +38,17 @@ impl Node {
         }
     }
 
-    fn num(tokens: &mut Tokens) -> Self {
+    // ident, etc
+    fn term(tokens: &mut Tokens) -> Self {
         match tokens.next_token() {
             Some((_, Token::Num(n))) => Node::new(NodeType::Constant(*n), None, None),
-            tok => fail!("number expected, but got: {:?}", tok),
+            Some((_, Token::Ident(name))) => Node::new(NodeType::Ident(name.clone()), None, None),
+            tok => fail!("number or ident expected, but got: {:?}", tok),
         }
     }
 
     fn mul(tokens: &mut Tokens) -> Self {
-        let mut lhs = Self::num(tokens);
+        let mut lhs = Self::term(tokens);
         'expr: loop {
             match tokens.peek() {
                 Some((_, tok @ Token::Mul)) | Some((_, tok @ Token::Div)) => {
@@ -52,7 +57,7 @@ impl Node {
                     lhs = Node::new(
                         NodeType::Expression(tok),
                         Some(lhs),
-                        Some(Self::num(tokens)),
+                        Some(Self::term(tokens)),
                     );
                 }
                 _ => break 'expr,
@@ -80,6 +85,14 @@ impl Node {
         lhs
     }
 
+    fn assign(tokens: &mut Tokens) -> Self {
+        let lhs = Self::expr(tokens);
+        if eat(tokens, &Token::Assign) {
+            return Node::new(NodeType::Assign, Some(lhs), Some(Self::expr(tokens)));
+        }
+        lhs
+    }
+
     fn stmt(tokens: &mut Tokens) -> Self {
         let mut node = Node {
             ty: NodeType::Compound,
@@ -89,47 +102,49 @@ impl Node {
             stmts: vec![],
         };
 
-        loop {
-            match tokens.peek() {
-                Some((_, Token::EOF)) => return node,
-                Some((_, Token::Ret)) => {
-                    tokens.advance();
-                    let e = Node {
-                        ty: NodeType::Return,
-                        lhs: None,
-                        rhs: None,
-                        expr: Some(Box::new(Self::expr(tokens))),
-                        stmts: vec![],
-                    };
-                    node.stmts.push(Box::new(e));
-                    Self::check_eos(tokens);
-                }
-                Some((_, tok)) => {
-                    let e = Node {
-                        ty: NodeType::Expression(tok.clone()),
-                        lhs: None,
-                        rhs: None,
-                        expr: Some(Box::new(Self::expr(tokens))),
-                        stmts: vec![],
-                    };
-                    node.stmts.push(Box::new(e));
-                    Self::check_eos(tokens);
-                }
-                None => return node,
+        fn make_node(ty: NodeType, tokens: &mut Tokens) -> Node {
+            Node {
+                ty,
+                lhs: None,
+                rhs: None,
+                expr: Some(Box::new(Node::assign(tokens))),
+                stmts: vec![],
             }
         }
-    }
 
-    fn check_eos(tokens: &mut Tokens) {
-        match tokens.next_token() {
-            Some((_, Token::Eos)) => {}
-            Some((pos, tok)) => fail!("; expected. {:?} found at {}", tok, pos),
-            _ => fail!("unexpected end"),
+        loop {
+            let e = match tokens.peek() {
+                Some((_, Token::Ret)) => {
+                    tokens.advance();
+                    make_node(NodeType::Return, tokens)
+                }
+                Some((_, tok)) if *tok != Token::EOF => {
+                    make_node(NodeType::Expression(tok.clone()), tokens)
+                }
+                _ => return node,
+            };
+            node.stmts.push(e);
+            check_eos(tokens, &node); // why is this eating so soon
         }
     }
+}
 
-    pub fn parse(tokens: &mut Tokens) -> Self {
-        Self::stmt(tokens)
+fn eat(tokens: &mut Tokens, tok: &Token) -> bool {
+    match tokens.peek() {
+        Some((_, t)) if t == tok => {
+            tokens.advance();
+            true
+        }
+        _ => false,
+    }
+}
+
+fn check_eos(tokens: &mut Tokens, node: &Node) {
+    match tokens.next_token() {
+        Some((pos, tok)) if *tok != Token::EOS => {
+            fail!("; expected. {:?} found at {}. built: {:#?}", tok, pos, node)
+        }
+        _ => {}
     }
 }
 
@@ -138,11 +153,11 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_parse() {
-        let input = "return 1+2*3/4+5;";
+        let input = "a = 1+2+3; b = 1*2/2; return a + b;";
         let mut tokens = Tokens::tokenize(&input);
-        eprintln!("{:#?}", tokens);
+        eprintln!("{}", tokens);
 
         let nodes = Node::parse(&mut tokens);
         eprintln!("{:#?}", nodes);

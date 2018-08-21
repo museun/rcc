@@ -14,12 +14,11 @@ impl Registers {
 
         for ir in inst.iter_mut() {
             match ir.ty {
-                IRType::Imm => ir.lhs = this.alloc(ir.lhs),
-                IRType::Mov | IRType::Other(_) => {
+                IRType::Imm | IRType::Alloca | IRType::Return => ir.lhs = this.alloc(ir.lhs),
+                IRType::Mov | IRType::Add | IRType::Load | IRType::Store | IRType::Other(_) => {
                     ir.lhs = this.alloc(ir.lhs);
                     ir.rhs = this.alloc(ir.rhs);
                 }
-                IRType::Return => ir.lhs = this.alloc(ir.lhs),
                 IRType::Kill => {
                     this.kill(this.map[ir.lhs as usize]);
                     ir.ty = IRType::Nop;
