@@ -1,9 +1,7 @@
-use std::cell::RefCell;
-
 use node::{Node, NodeType};
-use token::Token;
+//use token::Token;
 
-const REGISTERS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
+const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum IRType {
@@ -27,73 +25,62 @@ impl From<NodeType> for IRType {
 #[derive(Debug, Clone)] // whatever
 pub struct IR {
     ty: IRType,
-    lhs: u32,
-    rhs: u32,
+    lhs: i32,
+    rhs: i32,
 }
 
 impl IR {
-    pub fn new(ty: IRType, lhs: u32, rhs: u32) -> Self {
+    pub fn new(ty: IRType, lhs: i32, rhs: i32) -> Self {
         Self { ty, lhs, rhs }
-    }
-
-    pub fn ty(&self) -> &IRType {
-        &self.ty
-    }
-
-    pub fn lhs(&self) -> u32 {
-        self.lhs
-    }
-
-    pub fn rhs(&self) -> u32 {
-        self.rhs
     }
 }
 
 #[derive(Debug)]
 pub struct Generate {
+    reg: i32,
+    inst: Vec<IR>,
     used: [bool; 8],
-    reg: u32,
-
-    map: Vec<i32>, // probably should be an array
+    map: Vec<i32>,
 }
 
 impl Generate {
     pub fn new() -> Self {
         Self {
-            map: vec![-1; 1000],
-            used: [false; 8],
             reg: 0,
+            inst: Vec::with_capacity(1000),
+            used: [false; 8],
+            map: vec![-1; 1000],
         }
     }
 
-    fn gen_ir_sub(&mut self, node: &Node, vec: &mut Vec<IR>) -> u32 {
+    fn gen_ir_sub(&mut self, node: &Node) -> i32 {
         if let NodeType::Num(n) = node.ty {
-            self.reg += 1;
-            vec.push(IR::new(IRType::Imm, self.reg, n));
-            return self.reg;
+            let r = self.inst.len() as i32;
+            self.inst.push(IR::new(IRType::Imm, r, n as i32));
+            return r;
         }
 
-        let lhs = self.gen_ir_sub(node.lhs.as_ref().unwrap(), vec);
-        let rhs = self.gen_ir_sub(node.rhs.as_ref().unwrap(), vec);
+        let lhs = self.gen_ir_sub(node.lhs.as_ref().unwrap());
+        let rhs = self.gen_ir_sub(node.rhs.as_ref().unwrap());
 
-        vec.push(IR::new(node.ty.clone().into(), lhs, rhs));
-        vec.push(IR::new(IRType::Kill, rhs, 0));
+        self.inst.push(IR::new(node.ty.clone().into(), lhs, rhs));
+        self.inst.push(IR::new(IRType::Kill, rhs, 0));
         lhs
     }
 
-    pub fn gen_ir(&mut self, node: &Node) -> Vec<IR> {
-        let mut vec = Vec::with_capacity(1000);
-        let r = self.gen_ir_sub(&node, &mut vec);
-        vec.push(IR::new(IRType::Return, r, 0));
-        vec
+    pub fn gen_ir(&mut self, node: &Node) {
+        let r = self.gen_ir_sub(&node);
+        self.inst.push(IR::new(IRType::Return, r, 0));
     }
 
-    fn allocate(&mut self, r: u32) -> i32 {
+    fn allocate(&mut self, r: i32) -> i32 {
         if self.map[r as usize] != -1 {
-            return self.map[r as usize];
+            let r = self.map[r as usize];
+            debug_assert!(self.used[r as usize]);
+            return r;
         }
 
-        for (i, _) in REGISTERS.iter().enumerate() {
+        for i in 0..REGS.len() {
             if self.used[i] {
                 continue;
             }
@@ -106,46 +93,31 @@ impl Generate {
         fail!("registers exhausted")
     }
 
-    fn kill(&mut self, r: u32) {
+    fn kill(&mut self, r: i32) {
+        debug_assert!(self.used[r as usize]);
         self.used[r as usize] = false;
     }
 
-    pub fn allocate_registers(&mut self, vec: &mut Vec<IR>) -> Vec<IR> {
-        let mut out = Vec::with_capacity(1000);
+    pub fn allocate_registers(&mut self) {
+        let mut inst = self.inst.to_vec();
 
-        for (i, ir) in vec.iter().enumerate() {
+        for i in 0..inst.len() {
+            let ir = inst.get_mut(i).expect("get ir");
+
             match ir.ty {
                 IRType::Imm => {
-                    let lhs = self.allocate(ir.lhs()) as u32;
-                    out[i as usize] = {
-                        let mut ir = ir.clone();
-                        ir.lhs = lhs;
-                        ir
-                    };
+                    ir.lhs = self.allocate(ir.lhs);
                 }
                 IRType::Mov | IRType::Other(_) => {
-                    let lhs = self.allocate(ir.lhs()) as u32;
-                    let rhs = self.allocate(ir.rhs()) as u32;
-                    out[i as usize] = {
-                        let mut ir = ir.clone();
-                        ir.lhs = lhs;
-                        ir.rhs = rhs;
-                        ir
-                    };
+                    ir.lhs = self.allocate(ir.lhs);
+                    ir.rhs = self.allocate(ir.rhs);
                 }
                 IRType::Return => {
-                    let lhs = self.map[ir.lhs as usize];
-                    self.kill(lhs as u32);
+                    self.kill(self.map[ir.lhs as usize]);
                 }
                 IRType::Kill => {
-                    let lhs = self.map[ir.lhs as usize];
-                    self.kill(lhs as u32);
-                    let lhs = self.allocate(ir.lhs()) as u32;
-                    out[i as usize] = {
-                        let mut ir = ir.clone();
-                        ir.ty = IRType::Nop;
-                        ir
-                    };
+                    self.kill(self.map[ir.lhs as usize]);
+                    ir.ty = IRType::Nop;
                 }
                 IRType::Nop => {
                     // do nothing
@@ -153,37 +125,30 @@ impl Generate {
             }
         }
 
-        out
+        ::std::mem::replace(&mut self.inst, inst);
     }
 
-    pub fn generate(&self, vec: &mut Vec<IR>) {
-        for ir in vec.iter() {
+    pub fn generate(&self) {
+        for ir in &self.inst {
             match &ir.ty {
                 IRType::Imm => {
-                    println!("  mov {}, {}", self.map[ir.lhs as usize], ir.rhs);
+                    println!("  mov {}, {}", REGS[ir.lhs as usize], ir.rhs);
                 }
                 IRType::Mov => {
                     println!(
                         "   mov {}, {}",
-                        self.map[ir.lhs as usize], self.map[ir.rhs as usize]
+                        REGS[ir.lhs as usize], REGS[ir.rhs as usize]
                     );
                 }
                 IRType::Return => {
-                    println!("  mov rax {}", self.map[ir.lhs as usize]);
+                    println!("  mov rax, {}", REGS[ir.lhs as usize]);
                     println!("  ret\n");
                 }
-
                 IRType::Other(NodeType::Add) => {
-                    println!(
-                        "  add {}, {}",
-                        self.map[ir.lhs as usize], self.map[ir.rhs as usize]
-                    );
+                    println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize],);
                 }
                 IRType::Other(NodeType::Sub) => {
-                    println!(
-                        "  sub {}, {}",
-                        self.map[ir.lhs as usize], self.map[ir.rhs as usize]
-                    );
+                    println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize],);
                 }
                 IRType::Nop => {
                     // do nothing
@@ -193,5 +158,11 @@ impl Generate {
                 }
             }
         }
+    }
+}
+
+impl Default for Generate {
+    fn default() -> Self {
+        Self::new()
     }
 }

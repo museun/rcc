@@ -21,12 +21,12 @@ fn main() {
     let root = Node::expr(&mut iter);
 
     let mut gen = Generate::new();
-    let mut vec = gen.gen_ir(&root);
-    let mut vec = gen.allocate_registers(&mut vec);
+    gen.gen_ir(&root);
+    gen.allocate_registers();
 
     println!(".intel_syntax noprefix");
     println!(".global main");
     println!("main:");
 
-    gen.generate(&mut vec);
+    gen.generate();
 }
