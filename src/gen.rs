@@ -12,7 +12,7 @@ pub enum IRType {
     Store,
 
     // from tokens
-    Add, // to add offsets
+    Add(Option<i32>),
     Sub,
     Mul,
     Div,
@@ -27,7 +27,7 @@ impl From<NodeType> for IRType {
         match ty {
             NodeType::Constant(_) => IRType::Imm,
             NodeType::Expression(t) => match t {
-                Token::Add => IRType::Add,
+                Token::Add => IRType::Add(None),
                 Token::Sub => IRType::Sub,
                 Token::Mul => IRType::Mul,
                 Token::Div => IRType::Div,
@@ -144,11 +144,7 @@ impl Generate {
 
             let offset = self.map.get(ident).expect("var to exist");
             let r2 = self.inst.len() as i32;
-
-            self.add(IRType::Imm, r2, *offset);
-            self.add(IRType::Add, r1, r2);
-            self.add(IRType::Kill, r2, -1);
-
+            self.add(IRType::Add(Some(*offset)), r1, r2);
             return r1;
         }
 
@@ -204,8 +200,11 @@ pub fn generate_x86(inst: Vec<IR>) {
                     REGS[ir.lhs as usize], REGS[ir.rhs as usize]
                 );
             }
-            IRType::Add => {
+            IRType::Add(None) => {
                 println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+            }
+            IRType::Add(Some(v)) => {
+                println!("  add {}, {}", REGS[ir.lhs as usize], v);
             }
             IRType::Sub => {
                 println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);

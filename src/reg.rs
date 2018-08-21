@@ -12,21 +12,24 @@ impl Registers {
             map: vec![-1; MAX_INST],
         };
 
-        for ir in inst.iter_mut() {
-            match ir.ty {
-                IRType::Imm | IRType::Alloca | IRType::Return => ir.lhs = this.alloc(ir.lhs),
+        use IRType::*;
 
-                IRType::Kill => {
+        for ir in inst.iter_mut() {
+            match &ir.ty {
+                Imm | Alloca | Return => ir.lhs = this.alloc(ir.lhs),
+                Kill => {
                     this.kill(this.map[ir.lhs as usize]);
-                    ir.ty = IRType::Nop;
+                    ir.ty = Nop;
                 }
-                IRType::Nop => {
-                    // do nothing
-                }
-                // probably bad
-                _ => {
+                Mov | Load | Store | Sub | Mul | Div | Add(None) => {
                     ir.lhs = this.alloc(ir.lhs);
                     ir.rhs = this.alloc(ir.rhs);
+                }
+                Add(Some(_)) => {
+                    ir.lhs = this.alloc(ir.lhs);
+                }
+                Nop => {
+                    // do nothing
                 }
             }
         }
