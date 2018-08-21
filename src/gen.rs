@@ -157,6 +157,12 @@ impl Generate {
                     println!("  mul {}", REGS[ir.lhs as usize]);
                     println!("  mov {}, rax", REGS[ir.lhs as usize]);
                 }
+                IRType::Other(Token::Div) => {
+                    println!("  mov rax, {}", REGS[ir.lhs as usize]);
+                    println!("  cqo");
+                    println!("  div {}", REGS[ir.rhs as usize]);
+                    println!("  mov {}, rax", REGS[ir.lhs as usize]);
+                }
                 IRType::Nop => {
                     // do nothing
                 }

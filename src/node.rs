@@ -28,7 +28,7 @@ impl Node {
         'expr: loop {
             // this needs to peek
             match tokens.peek() {
-                Some(tok @ Token::Mul) => {
+                Some(tok @ Token::Mul) | Some(tok @ Token::Div) => {
                     let tok = tok.clone();
                     tokens.advance();
                     lhs = Node::new(tok, Some(lhs), Some(Self::num(tokens)));
@@ -56,7 +56,6 @@ impl Node {
 
     pub fn parse(tokens: &mut Tokens) -> Self {
         let node = Self::expr(tokens);
-
         match tokens.peek() {
             Some(Token::EOF) => {}
             _ => fail!("stray tokens found"),

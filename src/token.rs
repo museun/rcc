@@ -5,6 +5,7 @@ pub enum Token {
     Add,
     Sub,
     Mul,
+    Div,
     Num(u32),
     EOF,
 }
@@ -41,8 +42,7 @@ impl Tokens {
     }
 
     pub fn peek(&mut self) -> Option<&Token> {
-        let tok = self.data.get(self.pos);
-        tok
+        self.data.get(self.pos)
     }
 
     pub fn tokenize(s: &str) -> Self {
@@ -63,6 +63,7 @@ impl Tokens {
                 '+' => Token::Add,
                 '-' => Token::Sub,
                 '*' => Token::Mul,
+                '/' => Token::Div,
                 c if c.is_ascii_digit() => {
                     let k: u32 = s[i..]
                         .chars()
