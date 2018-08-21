@@ -43,6 +43,11 @@ impl Node {
         match tokens.next_token() {
             Some((_, Token::Num(n))) => Node::new(NodeType::Constant(*n), None, None),
             Some((_, Token::Ident(name))) => Node::new(NodeType::Ident(name.clone()), None, None),
+            Some((_, Token::OpenParen)) => {
+                let node = Node::assign(tokens);
+                check_tok(tokens, &node, &Token::CloseParen);
+                node
+            }
             tok => fail!("number or ident expected, but got: {:?}", tok),
         }
     }
@@ -124,7 +129,7 @@ impl Node {
                 _ => return node,
             };
             node.stmts.push(e);
-            check_eos(tokens, &node); // why is this eating so soon
+            check_tok(tokens, &node, &Token::EOS);
         }
     }
 }
@@ -139,11 +144,15 @@ fn eat(tokens: &mut Tokens, tok: &Token) -> bool {
     }
 }
 
-fn check_eos(tokens: &mut Tokens, node: &Node) {
+fn check_tok(tokens: &mut Tokens, node: &Node, tok: &Token) {
     match tokens.next_token() {
-        Some((pos, tok)) if *tok != Token::EOS => {
-            fail!("; expected. {:?} found at {}. built: {:#?}", tok, pos, node)
-        }
+        Some((pos, t)) if t != tok => fail!(
+            "{} expected. {:?} found at {}. built: {:#?}",
+            tok,
+            t,
+            pos,
+            node
+        ),
         _ => {}
     }
 }

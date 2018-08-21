@@ -20,6 +20,8 @@ pub enum Token {
     Ret,
     Ident(String), // trust me on the heap allocation
     Assign,
+    OpenParen,
+    CloseParen,
     EOS, // end of statement (expression? what are they called in legallese C)
     Num(u32),
     EOF,
@@ -109,6 +111,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '/' => Token::Div,
             ';' => Token::EOS,
             '=' => Token::Assign,
+            '(' => Token::OpenParen,
+            ')' => Token::CloseParen,
 
             // digits
             c if c.is_ascii_digit() => {
@@ -158,6 +162,8 @@ impl fmt::Debug for Token {
             Token::Ret => write!(f, "Ret"),
             Token::Ident(name) => write!(f, "Ident({})", name),
             Token::Assign => write!(f, "Assign"),
+            Token::OpenParen => write!(f, "OpenParen"),
+            Token::CloseParen => write!(f, "CloseParen"),
             Token::EOS => write!(f, "EOS"),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
@@ -176,6 +182,8 @@ impl fmt::Display for Token {
             Token::Ident(name) => write!(f, "{}", name),
             Token::Assign => write!(f, "="),
             Token::EOS => write!(f, ";"),
+            Token::OpenParen => write!(f, "("),
+            Token::CloseParen => write!(f, ")"),
             Token::Num(n) => write!(f, "{}", n),
             Token::EOF => write!(f, "▯"),
         }
