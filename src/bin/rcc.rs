@@ -16,16 +16,13 @@ fn main() {
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
-
     let root = Node::parse(&mut tokens);
-
-    let mut gen = Generate::new();
-    gen.gen_ir(&root);
-    gen.allocate_registers();
+    let mut ir = Generate::gen_ir(&root);
+    Registers::allocate(&mut ir);
 
     println!(".intel_syntax noprefix");
     println!(".global main");
     println!("main:");
 
-    gen.generate();
+    generate_x86(ir);
 }

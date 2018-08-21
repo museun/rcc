@@ -1,6 +1,12 @@
 #![feature(nll)]
 
 #[macro_use]
+extern crate lazy_static;
+
+pub(crate) const MAX_INST: usize = 1000;
+pub(crate) const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
+
+#[macro_use]
 mod util;
 pub use util::*;
 
@@ -12,3 +18,6 @@ pub use token::*;
 
 mod gen;
 pub use gen::*;
+
+mod reg;
+pub use reg::*;
