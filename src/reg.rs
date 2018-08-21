@@ -25,7 +25,7 @@ impl Registers {
                     ir.lhs = this.alloc(ir.lhs);
                     ir.rhs = this.alloc(ir.rhs);
                 }
-                Add(Some(_)) => {
+                Add(Some(_)) | Label | Unless => {
                     ir.lhs = this.alloc(ir.lhs);
                 }
                 Nop => {

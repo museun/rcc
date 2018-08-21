@@ -7,6 +7,7 @@ lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, Token> = {
         let mut map = HashMap::new();
         map.insert("return", Token::Ret);
+        map.insert("if", Token::If);
         map
     };
 }
@@ -18,6 +19,7 @@ pub enum Token {
     Mul,
     Div,
     Ret,
+    If,
     Ident(String), // trust me on the heap allocation
     Assign,
     OpenParen,
@@ -160,6 +162,7 @@ impl fmt::Debug for Token {
             Token::Mul => write!(f, "Mul"),
             Token::Div => write!(f, "Div"),
             Token::Ret => write!(f, "Ret"),
+            Token::If => write!(f, "If"),
             Token::Ident(name) => write!(f, "Ident({})", name),
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
@@ -179,6 +182,7 @@ impl fmt::Display for Token {
             Token::Mul => write!(f, "*"),
             Token::Div => write!(f, "/"),
             Token::Ret => write!(f, "return"),
+            Token::If => write!(f, "if"),
             Token::Ident(name) => write!(f, "{}", name),
             Token::Assign => write!(f, "="),
             Token::EOS => write!(f, ";"),

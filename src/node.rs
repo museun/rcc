@@ -5,6 +5,7 @@ pub enum NodeType {
     Return,
     Compound,
     Assign,
+    If,
     Ident(String), // borrowed &str is out of the question
     Constant(u32),
     Expression(Token), // this is totally the wrong name for this
@@ -19,11 +20,28 @@ pub struct Node {
 
     pub expr: Option<Box<Node>>,
     pub stmts: Vec<Node>,
+
+    pub cond: Option<Box<Node>>,
+    pub then: Option<Box<Node>>,
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Node {
+            ty: NodeType::Return,
+            lhs: None,
+            rhs: None,
+            expr: None,
+            stmts: vec![],
+            cond: None,
+            then: None,
+        }
+    }
 }
 
 impl Node {
     pub fn parse(tokens: &mut Tokens) -> Self {
-        Self::stmt(tokens)
+        Self::compound_stmt(tokens)
     }
 
     fn new(ty: NodeType, lhs: Option<Node>, rhs: Option<Node>) -> Self {
@@ -35,6 +53,9 @@ impl Node {
 
             expr: None,
             stmts: vec![],
+
+            cond: None,
+            then: None,
         }
     }
 
@@ -99,37 +120,49 @@ impl Node {
     }
 
     fn stmt(tokens: &mut Tokens) -> Self {
-        let mut node = Node {
-            ty: NodeType::Compound,
-            lhs: None,
-            rhs: None,
-            expr: None,
-            stmts: vec![],
-        };
-
         fn make_node(ty: NodeType, tokens: &mut Tokens) -> Node {
-            Node {
-                ty,
-                lhs: None,
-                rhs: None,
-                expr: Some(Box::new(Node::assign(tokens))),
-                stmts: vec![],
-            }
+            let mut node = Node::default();
+            node.ty = ty;
+            node.expr = Some(Box::new(Node::assign(tokens)));
+            node
         }
 
+        match tokens.peek() {
+            Some((_, Token::If)) => {
+                tokens.advance();
+                let mut node = Node::default();
+                node.ty = NodeType::If;
+                check_tok(tokens, &node, &Token::OpenParen);
+                node.cond = Some(Box::new(Self::assign(tokens)));
+                check_tok(tokens, &node, &Token::CloseParen);
+                node.then = Some(Box::new(Self::stmt(tokens)));
+                node
+            }
+            Some((_, Token::Ret)) => {
+                tokens.advance();
+                let node = make_node(NodeType::Return, tokens);
+                check_tok(tokens, &node, &Token::EOS);
+                node
+            }
+            Some((_, tok)) if *tok != Token::EOF => {
+                let node = make_node(NodeType::Expression(tok.clone()), tokens);
+                check_tok(tokens, &node, &Token::EOS);
+                node
+            }
+            Some((pos, tok)) => fail!("unexpected token at {}: {:?}", pos.clone(), tok),
+            None => fail!("unexpected token"),
+        }
+    }
+
+    fn compound_stmt(tokens: &mut Tokens) -> Self {
+        let mut node = Node::default();
+        node.ty = NodeType::Compound;
+
         loop {
-            let e = match tokens.peek() {
-                Some((_, Token::Ret)) => {
-                    tokens.advance();
-                    make_node(NodeType::Return, tokens)
-                }
-                Some((_, tok)) if *tok != Token::EOF => {
-                    make_node(NodeType::Expression(tok.clone()), tokens)
-                }
-                _ => return node,
+            match tokens.peek() {
+                Some((_, tok)) if *tok == Token::EOF => return node,
+                _ => node.stmts.push(Self::stmt(tokens)),
             };
-            node.stmts.push(e);
-            check_tok(tokens, &node, &Token::EOS);
         }
     }
 }

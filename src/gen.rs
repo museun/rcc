@@ -11,6 +11,9 @@ pub enum IRType {
     Load,
     Store,
 
+    Unless,
+    Label,
+
     // from tokens
     Add(Option<i32>),
     Sub,
@@ -54,7 +57,7 @@ impl IR {
 #[derive(Debug)]
 pub struct Generate {
     inst: Vec<IR>,
-
+    label: i32,
     map: HashMap<String, i32>, // pointer offset.
     basereg: i32,
     offset: i32, // incr by 8 bytes each time
@@ -66,7 +69,7 @@ impl Generate {
 
         let mut this = Self {
             inst: Vec::with_capacity(MAX_INST),
-
+            label: 0,
             map: HashMap::new(),
             basereg: 0,
             offset: 0,
@@ -82,6 +85,15 @@ impl Generate {
 
     fn gen_stmt(&mut self, node: &Node) {
         match node.ty {
+            NodeType::If => {
+                let r = self.gen_expr(node.cond.as_ref().unwrap());
+                let j = self.label;
+                self.label += 1;
+                self.add(IRType::Unless, r, j);
+                self.add(IRType::Kill, r, -1);
+                self.gen_stmt(node.then.as_ref().unwrap());
+                self.add(IRType::Label, j, -1);
+            }
             NodeType::Return => {
                 let r = self.gen_expr(node.expr.as_ref().unwrap());
                 self.add(IRType::Return, r, -1);
@@ -157,71 +169,71 @@ impl Generate {
 }
 
 pub fn generate_x86(inst: Vec<IR>) {
-    let mut label = 0;
-
-    let mut gen_label = || {
-        let s = format!(".L{}", label);
-        label += 1;
-        s
-    };
-
-    let ret = gen_label();
+    let ret = ".Lend";
 
     println!("  push rbp");
     println!("  mov rbp, rsp");
 
+    use IRType::*;
     for ir in inst {
         match &ir.ty {
-            IRType::Imm => {
+            Imm => {
                 println!("  mov {}, {}", REGS[ir.lhs as usize], ir.rhs);
             }
-            IRType::Mov => {
+            Mov => {
                 println!("  mov {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
             }
-            IRType::Return => {
+            Return => {
                 println!("  mov rax, {}", REGS[ir.lhs as usize]);
                 println!("  jmp {}", ret);
             }
-            IRType::Alloca => {
+            Alloca => {
                 if ir.rhs != 0 {
                     println!("  sub rsp, {}", ir.rhs);
                 }
                 println!("  mov {}, rsp", REGS[ir.lhs as usize]);
             }
-            IRType::Load => {
+            Load => {
                 println!(
                     "  mov {}, [{}]",
                     REGS[ir.lhs as usize], REGS[ir.rhs as usize]
                 );
             }
-            IRType::Store => {
+            Store => {
                 println!(
                     "  mov [{}], {}",
                     REGS[ir.lhs as usize], REGS[ir.rhs as usize]
                 );
             }
-            IRType::Add(None) => {
+            Label => {
+                println!(".L{}:", ir.lhs);
+            }
+            Unless => {
+                println!("  cmp {}, 0", REGS[ir.lhs as usize]);
+                println!("  je .L{}", ir.rhs)
+            }
+            Add(None) => {
                 println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
             }
-            IRType::Add(Some(v)) => {
+            Add(Some(v)) => {
                 println!("  add {}, {}", REGS[ir.lhs as usize], v);
             }
-            IRType::Sub => {
+            Sub => {
                 println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
             }
-            IRType::Mul => {
+            Mul => {
                 println!("  mov rax, {}", REGS[ir.rhs as usize]);
                 println!("  mul {}", REGS[ir.lhs as usize]);
                 println!("  mov {}, rax", REGS[ir.lhs as usize]);
             }
-            IRType::Div => {
+            Div => {
                 println!("  mov rax, {}", REGS[ir.lhs as usize]);
                 println!("  cqo");
                 println!("  div {}", REGS[ir.rhs as usize]);
                 println!("  mov {}, rax", REGS[ir.lhs as usize]);
             }
 
-            IRType::Nop => {}
+            Nop => {}
             ty => fail!("unknown operator: {:?}", ty),
         }
     }
