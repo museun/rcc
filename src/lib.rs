@@ -16,8 +16,11 @@ pub use node::*;
 mod token;
 pub use token::*;
 
-mod gen;
-pub use gen::*;
+mod ir;
+pub use ir::*;
 
 mod reg;
 pub use reg::*;
+
+mod codegen;
+pub use codegen::*;

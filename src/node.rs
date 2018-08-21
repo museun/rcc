@@ -1,46 +1,41 @@
 use token::{Token, Tokens};
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum NodeType {
-    Return,
-    Compound,
-    Assign,
-    If,
-    Else,
-    Ident(String), // borrowed &str is out of the question
-    Constant(u32),
-    Expression(Token), // this is totally the wrong name for this
-}
+type NodeKind = Option<Box<Node>>;
 
-// TODO split this off into an enum
-#[derive(Debug)]
-pub struct Node {
-    pub ty: NodeType,
+#[derive(Debug, PartialEq)]
+pub enum Node {
+    Constant {
+        val: u32, // does this need the lhs?
+    },
+    Ident {
+        name: String, // does this need the rhs?
+    },
 
-    pub lhs: Option<Box<Node>>,
-    pub rhs: Option<Box<Node>>,
+    Return {
+        expr: NodeKind,
+    },
+    Assign {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
 
-    pub expr: Option<Box<Node>>,
-    pub stmts: Vec<Node>,
+    If {
+        cond: NodeKind,
+        body: NodeKind,
+        else_: NodeKind,
+    },
+    Else {
+        body: NodeKind,
+    },
 
-    pub cond: Option<Box<Node>>,
-    pub then: Option<Box<Node>>,
-    pub else_: Option<Box<Node>>,
-}
-
-impl Default for Node {
-    fn default() -> Self {
-        Node {
-            ty: NodeType::Return,
-            lhs: None,
-            rhs: None,
-            expr: None,
-            stmts: vec![],
-            cond: None,
-            then: None,
-            else_: None,
-        }
-    }
+    Compound {
+        stmts: Vec<Node>,
+    },
+    Expression {
+        lhs: NodeKind,
+        rhs: NodeKind,
+        tok: Token,
+    },
 }
 
 impl Node {
@@ -48,30 +43,14 @@ impl Node {
         Self::compound_stmt(tokens)
     }
 
-    fn new(ty: NodeType, lhs: Option<Node>, rhs: Option<Node>) -> Self {
-        Self {
-            ty,
-
-            lhs: lhs.map(Box::new),
-            rhs: rhs.map(Box::new),
-
-            expr: None,
-            stmts: vec![],
-
-            cond: None,
-            then: None,
-            else_: None,
-        }
-    }
-
     // ident, etc
     fn term(tokens: &mut Tokens) -> Self {
         match tokens.next_token() {
-            Some((_, Token::Num(n))) => Node::new(NodeType::Constant(*n), None, None),
-            Some((_, Token::Ident(name))) => Node::new(NodeType::Ident(name.clone()), None, None),
+            Some((_, Token::Num(n))) => Node::Constant { val: *n },
+            Some((_, Token::Ident(name))) => Node::Ident { name: name.clone() },
             Some((_, Token::OpenParen)) => {
                 let node = Node::assign(tokens);
-                check_tok(tokens, &node, &Token::CloseParen);
+                check_tok(tokens, &Token::CloseParen);
                 node
             }
             tok => fail!("number or ident expected, but got: {:?}", tok),
@@ -85,11 +64,11 @@ impl Node {
                 Some((_, tok @ Token::Mul)) | Some((_, tok @ Token::Div)) => {
                     let tok = tok.clone();
                     tokens.advance();
-                    lhs = Node::new(
-                        NodeType::Expression(tok),
-                        Some(lhs),
-                        Some(Self::term(tokens)),
-                    );
+                    lhs = Node::Expression {
+                        lhs: Some(Box::new(lhs)),
+                        rhs: Some(Box::new(Self::term(tokens))),
+                        tok,
+                    };
                 }
                 _ => break 'expr,
             }
@@ -104,11 +83,11 @@ impl Node {
                 Some((_, tok @ Token::Add)) | Some((_, tok @ Token::Sub)) => {
                     let tok = tok.clone();
                     tokens.advance();
-                    lhs = Node::new(
-                        NodeType::Expression(tok),
-                        Some(lhs),
-                        Some(Self::mul(tokens)),
-                    );
+                    lhs = Node::Expression {
+                        lhs: Some(Box::new(lhs)),
+                        rhs: Some(Box::new(Self::mul(tokens))),
+                        tok,
+                    };
                 }
                 _ => break 'expr,
             }
@@ -119,49 +98,49 @@ impl Node {
     fn assign(tokens: &mut Tokens) -> Self {
         let lhs = Self::expr(tokens);
         if eat(tokens, &Token::Assign) {
-            return Node::new(NodeType::Assign, Some(lhs), Some(Self::expr(tokens)));
+            return Node::Assign {
+                lhs: Some(Box::new(lhs)),
+                rhs: Some(Box::new(Self::expr(tokens))),
+            };
         }
         lhs
     }
 
     fn stmt(tokens: &mut Tokens) -> Self {
-        fn make_node(ty: NodeType, tokens: &mut Tokens) -> Node {
-            let mut node = Node::default();
-            node.ty = ty;
-            node.expr = Some(Box::new(Node::assign(tokens)));
-            node
-        }
-
         match tokens.peek() {
             Some((_, Token::If)) => {
                 tokens.advance();
-                let mut node = Node::default();
-                // if
-                node.ty = NodeType::If;
 
-                // (
-                check_tok(tokens, &node, &Token::OpenParen);
-                node.cond = Some(Box::new(Self::assign(tokens)));
-                // )
-                check_tok(tokens, &node, &Token::CloseParen);
-                node.then = Some(Box::new(Self::stmt(tokens)));
+                check_tok(tokens, &Token::OpenParen);
+                let cond = Some(Box::new(Self::assign(tokens)));
 
-                // else
-                if eat(tokens, &Token::Else) {
-                    node.else_ = Some(Box::new(Self::stmt(tokens)));
-                }
+                check_tok(tokens, &Token::CloseParen);
+                let body = Some(Box::new(Self::stmt(tokens)));
 
-                node
+                let else_ = if eat(tokens, &Token::Else) {
+                    Some(Box::new(Self::stmt(tokens)))
+                } else {
+                    None
+                };
+
+                Node::If { cond, body, else_ }
             }
             Some((_, Token::Ret)) => {
                 tokens.advance();
-                let node = make_node(NodeType::Return, tokens);
-                check_tok(tokens, &node, &Token::EOS);
+                let node = Node::Return {
+                    expr: Some(Box::new(Node::assign(tokens))),
+                };
+                check_tok(tokens, &Token::EOS);
                 node
             }
             Some((_, tok)) if *tok != Token::EOF => {
-                let node = make_node(NodeType::Expression(tok.clone()), tokens);
-                check_tok(tokens, &node, &Token::EOS);
+                let tok = tok.clone();
+                let node = Node::Expression {
+                    lhs: Some(Box::new(Node::assign(tokens))),
+                    rhs: None,
+                    tok,
+                };
+                check_tok(tokens, &Token::EOS);
                 node
             }
             Some((pos, tok)) => fail!("unexpected token at {}: {:?}", pos.clone(), tok),
@@ -170,13 +149,12 @@ impl Node {
     }
 
     fn compound_stmt(tokens: &mut Tokens) -> Self {
-        let mut node = Node::default();
-        node.ty = NodeType::Compound;
+        let mut stmts = vec![];
 
         loop {
             match tokens.peek() {
-                Some((_, tok)) if *tok == Token::EOF => return node,
-                _ => node.stmts.push(Self::stmt(tokens)),
+                Some((_, tok)) if *tok == Token::EOF => return Node::Compound { stmts },
+                _ => stmts.push(Self::stmt(tokens)),
             };
         }
     }
@@ -192,31 +170,9 @@ fn eat(tokens: &mut Tokens, tok: &Token) -> bool {
     }
 }
 
-fn check_tok(tokens: &mut Tokens, node: &Node, tok: &Token) {
+fn check_tok(tokens: &mut Tokens, tok: &Token) {
     match tokens.next_token() {
-        Some((pos, t)) if t != tok => fail!(
-            "{} expected. {:?} found at {}. built: {:#?}",
-            tok,
-            t,
-            pos,
-            node
-        ),
+        Some((pos, t)) if t != tok => fail!("{} expected. {:?} found at {}.", tok, t, pos,),
         _ => {}
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    // #[ignore]
-    fn test_parse() {
-        let input = "a = 1+2+3; b = 1*2/2; return a + b;";
-        let mut tokens = Tokens::tokenize(&input);
-        eprintln!("{}", tokens);
-
-        let nodes = Node::parse(&mut tokens);
-        eprintln!("{:#?}", nodes);
     }
 }
