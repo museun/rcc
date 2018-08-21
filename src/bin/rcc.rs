@@ -12,13 +12,12 @@ fn main() {
     let args = args.skip(1).collect::<String>();
     let input: &str = args.as_ref();
 
-    let tokens = tokenize(&input);
+    let mut tokens = Tokens::tokenize(&input);
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
 
-    let mut iter = &mut tokens.into_iter();
-    let root = Node::expr(&mut iter);
+    let root = Node::parse(&mut tokens);
 
     let mut gen = Generate::new();
     gen.gen_ir(&root);

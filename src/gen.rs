@@ -1,4 +1,6 @@
-use node::{Node, NodeType};
+use node::Node;
+use token::Token;
+
 //use token::Token;
 
 const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
@@ -10,13 +12,13 @@ pub enum IRType {
     Return,
     Kill, // deallocate register
     Nop,
-    Other(NodeType),
+    Other(Token),
 }
 
-impl From<NodeType> for IRType {
-    fn from(ty: NodeType) -> Self {
+impl From<Token> for IRType {
+    fn from(ty: Token) -> Self {
         match ty {
-            NodeType::Num(_) => IRType::Imm,
+            Token::Num(_) => IRType::Imm,
             t => IRType::Other(t),
         }
     }
@@ -54,7 +56,7 @@ impl Generate {
     }
 
     fn gen_ir_sub(&mut self, node: &Node) -> i32 {
-        if let NodeType::Num(n) = node.ty {
+        if let Token::Num(n) = node.ty {
             let r = self.inst.len() as i32;
             self.inst.push(IR::new(IRType::Imm, r, n as i32));
             return r;
@@ -142,13 +144,18 @@ impl Generate {
                 }
                 IRType::Return => {
                     println!("  mov rax, {}", REGS[ir.lhs as usize]);
-                    println!("  ret\n");
+                    println!("  ret");
                 }
-                IRType::Other(NodeType::Add) => {
-                    println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize],);
+                IRType::Other(Token::Add) => {
+                    println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
                 }
-                IRType::Other(NodeType::Sub) => {
-                    println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize],);
+                IRType::Other(Token::Sub) => {
+                    println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+                }
+                IRType::Other(Token::Mul) => {
+                    println!("  mov rax, {}", REGS[ir.rhs as usize]);
+                    println!("  mul {}", REGS[ir.lhs as usize]);
+                    println!("  mov {}, rax", REGS[ir.lhs as usize]);
                 }
                 IRType::Nop => {
                     // do nothing

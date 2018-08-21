@@ -1,27 +1,14 @@
-use token::Token;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum NodeType {
-    Add,
-    Sub,
-    Num(u32),
-}
-
-impl From<u32> for NodeType {
-    fn from(data: u32) -> Self {
-        NodeType::Num(data)
-    }
-}
+use token::{Token, Tokens};
 
 #[derive(Debug)]
 pub struct Node {
-    pub ty: NodeType,
+    pub ty: Token,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
 }
 
 impl Node {
-    pub fn new(ty: NodeType, lhs: Option<Node>, rhs: Option<Node>) -> Self {
+    fn new(ty: Token, lhs: Option<Node>, rhs: Option<Node>) -> Self {
         Self {
             ty,
             lhs: lhs.map(Box::new),
@@ -29,30 +16,51 @@ impl Node {
         }
     }
 
-    pub fn num(tokens: &mut impl Iterator<Item = Token>) -> Self {
-        match tokens.next() {
-            Some(Token::Num(n)) => Node::new(NodeType::Num(n), None, None),
+    fn num(tokens: &mut Tokens) -> Self {
+        match tokens.next_token() {
+            Some(tok @ Token::Num(_)) => Node::new(tok.clone(), None, None),
             tok => fail!("number expected, but got: {:?}", tok),
         }
     }
 
-    pub fn expr(tokens: &mut impl Iterator<Item = Token>) -> Self {
+    fn mul(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::num(tokens);
         'expr: loop {
-            match tokens.next() {
-                Some(Token::Add) => {
-                    lhs = Node::new(NodeType::Add, Some(lhs), Some(Self::num(tokens)));
-                }
-                Some(Token::Sub) => {
-                    lhs = Node::new(NodeType::Sub, Some(lhs), Some(Self::num(tokens)));
+            // this needs to peek
+            match tokens.peek() {
+                Some(tok @ Token::Mul) => {
+                    let tok = tok.clone();
+                    tokens.advance();
+                    lhs = Node::new(tok, Some(lhs), Some(Self::num(tokens)));
                 }
                 _ => break 'expr,
             }
         }
-
-        // TODO replace this iterator with a struct that'll allow peeking
-        // need to check to see if we're at the EOF
-
         lhs
+    }
+
+    fn expr(tokens: &mut Tokens) -> Self {
+        let mut lhs = Self::mul(tokens);
+        'expr: loop {
+            match tokens.peek() {
+                Some(tok @ Token::Add) | Some(tok @ Token::Sub) => {
+                    let tok = tok.clone();
+                    tokens.advance();
+                    lhs = Node::new(tok, Some(lhs), Some(Self::mul(tokens)));
+                }
+                _ => break 'expr,
+            }
+        }
+        lhs
+    }
+
+    pub fn parse(tokens: &mut Tokens) -> Self {
+        let node = Self::expr(tokens);
+
+        match tokens.peek() {
+            Some(Token::EOF) => {}
+            _ => fail!("stray tokens found"),
+        }
+        node
     }
 }
