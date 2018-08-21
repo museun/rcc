@@ -13,6 +13,7 @@ pub enum IRType {
 
     Unless,
     Label,
+    Jmp,
 
     // from tokens
     Add(Option<i32>),
@@ -84,24 +85,41 @@ impl Generate {
     }
 
     fn gen_stmt(&mut self, node: &Node) {
+        use IRType::*;
+
         match node.ty {
             NodeType::If => {
                 let r = self.gen_expr(node.cond.as_ref().unwrap());
-                let j = self.label;
+
+                let x = self.label;
                 self.label += 1;
-                self.add(IRType::Unless, r, j);
-                self.add(IRType::Kill, r, -1);
+
+                self.add(Unless, r, x);
+                // TODO figure out why killing this register breaks it
+                // self.add(Kill, r, -1);
                 self.gen_stmt(node.then.as_ref().unwrap());
-                self.add(IRType::Label, j, -1);
+
+                if node.else_.is_none() {
+                    self.add(Label, x, -1);
+                    return;
+                }
+
+                let y = self.label;
+                self.label += 1;
+
+                self.add(Jmp, y, -1);
+                self.add(Label, x, -1);
+                self.gen_stmt(node.else_.as_ref().unwrap());
+                self.add(Label, y, -1);
             }
             NodeType::Return => {
                 let r = self.gen_expr(node.expr.as_ref().unwrap());
-                self.add(IRType::Return, r, -1);
-                self.add(IRType::Kill, r, -1);
+                self.add(Return, r, -1);
+                self.add(Kill, r, -1);
             }
             NodeType::Expression(_) => {
                 let r = self.gen_expr(node.expr.as_ref().unwrap());
-                self.add(IRType::Kill, r, -1);
+                self.add(Kill, r, -1);
             }
             NodeType::Compound => {
                 for stmt in &node.stmts {
@@ -137,7 +155,6 @@ impl Generate {
         let lhs = self.gen_expr(node.lhs.as_ref().unwrap());
         let rhs = self.gen_expr(node.rhs.as_ref().unwrap());
 
-        // TODO `fix` this line
         self.add(node.ty.clone().into(), lhs, rhs);
         self.add(IRType::Kill, rhs, -1);
 
@@ -211,6 +228,9 @@ pub fn generate_x86(inst: Vec<IR>) {
             Unless => {
                 println!("  cmp {}, 0", REGS[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs)
+            }
+            Jmp => {
+                println!("  jmp .L{}", ir.lhs);
             }
             Add(None) => {
                 println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);

@@ -6,11 +6,13 @@ pub enum NodeType {
     Compound,
     Assign,
     If,
+    Else,
     Ident(String), // borrowed &str is out of the question
     Constant(u32),
     Expression(Token), // this is totally the wrong name for this
 }
 
+// TODO split this off into an enum
 #[derive(Debug)]
 pub struct Node {
     pub ty: NodeType,
@@ -23,6 +25,7 @@ pub struct Node {
 
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
+    pub else_: Option<Box<Node>>,
 }
 
 impl Default for Node {
@@ -35,6 +38,7 @@ impl Default for Node {
             stmts: vec![],
             cond: None,
             then: None,
+            else_: None,
         }
     }
 }
@@ -56,6 +60,7 @@ impl Node {
 
             cond: None,
             then: None,
+            else_: None,
         }
     }
 
@@ -131,11 +136,21 @@ impl Node {
             Some((_, Token::If)) => {
                 tokens.advance();
                 let mut node = Node::default();
+                // if
                 node.ty = NodeType::If;
+
+                // (
                 check_tok(tokens, &node, &Token::OpenParen);
                 node.cond = Some(Box::new(Self::assign(tokens)));
+                // )
                 check_tok(tokens, &node, &Token::CloseParen);
                 node.then = Some(Box::new(Self::stmt(tokens)));
+
+                // else
+                if eat(tokens, &Token::Else) {
+                    node.else_ = Some(Box::new(Self::stmt(tokens)));
+                }
+
                 node
             }
             Some((_, Token::Ret)) => {

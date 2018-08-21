@@ -16,7 +16,6 @@ impl Registers {
 
         for ir in inst.iter_mut() {
             match &ir.ty {
-                Imm | Alloca | Return => ir.lhs = this.alloc(ir.lhs),
                 Kill => {
                     this.kill(this.map[ir.lhs as usize]);
                     ir.ty = Nop;
@@ -25,7 +24,7 @@ impl Registers {
                     ir.lhs = this.alloc(ir.lhs);
                     ir.rhs = this.alloc(ir.rhs);
                 }
-                Add(Some(_)) | Label | Unless => {
+                Add(Some(_)) | Label | Unless | Jmp | Imm | Alloca | Return => {
                     ir.lhs = this.alloc(ir.lhs);
                 }
                 Nop => {

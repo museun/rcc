@@ -5,9 +5,10 @@ use std::{
 
 lazy_static! {
     static ref KEYWORDS: HashMap<&'static str, Token> = {
-        let mut map = HashMap::new();
-        map.insert("return", Token::Ret);
+        let mut map = HashMap::new(); // is this sorted?
         map.insert("if", Token::If);
+        map.insert("else", Token::Else);
+        map.insert("return", Token::Ret);
         map
     };
 }
@@ -20,6 +21,7 @@ pub enum Token {
     Div,
     Ret,
     If,
+    Else,
     Ident(String), // trust me on the heap allocation
     Assign,
     OpenParen,
@@ -163,6 +165,7 @@ impl fmt::Debug for Token {
             Token::Div => write!(f, "Div"),
             Token::Ret => write!(f, "Ret"),
             Token::If => write!(f, "If"),
+            Token::Else => write!(f, "Else"),
             Token::Ident(name) => write!(f, "Ident({})", name),
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
@@ -183,6 +186,7 @@ impl fmt::Display for Token {
             Token::Div => write!(f, "/"),
             Token::Ret => write!(f, "return"),
             Token::If => write!(f, "if"),
+            Token::Else => write!(f, "else"),
             Token::Ident(name) => write!(f, "{}", name),
             Token::Assign => write!(f, "="),
             Token::EOS => write!(f, ";"),
