@@ -151,16 +151,16 @@ use std::fmt;
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Token::Add => write!(f, "{}", "Add"),
-            Token::Sub => write!(f, "{}", "Sub"),
-            Token::Mul => write!(f, "{}", "Mul"),
-            Token::Div => write!(f, "{}", "Div"),
-            Token::Ret => write!(f, "{}", "Ret"),
+            Token::Add => write!(f, "Add"),
+            Token::Sub => write!(f, "Sub"),
+            Token::Mul => write!(f, "Mul"),
+            Token::Div => write!(f, "Div"),
+            Token::Ret => write!(f, "Ret"),
             Token::Ident(name) => write!(f, "Ident({})", name),
-            Token::Assign => write!(f, "{}", "Assign"),
-            Token::EOS => write!(f, "{}", "EOS"),
+            Token::Assign => write!(f, "Assign"),
+            Token::EOS => write!(f, "EOS"),
             Token::Num(n) => write!(f, "Num({})", n),
-            Token::EOF => write!(f, "{}", "EOF"),
+            Token::EOF => write!(f, "EOF"),
         }
     }
 }
@@ -168,16 +168,16 @@ impl fmt::Debug for Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Token::Add => write!(f, "{}", "+"),
-            Token::Sub => write!(f, "{}", "-"),
-            Token::Mul => write!(f, "{}", "*"),
-            Token::Div => write!(f, "{}", "/"),
-            Token::Ret => write!(f, "{}", "return"),
+            Token::Add => write!(f, "+"),
+            Token::Sub => write!(f, "-"),
+            Token::Mul => write!(f, "*"),
+            Token::Div => write!(f, "/"),
+            Token::Ret => write!(f, "return"),
             Token::Ident(name) => write!(f, "{}", name),
-            Token::Assign => write!(f, "{}", "="),
-            Token::EOS => write!(f, "{}", ";"),
+            Token::Assign => write!(f, "="),
+            Token::EOS => write!(f, ";"),
             Token::Num(n) => write!(f, "{}", n),
-            Token::EOF => write!(f, "{}", "▯"),
+            Token::EOF => write!(f, "▯"),
         }
     }
 }

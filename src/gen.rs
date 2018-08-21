@@ -10,17 +10,30 @@ pub enum IRType {
     Alloca,
     Load,
     Store,
-    Add,  // to add offsets
+
+    // from tokens
+    Add, // to add offsets
+    Sub,
+    Mul,
+    Div,
+
     Kill, // deallocate register
     Nop,
-    Other(NodeType), // do we need any context here?
 }
 
+// this is awful
 impl From<NodeType> for IRType {
     fn from(ty: NodeType) -> Self {
         match ty {
             NodeType::Constant(_) => IRType::Imm,
-            t => IRType::Other(t),
+            NodeType::Expression(t) => match t {
+                Token::Add => IRType::Add,
+                Token::Sub => IRType::Sub,
+                Token::Mul => IRType::Mul,
+                Token::Div => IRType::Div,
+                _ => fail!("invalid node type"),
+            },
+            _ => fail!("invalid node type"),
         }
     }
 }
@@ -59,11 +72,11 @@ impl Generate {
             offset: 0,
         };
 
-        this.inst.push(IR::new(IRType::Alloca, this.basereg, -1));
+        this.add(IRType::Alloca, this.basereg, -1);
         this.gen_stmt(&node);
         // adjust the final offset
         this.inst[0].rhs = this.offset;
-        this.inst.push(IR::new(IRType::Kill, this.basereg, -1));
+        this.add(IRType::Kill, this.basereg, -1);
         this.inst
     }
 
@@ -71,12 +84,12 @@ impl Generate {
         match node.ty {
             NodeType::Return => {
                 let r = self.gen_expr(node.expr.as_ref().unwrap());
-                self.inst.push(IR::new(IRType::Return, r, -1));
-                self.inst.push(IR::new(IRType::Kill, r, -1));
+                self.add(IRType::Return, r, -1);
+                self.add(IRType::Kill, r, -1);
             }
             NodeType::Expression(_) => {
                 let r = self.gen_expr(node.expr.as_ref().unwrap());
-                self.inst.push(IR::new(IRType::Kill, r, -1));
+                self.add(IRType::Kill, r, -1);
             }
             NodeType::Compound => {
                 for stmt in &node.stmts {
@@ -91,19 +104,19 @@ impl Generate {
         match &node.ty {
             NodeType::Constant(n) => {
                 let r = self.inst.len() as i32;
-                self.inst.push(IR::new(IRType::Imm, r, *n as i32));
+                self.add(IRType::Imm, r, *n as i32);
                 return r;
             }
             NodeType::Ident(_ident) => {
                 let r = self.gen_lval(node);
-                self.inst.push(IR::new(IRType::Load, r, r));
+                self.add(IRType::Load, r, r);
                 return r;
             }
             NodeType::Assign => {
                 let rhs = self.gen_expr(node.rhs.as_ref().unwrap());
                 let lhs = self.gen_lval(node.lhs.as_ref().unwrap());
-                self.inst.push(IR::new(IRType::Store, lhs, rhs));
-                self.inst.push(IR::new(IRType::Kill, rhs, -1));
+                self.add(IRType::Store, lhs, rhs);
+                self.add(IRType::Kill, rhs, -1);
                 return lhs;
             }
             _ => {}
@@ -112,8 +125,9 @@ impl Generate {
         let lhs = self.gen_expr(node.lhs.as_ref().unwrap());
         let rhs = self.gen_expr(node.rhs.as_ref().unwrap());
 
-        self.inst.push(IR::new(node.ty.clone().into(), lhs, rhs));
-        self.inst.push(IR::new(IRType::Kill, rhs, -1));
+        // TODO `fix` this line
+        self.add(node.ty.clone().into(), lhs, rhs);
+        self.add(IRType::Kill, rhs, -1);
 
         lhs
     }
@@ -126,19 +140,23 @@ impl Generate {
             }
 
             let r1 = self.inst.len() as i32;
-            self.inst.push(IR::new(IRType::Mov, r1, self.basereg));
+            self.add(IRType::Mov, r1, self.basereg);
 
             let offset = self.map.get(ident).expect("var to exist");
             let r2 = self.inst.len() as i32;
-            self.inst.push(IR::new(IRType::Imm, r2, *offset));
 
-            self.inst.push(IR::new(IRType::Add, r1, r2));
-            self.inst.push(IR::new(IRType::Kill, r2, -1));
+            self.add(IRType::Imm, r2, *offset);
+            self.add(IRType::Add, r1, r2);
+            self.add(IRType::Kill, r2, -1);
 
             return r1;
         }
 
         fail!("not an lvalue: {:?}", node);
+    }
+
+    fn add(&mut self, ty: IRType, lhs: i32, rhs: i32) {
+        self.inst.push(IR::new(ty, lhs, rhs))
     }
 }
 
@@ -189,27 +207,20 @@ pub fn generate_x86(inst: Vec<IR>) {
             IRType::Add => {
                 println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
             }
-            // this shouldn't be like this
-            IRType::Other(NodeType::Expression(e)) => match e {
-                Token::Add => {
-                    println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
-                }
-                Token::Sub => {
-                    println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
-                }
-                Token::Mul => {
-                    println!("  mov rax, {}", REGS[ir.rhs as usize]);
-                    println!("  mul {}", REGS[ir.lhs as usize]);
-                    println!("  mov {}, rax", REGS[ir.lhs as usize]);
-                }
-                Token::Div => {
-                    println!("  mov rax, {}", REGS[ir.lhs as usize]);
-                    println!("  cqo");
-                    println!("  div {}", REGS[ir.rhs as usize]);
-                    println!("  mov {}, rax", REGS[ir.lhs as usize]);
-                }
-                _ => fail!("unknown irtype: {:?}", ir),
-            },
+            IRType::Sub => {
+                println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+            }
+            IRType::Mul => {
+                println!("  mov rax, {}", REGS[ir.rhs as usize]);
+                println!("  mul {}", REGS[ir.lhs as usize]);
+                println!("  mov {}, rax", REGS[ir.lhs as usize]);
+            }
+            IRType::Div => {
+                println!("  mov rax, {}", REGS[ir.lhs as usize]);
+                println!("  cqo");
+                println!("  div {}", REGS[ir.rhs as usize]);
+                println!("  mov {}, rax", REGS[ir.lhs as usize]);
+            }
 
             IRType::Nop => {}
             ty => fail!("unknown operator: {:?}", ty),
