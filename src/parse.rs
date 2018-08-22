@@ -29,6 +29,11 @@ pub enum Node {
         rhs: NodeKind,
     },
 
+    LessThan {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
     If {
         cond: NodeKind,
         body: NodeKind,
@@ -142,14 +147,38 @@ impl Node {
         lhs
     }
 
-    fn logand(tokens: &mut Tokens) -> Self {
+    fn rel(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::add(tokens);
+        'expr: loop {
+            match tokens.peek() {
+                Some((_, Token::LessThan)) => {
+                    tokens.advance();
+                    lhs = Node::LessThan {
+                        lhs: Some(Box::new(lhs)),
+                        rhs: Some(Box::new(Self::add(tokens))),
+                    };
+                }
+                Some((_, Token::GreaterThan)) => {
+                    tokens.advance();
+                    lhs = Node::LessThan {
+                        lhs: Some(Box::new(Self::add(tokens))),
+                        rhs: Some(Box::new(lhs)),
+                    };
+                }
+                _ => break 'expr,
+            }
+        }
+        lhs
+    }
+
+    fn logand(tokens: &mut Tokens) -> Self {
+        let mut lhs = Self::rel(tokens);
         'expr: loop {
             if let Some((_, Token::LogAnd)) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
                     lhs: Some(Box::new(lhs)),
-                    rhs: Some(Box::new(Self::add(tokens))),
+                    rhs: Some(Box::new(Self::rel(tokens))),
                 };
             } else {
                 break 'expr;

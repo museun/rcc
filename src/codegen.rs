@@ -78,6 +78,11 @@ fn generate(func: &Function, label: &mut u32) {
                 println!("  div {}", REGS[*src as usize]);
                 println!("  mov {}, rax", REGS[*dst as usize]);
             }
+            IR::LessThan(RegReg { dst, src }) => {
+                println!("  cmp {}, {}", REGS[*dst as usize], REGS[*src as usize]);
+                println!("  setl {}", REGS8[*dst as usize]);
+                println!("  movzb {}, {}", REGS[*dst as usize], REGS8[*dst as usize]);
+            }
             IR::SaveArgs(Imm { val }) => {
                 for i in 0..*val {
                     println!("  mov [rbp-{}], {}", (i + 1) * 8, ARGS[i as usize]);

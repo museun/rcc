@@ -111,6 +111,15 @@ impl Generate {
         }
     }
 
+    fn gen_binops(&mut self, mut ir: IR, lhs: &Node, rhs: &Node) -> i32 {
+        let r1 = self.gen_expr(lhs);
+        let r2 = self.gen_expr(rhs);
+        *ir = reg_reg(r1, r2);
+        self.add(ir); // ??
+        self.add(IR::Kill(reg(r2)));
+        r1
+    }
+
     fn gen_expr(&mut self, node: &Node) -> i32 {
         match &node {
             Node::Constant { val } => {
@@ -179,6 +188,12 @@ impl Generate {
                 r
             }
 
+            Node::LessThan { lhs, rhs } => self.gen_binops(
+                IR::LessThan(IRType::Nop),
+                lhs.as_ref().unwrap(),
+                rhs.as_ref().unwrap(),
+            ),
+
             Node::Assign { lhs, rhs } => {
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
                 let lhs = self.gen_lval(lhs.as_ref().unwrap());
@@ -186,6 +201,8 @@ impl Generate {
                 self.add(IR::Kill(reg(rhs)));
                 lhs
             }
+
+            // TODO use gen_binops for this
             Node::Expression { lhs, rhs, tok } => {
                 let lhs = self.gen_expr(lhs.as_ref().unwrap());
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
@@ -280,11 +297,12 @@ pub enum IR {
     Unless(IRType),   // reg->imm
     Label(IRType),    // imm
     Jmp(IRType),      // imm
-    AddImm(IRType),   // reg->imm
+    AddImm(IRType),   // reg->imm  couldn't this just be an Add?
     Add(IRType),      // reg->reg
     Sub(IRType),      // reg->reg
     Mul(IRType),      // reg->reg
     Div(IRType),      // reg->reg
+    LessThan(IRType), // reg->reg
     Kill(IRType),     // reg
     Nop(IRType),      // nothing
     Call(IRType),     // call name, [args]
@@ -298,8 +316,8 @@ impl Deref for IR {
         use IR::*;
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Kill(ty) | Nop(ty)
-            | Call(ty) | SaveArgs(ty) => ty,
+            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty)
+            | Kill(ty) | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -309,8 +327,8 @@ impl DerefMut for IR {
         use IR::*;
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Kill(ty) | Nop(ty)
-            | Call(ty) | SaveArgs(ty) => ty,
+            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty)
+            | Kill(ty) | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -347,6 +365,7 @@ impl fmt::Debug for IR {
             Sub(ty) => write!(f, "Sub {{ {:?} }}", ty),
             Mul(ty) => write!(f, "Mul {{ {:?} }}", ty),
             Div(ty) => write!(f, "Div {{ {:?} }}", ty),
+            LessThan(ty) => write!(f, "Cmp {{ {:?} }}", ty),
             Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
             Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
             Call(ty) => write!(f, "Call {{ {:?} }}", ty),

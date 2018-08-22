@@ -3,10 +3,6 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-// lazy_static! {
-//     static ref KEYWORDS: HashMap<&'static str, Token> = {};
-// }
-
 #[derive(PartialEq, Clone)]
 pub enum Token {
     Add,           // +
@@ -15,6 +11,8 @@ pub enum Token {
     Div,           // /
     LogOr,         // ||
     LogAnd,        // &&
+    LessThan,      // <
+    GreaterThan,   // >
     Return,        // return
     If,            // if
     Else,          // else
@@ -128,6 +126,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '{' => Token::OpenBrace,
             '}' => Token::CloseBrace,
             ',' => Token::Comma,
+            '<' => Token::LessThan,
+            '>' => Token::GreaterThan,
 
             // digits
             c if c.is_ascii_digit() => {
@@ -190,6 +190,8 @@ impl fmt::Debug for Token {
             Token::Mul => write!(f, "Mul"),
             Token::Div => write!(f, "Div"),
             Token::LogOr => write!(f, "Or"),
+            Token::LessThan => write!(f, "LessThan"),
+            Token::GreaterThan => write!(f, "GreaterThan"),
             Token::LogAnd => write!(f, "And"),
             Token::Return => write!(f, "Return"),
             Token::If => write!(f, "If"),
@@ -217,6 +219,8 @@ impl fmt::Display for Token {
             Token::Div => write!(f, "/"),
             Token::LogOr => write!(f, "||"),
             Token::LogAnd => write!(f, "&&"),
+            Token::LessThan => write!(f, "<"),
+            Token::GreaterThan => write!(f, ">"),
             Token::Return => write!(f, "return"),
             Token::If => write!(f, "if"),
             Token::Else => write!(f, "else"),
