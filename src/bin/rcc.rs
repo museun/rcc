@@ -16,13 +16,8 @@ fn main() {
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
-    let root = Node::parse(&mut tokens);
-    let mut ir = Generate::gen_ir(&root);
+    let nodes = Node::parse(&mut tokens);
+    let mut ir = Generate::gen_ir(&nodes);
     Registers::allocate(&mut ir);
-
-    println!(".intel_syntax noprefix");
-    println!(".global main");
-    println!("main:");
-
     generate_x86(ir);
 }

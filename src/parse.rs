@@ -32,6 +32,11 @@ pub enum Node {
         name: String,
         args: Vec<Node>,
     },
+    Func {
+        name: String,
+        args: Vec<Node>,
+        body: NodeKind,
+    },
 
     Expression {
         lhs: NodeKind,
@@ -44,8 +49,15 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn parse(tokens: &mut Tokens) -> Self {
-        Self::compound_stmt(tokens)
+    pub fn parse(tokens: &mut Tokens) -> Vec<Self> {
+        let mut v = vec![];
+        loop {
+            if let Some((_, Token::EOF)) = tokens.peek() {
+                break;
+            }
+            v.push(Self::function(tokens))
+        }
+        v
     }
 
     // ident, etc
@@ -175,12 +187,37 @@ impl Node {
 
     fn compound_stmt(tokens: &mut Tokens) -> Self {
         let mut stmts = vec![];
+        while !eat(tokens, &Token::CloseBrace) {
+            stmts.push(Self::stmt(tokens))
+        }
+        Node::Compound { stmts }
+    }
 
-        loop {
-            match tokens.peek() {
-                Some((_, tok)) if *tok == Token::EOF => return Node::Compound { stmts },
-                _ => stmts.push(Self::stmt(tokens)),
-            };
+    fn function(tokens: &mut Tokens) -> Self {
+        match tokens.peek() {
+            Some((_, Token::Ident(ref name))) => {
+                let name = name.clone();
+                tokens.advance();
+                check_tok(tokens, &Token::OpenParen);
+                let mut args = vec![];
+                while !eat(tokens, &Token::CloseParen) {
+                    args.push(Self::term(tokens))
+                }
+                check_tok(tokens, &Token::OpenBrace);
+                Node::Func {
+                    name,
+                    args,
+                    body: Some(Box::new(Self::compound_stmt(tokens))),
+                }
+            }
+            Some((pos, tok)) => {
+                fail!(
+                    "function name expected at {}, but got: {:?}",
+                    pos.clone(),
+                    tok.clone()
+                );
+            }
+            _ => unreachable!(), // should be..
         }
     }
 }

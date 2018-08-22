@@ -9,20 +9,22 @@ use std::{
 
 #[derive(PartialEq, Clone)]
 pub enum Token {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Ret,
-    If,
-    Else,
-    Ident(String), // trust me on the heap allocation
-    Assign,
-    OpenParen,
-    CloseParen,
-    Comma,
-    EOS, // end of statement (expression? what are they called in legallese C)
-    Num(u32),
+    Add,           // +
+    Sub,           // -
+    Mul,           // *
+    Div,           // /
+    Ret,           // return
+    If,            // if
+    Else,          // else
+    Num(u32),      // n
+    Ident(String), // name
+    Assign,        // =
+    OpenParen,     // (
+    CloseParen,    // )
+    OpenBrace,     // {
+    CloseBrace,    // }
+    Comma,         // ,
+    EOS,           // ;
     EOF,
 }
 
@@ -117,6 +119,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '=' => Token::Assign,
             '(' => Token::OpenParen,
             ')' => Token::CloseParen,
+            '{' => Token::OpenBrace,
+            '}' => Token::CloseBrace,
             ',' => Token::Comma,
 
             // digits
@@ -171,6 +175,8 @@ impl fmt::Debug for Token {
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
             Token::CloseParen => write!(f, "CloseParen"),
+            Token::OpenBrace => write!(f, "OpenBrace"),
+            Token::CloseBrace => write!(f, "CloseBrace"),
             Token::Comma => write!(f, "Comma"),
             Token::EOS => write!(f, "EOS"),
             Token::Num(n) => write!(f, "Num({})", n),
@@ -194,6 +200,8 @@ impl fmt::Display for Token {
             Token::EOS => write!(f, ";"),
             Token::OpenParen => write!(f, "("),
             Token::CloseParen => write!(f, ")"),
+            Token::OpenBrace => write!(f, "{{"),
+            Token::CloseBrace => write!(f, "}}"),
             Token::Comma => write!(f, ","),
             Token::Num(n) => write!(f, "{}", n),
             Token::EOF => write!(f, "▯"),

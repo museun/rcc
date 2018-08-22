@@ -35,13 +35,30 @@ fn main() {
                 let mut tokens = Tokens::tokenize(&input);
                 eprintln!("{:?}", Node::parse(&mut tokens));
             }
-
             "ir" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
                 let mut tokens = Tokens::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
                 eprintln!("{:#?}", Generate::gen_ir(&ast));
+            }
+            "reg" => {
+                let args = args.skip(2).collect::<String>();
+                let input: &str = args.as_ref();
+                let mut tokens = Tokens::tokenize(&input);
+                let ast = Node::parse(&mut tokens);
+                let mut ir = Generate::gen_ir(&ast);
+                Registers::allocate(&mut ir);
+                eprintln!("{:#?}", ir);
+            }
+            "asm" => {
+                let args = args.skip(2).collect::<String>();
+                let input: &str = args.as_ref();
+                let mut tokens = Tokens::tokenize(&input);
+                let ast = Node::parse(&mut tokens);
+                let mut ir = Generate::gen_ir(&ast);
+                Registers::allocate(&mut ir);
+                generate_x86(ir);
             }
             _ => {}
         }

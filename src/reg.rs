@@ -1,4 +1,7 @@
 use super::*;
+use std::ops::DerefMut;
+
+pub(crate) const REGS: [&str; 7] = ["rbp", "r10", "r11", "r12", "r13", "r14", "r15"];
 
 pub struct Registers {
     used: [bool; 8],
@@ -6,38 +9,43 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn allocate(inst: &mut Vec<IR>) {
-        let mut this = Self {
-            used: [false; 8],
-            map: vec![-1; MAX_INST],
-        };
+    pub fn allocate(funcs: &mut Vec<Function>) {
+        for func in funcs {
+            let mut this = Self {
+                used: [false; 8],
+                map: vec![-1; func.ir.len()],
+            };
+            // first register will be reserved for rbp
+            this.map[0] = 0;
+            this.used[0] = true;
 
-        use std::ops::DerefMut;
+            this.visit(&mut func.ir);
+        }
+    }
 
+    fn visit(&mut self, inst: &mut Vec<IR>) {
         use IRType::*;
-        use IR::*;
 
         for ir in inst.iter_mut() {
-            if let Kill(Reg { src }) = &ir {
-                this.kill(this.map[*src as usize]);
+            if let IR::Kill(Reg { src }) = &ir {
+                self.kill(self.map[*src as usize]);
                 *ir = IR::Nop(IRType::Nop);
                 continue;
             };
 
-            // shit
             match ir.deref_mut() {
                 RegReg { dst, src } => {
-                    *dst = this.alloc(*dst);
-                    *src = this.alloc(*src);
+                    *dst = self.alloc(*dst);
+                    *src = self.alloc(*src);
                 }
-                Reg { src } => *src = this.alloc(*src),
+                Reg { src } => *src = self.alloc(*src),
                 RegImm { reg, .. } => {
-                    *reg = this.alloc(*reg);
+                    *reg = self.alloc(*reg);
                 }
                 IRType::Call { reg, args, .. } => {
-                    *reg = this.alloc(*reg);
+                    *reg = self.alloc(*reg);
                     for arg in args {
-                        *arg = this.alloc(*arg)
+                        *arg = self.alloc(*arg)
                     }
                 }
                 IRType::Imm { .. } | IRType::Nop { .. } => {
@@ -59,8 +67,8 @@ impl Registers {
                 continue;
             }
 
-            self.used[i] = true;
             self.map[r as usize] = i as i32;
+            self.used[i] = true;
             return i as i32;
         }
 
