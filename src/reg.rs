@@ -29,7 +29,11 @@ impl Registers {
 
         for ir in inst.iter_mut() {
             if let IR::Kill(Reg { src }) = &ir {
-                self.kill(self.map[*src as usize]);
+                let r = self.map[*src as usize] as usize;
+
+                debug_assert!(self.used[r]);
+                self.used[r] = false;
+
                 *ir = IR::Nop(IRType::Nop);
                 continue;
             };
@@ -74,10 +78,5 @@ impl Registers {
         }
 
         fail!("registers exhausted")
-    }
-
-    fn kill(&mut self, r: i32) {
-        debug_assert!(self.used[r as usize]);
-        self.used[r as usize] = false;
     }
 }
