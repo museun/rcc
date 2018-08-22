@@ -69,9 +69,21 @@ impl Generate {
 
     fn gen_stmt(&mut self, node: &Node) {
         match node {
-            Node::Vardef { name } => {
+            Node::Vardef { name, init } => {
                 self.stacksize += 8;
                 self.map.insert(name.clone(), self.stacksize);
+
+                if init.is_none() {
+                    return;
+                }
+
+                let rhs = self.gen_expr(init.as_ref().unwrap());
+                let lhs = self.next_reg();
+                self.add(IR::Mov(reg_reg(lhs, 0)));
+                self.add(IR::Sub(reg_imm(lhs, self.stacksize)));
+                self.add(IR::Store(reg_reg(lhs, rhs)));
+                self.add(IR::Kill(reg(lhs)));
+                self.add(IR::Kill(reg(rhs)));
             }
             Node::If { cond, body, else_ } => {
                 let r = self.gen_expr(cond.as_ref().unwrap());
@@ -152,7 +164,7 @@ impl Generate {
     fn gen_expr(&mut self, node: &Node) -> i32 {
         match &node {
             Node::Constant { val } => {
-                let r = (self.inst.len() + 1) as i32;
+                let r = self.next_reg();
                 self.add(IR::Add(reg_imm(r, *val as i32)));
                 r
             }
@@ -204,7 +216,7 @@ impl Generate {
                     vec.push(self.gen_expr(arg))
                 }
 
-                let r = (self.inst.len() + 1) as i32;
+                let r = self.next_reg();
                 self.add(IR::Call(IRType::Call {
                     reg: r,
                     name: name.clone(),
@@ -257,7 +269,7 @@ impl Generate {
                 fail!("undefined variable: {}", name)
             }
 
-            let r = (self.inst.len() + 1) as i32;
+            let r = self.next_reg();
             self.add(IR::Mov(reg_reg(r, 0)));
 
             let offset = self.map.get(name).expect("var to exist");
@@ -266,6 +278,10 @@ impl Generate {
         }
 
         fail!("not an lvalue: {:?}", node);
+    }
+
+    fn next_reg(&self) -> i32 {
+        (self.inst.len() + 1) as i32
     }
 
     fn add(&mut self, ir: IR) {

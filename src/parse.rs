@@ -14,6 +14,7 @@ pub enum Node {
     // types
     Vardef {
         name: String,
+        init: NodeKind,
     },
 
     Return {
@@ -121,10 +122,15 @@ impl Node {
                 tokens.advance();
                 let (_, name) = expect_ident(tokens, "variable name expected");
                 let name = name.to_string();
-                // this should do an assignment?
+
+                let init = if consume(tokens, '=') {
+                    make(Self::assign(tokens))
+                } else {
+                    None
+                };
 
                 check(tokens, ';');
-                Node::Vardef { name }
+                Node::Vardef { name, init }
             }
             Some((_, Token::If)) => {
                 tokens.advance();
