@@ -93,6 +93,31 @@ impl Generate {
                 self.gen_stmt(else_.as_ref().unwrap());
                 self.add(IR::Label(imm(y)));
             }
+            Node::For {
+                init,
+                cond,
+                step,
+                body,
+            } => {
+                let x = self.label;
+                self.label += 1;
+                let y = self.label;
+                self.label += 1;
+
+                let n = self.gen_expr(init.as_ref().unwrap());
+                self.add(IR::Kill(reg(n)));
+                self.add(IR::Label(imm(x)));
+
+                let r = self.gen_expr(cond.as_ref().unwrap());
+                self.add(IR::Unless(reg_imm(r, y)));
+                self.add(IR::Kill(reg(r)));
+                self.gen_stmt(body.as_ref().unwrap());
+
+                let n = self.gen_expr(step.as_ref().unwrap());
+                self.add(IR::Kill(reg(n)));
+                self.add(IR::Jmp(imm(x)));
+                self.add(IR::Label(imm(y)));
+            }
             Node::Return { expr } => {
                 let r = self.gen_expr(expr.as_ref().unwrap());
                 self.add(IR::Return(reg(r)));

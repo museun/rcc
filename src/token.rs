@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
 #[derive(PartialEq, Clone)]
 pub enum Token {
@@ -16,6 +13,7 @@ pub enum Token {
     Return,        // return
     If,            // if
     Else,          // else
+    For,           // for
     Num(u32),      // n
     Ident(String), // name
     Assign,        // =
@@ -92,12 +90,11 @@ impl<'a> IndexMut<usize> for Tokens<'a> {
 }
 
 fn scan(s: &str) -> Vec<(usize, Token)> {
-    let mut keywords = HashMap::new();
-    keywords.insert("if", Token::If);
-    keywords.insert("else", Token::Else);
-    keywords.insert("return", Token::Return);
-
     let mut symbols = vec![];
+    symbols.push(("if", Token::If));
+    symbols.push(("else", Token::Else));
+    symbols.push(("return", Token::Return));
+    symbols.push(("for", Token::For));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
 
@@ -164,10 +161,16 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     .collect::<String>();
                 skip += name.len() - 1;
 
-                if keywords.contains_key(name.as_str()) {
-                    keywords[name.as_str()].clone()
-                } else {
+                let mut out = None;
+                for symbol in &symbols {
+                    if symbol.0 == name {
+                        out = Some(symbol.1.clone());
+                    }
+                }
+                if out.is_none() {
                     Token::Ident(name)
+                } else {
+                    out.unwrap()
                 }
             }
 
@@ -196,6 +199,7 @@ impl fmt::Debug for Token {
             Token::Return => write!(f, "Return"),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
+            Token::For => write!(f, "For"),
             Token::Ident(name) => write!(f, "Ident({})", name),
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
@@ -224,6 +228,7 @@ impl fmt::Display for Token {
             Token::Return => write!(f, "return"),
             Token::If => write!(f, "if"),
             Token::Else => write!(f, "else"),
+            Token::For => write!(f, "for"),
             Token::Ident(name) => write!(f, "{}", name),
             Token::Assign => write!(f, "="),
             Token::Semicolon => write!(f, ";"),

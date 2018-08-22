@@ -43,6 +43,13 @@ pub enum Node {
         body: NodeKind,
     },
 
+    For {
+        init: NodeKind,
+        cond: NodeKind,
+        step: NodeKind,
+        body: NodeKind,
+    },
+
     Call {
         name: String,
         args: Vec<Node>,
@@ -218,7 +225,6 @@ impl Node {
         match tokens.peek() {
             Some((_, Token::If)) => {
                 tokens.advance();
-
                 check_tok(tokens, &Token::OpenParen);
                 let cond = Some(Box::new(Self::assign(tokens)));
 
@@ -232,6 +238,27 @@ impl Node {
                 };
 
                 Node::If { cond, body, else_ }
+            }
+            Some((_, Token::For)) => {
+                tokens.advance();
+                check_tok(tokens, &Token::OpenParen);
+                let init = Self::assign(tokens);
+
+                check_tok(tokens, &Token::Semicolon);
+                let cond = Self::assign(tokens);
+
+                check_tok(tokens, &Token::Semicolon);
+                let step = Self::assign(tokens);
+
+                check_tok(tokens, &Token::CloseParen);
+                let body = Self::stmt(tokens);
+
+                Node::For {
+                    init: Some(Box::new(init)),
+                    cond: Some(Box::new(cond)),
+                    step: Some(Box::new(step)),
+                    body: Some(Box::new(body)),
+                }
             }
             Some((_, Token::Return)) => {
                 tokens.advance();
