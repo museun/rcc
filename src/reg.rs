@@ -12,23 +12,30 @@ impl Registers {
             map: vec![-1; MAX_INST],
         };
 
+        use std::ops::DerefMut;
+
         use IRType::*;
+        use IR::*;
 
         for ir in inst.iter_mut() {
-            match &ir.ty {
-                Kill => {
-                    this.kill(this.map[ir.lhs as usize]);
-                    ir.ty = Nop;
+            if let Kill(Reg { src }) = &ir {
+                this.kill(this.map[*src as usize]);
+                *ir = IR::Nop(IRType::Nop);
+                continue;
+            };
+
+            // shit
+            match ir.deref_mut() {
+                RegReg { dst, src } => {
+                    *dst = this.alloc(*dst);
+                    *src = this.alloc(*src);
                 }
-                Mov | Load | Store | Sub | Mul | Div | Add(None) => {
-                    ir.lhs = this.alloc(ir.lhs);
-                    ir.rhs = this.alloc(ir.rhs);
+                Reg { src } => *src = this.alloc(*src),
+                RegImm { reg, .. } => {
+                    *reg = this.alloc(*reg);
                 }
-                Add(Some(_)) | Label | Unless | Jmp | Imm | Alloca | Return => {
-                    ir.lhs = this.alloc(ir.lhs);
-                }
-                Nop => {
-                    // do nothing
+                IRType::Imm { .. } | IRType::Nop { .. } => {
+                    // doesn't need register allocations
                 }
             }
         }

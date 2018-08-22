@@ -8,68 +8,62 @@ pub fn generate_x86(inst: Vec<IR>) {
     println!("  mov rbp, rsp");
 
     use IRType::*;
+    use IR::*;
+
     for ir in inst {
-        match &ir.ty {
-            Imm => {
-                println!("  mov {}, {}", REGS[ir.lhs as usize], ir.rhs);
+        match &ir {
+            IR::Imm(RegImm { reg, val }) => {
+                println!("  mov {}, {}", REGS[*reg as usize], val);
             }
-            Mov => {
-                println!("  mov {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+            Mov(RegReg { dst, src }) => {
+                println!("  mov {}, {}", REGS[*dst as usize], REGS[*src as usize]);
             }
-            Return => {
-                println!("  mov rax, {}", REGS[ir.lhs as usize]);
+            Return(Reg { src }) => {
+                println!("  mov rax, {}", REGS[*src as usize]);
                 println!("  jmp {}", ret);
             }
-            Alloca => {
-                if ir.rhs != 0 {
-                    println!("  sub rsp, {}", ir.rhs);
+            Alloca(RegImm { reg, val }) => {
+                if *val != 0 {
+                    println!("  sub rsp, {}", val);
                 }
-                println!("  mov {}, rsp", REGS[ir.lhs as usize]);
+                println!("  mov {}, rsp", REGS[*reg as usize]);
             }
-            Load => {
-                println!(
-                    "  mov {}, [{}]",
-                    REGS[ir.lhs as usize], REGS[ir.rhs as usize]
-                );
+            Load(RegReg { dst, src }) => {
+                println!("  mov {}, [{}]", REGS[*dst as usize], REGS[*src as usize]);
             }
-            Store => {
-                println!(
-                    "  mov [{}], {}",
-                    REGS[ir.lhs as usize], REGS[ir.rhs as usize]
-                );
+            Store(RegReg { dst, src }) => {
+                println!("  mov [{}], {}", REGS[*dst as usize], REGS[*src as usize]);
             }
-            Label => {
-                println!(".L{}:", ir.lhs);
+            Label(IRType::Imm { val }) => println!(".L{}:", val),
+            Unless(RegImm { reg, val }) => {
+                println!("  cmp {}, 0", REGS[*reg as usize]);
+                println!("  je .L{}", val)
             }
-            Unless => {
-                println!("  cmp {}, 0", REGS[ir.lhs as usize]);
-                println!("  je .L{}", ir.rhs)
+            Jmp(IRType::Imm { val }) => println!("  jmp .L{}", val),
+            Add(RegReg { dst, src }) => {
+                println!("  add {}, {}", REGS[*dst as usize], REGS[*src as usize]);
             }
-            Jmp => {
-                println!("  jmp .L{}", ir.lhs);
+            Add(RegImm { reg, val }) => {
+                println!("  add {}, {}", REGS[*reg as usize], val);
             }
-            Add(None) => {
-                println!("  add {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+            AddImm(RegImm { reg, val }) => {
+                println!("  mov {}, {}", REGS[*reg as usize], val);
             }
-            Add(Some(v)) => {
-                println!("  add {}, {}", REGS[ir.lhs as usize], v);
+            Sub(RegReg { dst, src }) => {
+                println!("  sub {}, {}", REGS[*dst as usize], REGS[*src as usize]);
             }
-            Sub => {
-                println!("  sub {}, {}", REGS[ir.lhs as usize], REGS[ir.rhs as usize]);
+            Mul(RegReg { dst, src }) => {
+                println!("  mov rax, {}", REGS[*src as usize]);
+                println!("  mul {}", REGS[*dst as usize]);
+                println!("  mov {}, rax", REGS[*dst as usize]);
             }
-            Mul => {
-                println!("  mov rax, {}", REGS[ir.rhs as usize]);
-                println!("  mul {}", REGS[ir.lhs as usize]);
-                println!("  mov {}, rax", REGS[ir.lhs as usize]);
-            }
-            Div => {
-                println!("  mov rax, {}", REGS[ir.lhs as usize]);
+            Div(RegReg { dst, src }) => {
+                println!("  mov rax, {}", REGS[*dst as usize]);
                 println!("  cqo");
-                println!("  div {}", REGS[ir.rhs as usize]);
-                println!("  mov {}, rax", REGS[ir.lhs as usize]);
+                println!("  div {}", REGS[*src as usize]);
+                println!("  mov {}, rax", REGS[*dst as usize]);
             }
-
-            Nop => {}
+            IR::Nop(_) => {}
             ty => fail!("unknown operator: {:?}", ty),
         }
     }

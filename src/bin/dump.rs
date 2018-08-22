@@ -36,11 +36,13 @@ fn main() {
                 eprintln!("{:?}", Node::parse(&mut tokens));
             }
 
-            "pass1" => {}
-            "pass1_p" => {}
-
-            "pass2" => {}
-            "pass2_p" => {}
+            "ir" => {
+                let args = args.skip(2).collect::<String>();
+                let input: &str = args.as_ref();
+                let mut tokens = Tokens::tokenize(&input);
+                let ast = Node::parse(&mut tokens);
+                eprintln!("{:#?}", Generate::gen_ir(&ast));
+            }
             _ => {}
         }
     }

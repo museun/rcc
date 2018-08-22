@@ -3,15 +3,9 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-lazy_static! {
-    static ref KEYWORDS: HashMap<&'static str, Token> = {
-        let mut map = HashMap::new(); // is this sorted?
-        map.insert("if", Token::If);
-        map.insert("else", Token::Else);
-        map.insert("return", Token::Ret);
-        map
-    };
-}
+// lazy_static! {
+//     static ref KEYWORDS: HashMap<&'static str, Token> = {};
+// }
 
 #[derive(PartialEq, Clone)]
 pub enum Token {
@@ -95,6 +89,11 @@ impl<'a> IndexMut<usize> for Tokens<'a> {
 }
 
 fn scan(s: &str) -> Vec<(usize, Token)> {
+    let mut keywords = HashMap::new();
+    keywords.insert("if", Token::If);
+    keywords.insert("else", Token::Else);
+    keywords.insert("return", Token::Ret);
+
     let mut data = vec![];
     let mut skip = 0;
 
@@ -138,8 +137,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     .collect::<String>();
                 skip += name.len() - 1;
 
-                if KEYWORDS.contains_key(name.as_str()) {
-                    KEYWORDS[name.as_str()].clone()
+                if keywords.contains_key(name.as_str()) {
+                    keywords[name.as_str()].clone()
                 } else {
                     Token::Ident(name)
                 }

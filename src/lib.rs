@@ -1,8 +1,5 @@
 #![feature(nll)]
 
-#[macro_use]
-extern crate lazy_static;
-
 pub(crate) const MAX_INST: usize = 1000;
 pub(crate) const REGS: [&str; 8] = ["rdi", "rsi", "r10", "r11", "r12", "r13", "r14", "r15"];
 

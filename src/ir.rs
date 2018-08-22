@@ -1,35 +1,9 @@
 use super::*;
-use std::collections::HashMap;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum IRType {
-    Imm,
-    Mov,
-    Return,
-    Alloca, // this needs to go for function calls to work
-    Load,
-    Store,
-
-    Unless,
-    Label,
-    Jmp,
-
-    // from tokens
-    Add(Option<i32>),
-    Sub,
-    Mul,
-    Div,
-
-    Kill, // deallocate register
-    Nop,
-}
-
-#[derive(Debug, Clone)]
-pub struct IR {
-    pub(crate) ty: IRType,
-    pub(crate) lhs: i32,
-    pub(crate) rhs: i32,
-}
+use std::{
+    collections::HashMap,
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 #[derive(Debug)]
 pub struct Generate {
@@ -57,16 +31,22 @@ impl Generate {
             offset: 0,
         };
 
-        this.add(IRType::Alloca, this.basereg, -1);
+        this.add(IR::Alloca(reg_imm(this.basereg, -1)));
+
         this.gen_stmt(&node);
         // adjust the final offset
-        this.inst[0].rhs = this.offset;
-        this.add(IRType::Kill, this.basereg, -1);
+        match this.inst.get_mut(0) {
+            Some(IR::Alloca(IRType::RegImm { val, .. })) => *val = this.offset,
+            inst => fail!("expected alloca to be the first register. got: {:?}", inst),
+        }
+
+        this.add(IR::Kill(reg(this.basereg)));
+
         this.inst
     }
 
     fn gen_stmt(&mut self, node: &Node) {
-        use IRType::*;
+        use IR::*;
 
         match node {
             Node::If { cond, body, else_ } => {
@@ -75,32 +55,33 @@ impl Generate {
                 let x = self.label;
                 self.label += 1;
 
-                self.add(Unless, r, x);
-                // TODO figure out why killing this register breaks it
-                // self.add(Kill, r, -1);
+                self.add(Unless(reg_imm(r, x)));
+
+                self.add(Kill(reg(r)));
                 self.gen_stmt(body.as_ref().unwrap());
 
                 if else_.is_none() {
-                    self.add(Label, x, -1);
+                    self.add(Label(imm(x)));
                     return;
                 }
 
                 let y = self.label;
                 self.label += 1;
 
-                self.add(Jmp, y, -1);
-                self.add(Label, x, -1);
+                self.add(Jmp(imm(y)));
+                self.add(Label(imm(x)));
+
                 self.gen_stmt(else_.as_ref().unwrap());
-                self.add(Label, y, -1);
+                self.add(Label(imm(y)));
             }
             Node::Return { expr } => {
                 let r = self.gen_expr(expr.as_ref().unwrap());
-                self.add(Return, r, -1);
-                self.add(Kill, r, -1);
+                self.add(Return(reg(r)));
+                self.add(Kill(reg(r)));
             }
             Node::Expression { lhs, .. } => {
                 let r = self.gen_expr(lhs.as_ref().unwrap());
-                self.add(Kill, r, -1);
+                self.add(Kill(reg(r)));
             }
             Node::Compound { stmts } => {
                 for stmt in stmts {
@@ -112,36 +93,39 @@ impl Generate {
     }
 
     fn gen_expr(&mut self, node: &Node) -> i32 {
+        use IR::*;
+
         match &node {
             Node::Constant { val } => {
                 let r = self.inst.len() as i32;
-                self.add(IRType::Imm, r, *val as i32);
+                self.add(AddImm(reg_imm(r, *val as i32)));
                 r
             }
             Node::Ident { .. } => {
                 let r = self.gen_lval(node);
-                self.add(IRType::Load, r, r);
+                self.add(Load(reg_reg(r, r)));
                 r
             }
             Node::Assign { lhs, rhs } => {
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
                 let lhs = self.gen_lval(lhs.as_ref().unwrap());
-                self.add(IRType::Store, lhs, rhs);
-                self.add(IRType::Kill, rhs, -1);
+                self.add(Store(reg_reg(lhs, rhs)));
+                self.add(Kill(reg(rhs)));
                 lhs
             }
             Node::Expression { lhs, rhs, tok } => {
                 let lhs = self.gen_expr(lhs.as_ref().unwrap());
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
+                let ty = reg_reg(lhs, rhs);
                 let ir = match tok {
-                    Token::Add => IRType::Add(None),
-                    Token::Sub => IRType::Sub,
-                    Token::Mul => IRType::Mul,
-                    Token::Div => IRType::Div,
+                    Token::Add => Add(ty),
+                    Token::Sub => Sub(ty),
+                    Token::Mul => Mul(ty),
+                    Token::Div => Div(ty),
                     _ => fail!("invalid node type"),
                 };
-                self.add(ir, lhs, rhs);
-                self.add(IRType::Kill, rhs, -1);
+                self.add(ir);
+                self.add(Kill(reg(rhs)));
                 lhs
             }
             _ => fail!("unknown node: {:?}", node),
@@ -149,6 +133,8 @@ impl Generate {
     }
 
     fn gen_lval(&mut self, node: &Node) -> i32 {
+        use IR::*;
+
         if let Node::Ident { name } = &node {
             if !self.map.contains_key(name) {
                 self.map.insert(name.clone(), self.offset);
@@ -156,18 +142,128 @@ impl Generate {
             }
 
             let r1 = self.inst.len() as i32;
-            self.add(IRType::Mov, r1, self.basereg);
+            self.add(Mov(reg_reg(r1, self.basereg)));
 
             let offset = self.map.get(name).expect("var to exist");
-            let r2 = self.inst.len() as i32;
-            self.add(IRType::Add(Some(*offset)), r1, r2);
+            let _r2 = self.inst.len() as i32;
+
+            self.add(Add(reg_imm(r1, *offset)));
             return r1;
         }
 
         fail!("not an lvalue: {:?}", node);
     }
 
-    fn add(&mut self, ty: IRType, lhs: i32, rhs: i32) {
-        self.inst.push(IR { ty, lhs, rhs })
+    fn add(&mut self, ir: IR) {
+        self.inst.push(ir)
+    }
+}
+
+#[derive(Clone)]
+pub enum IRType {
+    RegReg { dst: i32, src: i32 },
+    RegImm { reg: i32, val: i32 },
+    Reg { src: i32 },
+    Imm { val: i32 },
+    Nop,
+}
+
+// helpers to make IRTypes
+
+fn reg_reg(dst: i32, src: i32) -> IRType {
+    IRType::RegReg { dst, src }
+}
+
+fn reg_imm(reg: i32, val: i32) -> IRType {
+    IRType::RegImm { reg, val }
+}
+
+fn reg(src: i32) -> IRType {
+    IRType::Reg { src }
+}
+
+fn imm(val: i32) -> IRType {
+    IRType::Imm { val }
+}
+
+#[derive(Clone)]
+pub enum IR {
+    Imm(IRType),    // reg->imm
+    Mov(IRType),    // reg->reg
+    Return(IRType), // reg
+    Alloca(IRType), // reg->imm
+    Load(IRType),   // reg->reg
+    Store(IRType),  // reg->reg
+    Unless(IRType), // reg->imm
+    Label(IRType),  // imm
+    Jmp(IRType),    // imm
+    AddImm(IRType), // reg->imm
+    Add(IRType),    // reg->reg
+    Sub(IRType),    // reg->reg
+    Mul(IRType),    // reg->reg
+    Div(IRType),    // reg->reg
+    Kill(IRType),   // reg
+    Nop(IRType),    // nothing
+}
+
+impl Deref for IR {
+    type Target = IRType;
+
+    fn deref(&self) -> &Self::Target {
+        use IR::*;
+        match self {
+            Imm(ty) | Mov(ty) | Return(ty) | Alloca(ty) | Load(ty) | Store(ty) | Unless(ty)
+            | Label(ty) | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty)
+            | Kill(ty) | Nop(ty) => ty,
+        }
+    }
+}
+
+impl DerefMut for IR {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        use IR::*;
+        match self {
+            Imm(ty) | Mov(ty) | Return(ty) | Alloca(ty) | Load(ty) | Store(ty) | Unless(ty)
+            | Label(ty) | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty)
+            | Kill(ty) | Nop(ty) => ty,
+        }
+    }
+}
+
+impl fmt::Debug for IRType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use IRType::*;
+        match self {
+            RegReg { dst, src } => write!(f, "RegReg {{ dst: {:?}, src: {:?} }}", dst, src),
+            RegImm { reg, val } => write!(f, "RegImm {{ reg: {:?}, val: {:?} }}", reg, val),
+            Reg { src } => write!(f, "Reg {{ src: {:?} }}", src),
+            Imm { val } => write!(f, "Imm {{ val: {:?} }}", val),
+            Nop => write!(f, "Nop {{ }}"),
+        }
+    }
+}
+
+impl fmt::Debug for IR {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use IR::*;
+
+        match self {
+            Imm(ty) => write!(f, "Imm {{ {:?} }}", ty),
+            Mov(ty) => write!(f, "Mov {{ {:?} }}", ty),
+            Return(ty) => write!(f, "Return {{ {:?} }}", ty),
+            Alloca(ty) => write!(f, "Alloca {{ {:?} }}", ty),
+            Load(ty) => write!(f, "Load {{ {:?} }}", ty),
+            Store(ty) => write!(f, "Store {{ {:?} }}", ty),
+            Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
+            Label(ty) => write!(f, "Label {{ {:?} }}", ty),
+            Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
+            AddImm(ty) => write!(f, "AddImm {{ {:?} }}", ty),
+            Add(ty) => write!(f, "Add {{ {:?} }}", ty),
+            Sub(ty) => write!(f, "Sub {{ {:?} }}", ty),
+            Mul(ty) => write!(f, "Mul {{ {:?} }}", ty),
+            Div(ty) => write!(f, "Div {{ {:?} }}", ty),
+            Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
+            Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
+        }
     }
 }
