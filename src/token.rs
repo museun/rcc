@@ -13,7 +13,9 @@ pub enum Token {
     Sub,           // -
     Mul,           // *
     Div,           // /
-    Ret,           // return
+    LogOr,         // ||
+    LogAnd,        // &&
+    Return,        // return
     If,            // if
     Else,          // else
     Num(u32),      // n
@@ -24,7 +26,7 @@ pub enum Token {
     OpenBrace,     // {
     CloseBrace,    // }
     Comma,         // ,
-    EOS,           // ;
+    Semicolon,     // ;
     EOF,
 }
 
@@ -95,7 +97,11 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut keywords = HashMap::new();
     keywords.insert("if", Token::If);
     keywords.insert("else", Token::Else);
-    keywords.insert("return", Token::Ret);
+    keywords.insert("return", Token::Return);
+
+    let mut symbols = vec![];
+    symbols.push(("&&", Token::LogAnd));
+    symbols.push(("||", Token::LogOr));
 
     let mut data = vec![];
     let mut skip = 0;
@@ -115,7 +121,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '-' => Token::Sub,
             '*' => Token::Mul,
             '/' => Token::Div,
-            ';' => Token::EOS,
+            ';' => Token::Semicolon,
             '=' => Token::Assign,
             '(' => Token::OpenParen,
             ')' => Token::CloseParen,
@@ -133,6 +139,21 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     .fold(0, |a, n| 10 * a + n);
                 skip -= 1; // this is off by 1 because of the filter_map
                 Token::Num(k)
+            }
+
+            // multi-character token
+            c if c.is_ascii_punctuation() => {
+                let mut out = None;
+                for symbol in &symbols {
+                    if s[i..].starts_with(symbol.0) {
+                        skip += symbol.0.len() - 1;
+                        out = Some(symbol.1.clone())
+                    }
+                }
+                if out.is_none() {
+                    fail!("unknown punctuation: '{}' @ {} --> '{}'", c, i, &s[i..])
+                }
+                out.unwrap()
             }
 
             // identifiers
@@ -168,7 +189,9 @@ impl fmt::Debug for Token {
             Token::Sub => write!(f, "Sub"),
             Token::Mul => write!(f, "Mul"),
             Token::Div => write!(f, "Div"),
-            Token::Ret => write!(f, "Ret"),
+            Token::LogOr => write!(f, "Or"),
+            Token::LogAnd => write!(f, "And"),
+            Token::Return => write!(f, "Return"),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::Ident(name) => write!(f, "Ident({})", name),
@@ -178,7 +201,7 @@ impl fmt::Debug for Token {
             Token::OpenBrace => write!(f, "OpenBrace"),
             Token::CloseBrace => write!(f, "CloseBrace"),
             Token::Comma => write!(f, "Comma"),
-            Token::EOS => write!(f, "EOS"),
+            Token::Semicolon => write!(f, "Semicolon"),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
         }
@@ -192,15 +215,17 @@ impl fmt::Display for Token {
             Token::Sub => write!(f, "-"),
             Token::Mul => write!(f, "*"),
             Token::Div => write!(f, "/"),
-            Token::Ret => write!(f, "return"),
+            Token::LogOr => write!(f, "||"),
+            Token::LogAnd => write!(f, "&&"),
+            Token::Return => write!(f, "return"),
             Token::If => write!(f, "if"),
             Token::Else => write!(f, "else"),
             Token::Ident(name) => write!(f, "{}", name),
             Token::Assign => write!(f, "="),
-            Token::EOS => write!(f, ";"),
+            Token::Semicolon => write!(f, ";"),
             Token::OpenParen => write!(f, "("),
             Token::CloseParen => write!(f, ")"),
-            Token::OpenBrace => write!(f, "{{"),
+            Token::OpenBrace => writeln!(f, "{{"),
             Token::CloseBrace => write!(f, "}}"),
             Token::Comma => write!(f, ","),
             Token::Num(n) => write!(f, "{}", n),
@@ -222,26 +247,10 @@ impl<'a> fmt::Display for Tokens<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (_pos, tok) in &self.data {
             write!(f, "{} ", tok)?;
-            if let Token::EOS = tok {
+            if let Token::Semicolon = tok {
                 writeln!(f)?
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore]
-    fn test_keywords() {
-        let input = r#"
-            int a = 4; return a;
-        "#;
-
-        let out = Tokens::tokenize(&input);
-        eprintln!("{:?}", out);
     }
 }

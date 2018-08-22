@@ -8,7 +8,6 @@ use std::{
 #[derive(Debug)]
 pub struct Function {
     pub(crate) name: String,
-    pub(crate) args: Vec<i32>, // could be an array
     pub(crate) stacksize: i32,
     pub(crate) ir: Vec<IR>,
 }
@@ -40,7 +39,6 @@ impl Generate {
                     this.gen_stmt(body.as_ref().unwrap());
                     let function = Function {
                         name: name.clone(),
-                        args: vec![],
                         stacksize: this.stacksize,
                         ir: this.inst,
                     };
@@ -119,6 +117,43 @@ impl Generate {
                 let r = (self.inst.len() + 1) as i32;
                 self.add(IR::AddImm(reg_imm(r, *val as i32)));
                 r
+            }
+            Node::LogAnd { lhs, rhs } => {
+                let x = self.label;
+                self.label += 1;
+
+                let r1 = self.gen_expr(lhs.as_ref().unwrap());
+                self.add(IR::Unless(reg_imm(r1, x)));
+
+                let r2 = self.gen_expr(rhs.as_ref().unwrap());
+                self.add(IR::Mov(reg_reg(r1, r2)));
+                self.add(IR::Kill(reg(r2)));
+                self.add(IR::Unless(reg_imm(r1, x)));
+                self.add(IR::Imm(reg_imm(r1, 1)));
+                self.add(IR::Label(imm(x)));
+
+                r1
+            }
+            Node::LogOr { lhs, rhs } => {
+                let x = self.label;
+                self.label += 1;
+                let y = self.label;
+                self.label += 1;
+
+                let r1 = self.gen_expr(lhs.as_ref().unwrap());
+                self.add(IR::Unless(reg_imm(r1, x)));
+                self.add(IR::Imm(reg_imm(r1, 1)));
+                self.add(IR::Jmp(imm(y)));
+                self.add(IR::Label(imm(x)));
+
+                let r2 = self.gen_expr(rhs.as_ref().unwrap());
+                self.add(IR::Mov(reg_reg(r1, r2)));
+                self.add(IR::Kill(reg(r2)));
+                self.add(IR::Unless(reg_imm(r1, y)));
+                self.add(IR::Imm(reg_imm(r1, 1)));
+                self.add(IR::Label(imm(y)));
+
+                r1
             }
             Node::Ident { .. } => {
                 let r = self.gen_lval(node);

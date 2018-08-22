@@ -19,6 +19,16 @@ pub enum Node {
         rhs: NodeKind,
     },
 
+    LogAnd {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
+    LogOr {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
     If {
         cond: NodeKind,
         body: NodeKind,
@@ -50,14 +60,14 @@ pub enum Node {
 
 impl Node {
     pub fn parse(tokens: &mut Tokens) -> Vec<Self> {
-        let mut v = vec![];
-        loop {
-            if let Some((_, Token::EOF)) = tokens.peek() {
+        let mut nodes = vec![];
+        while let Some((_, tok)) = tokens.peek() {
+            if *tok == Token::EOF {
                 break;
             }
-            v.push(Self::function(tokens))
+            nodes.push(Self::function(tokens))
         }
-        v
+        nodes
     }
 
     // ident, etc
@@ -113,7 +123,7 @@ impl Node {
         lhs
     }
 
-    fn expr(tokens: &mut Tokens) -> Self {
+    fn add(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::mul(tokens);
         'expr: loop {
             match tokens.peek() {
@@ -132,12 +142,44 @@ impl Node {
         lhs
     }
 
+    fn logand(tokens: &mut Tokens) -> Self {
+        let mut lhs = Self::add(tokens);
+        'expr: loop {
+            if let Some((_, Token::LogAnd)) = tokens.peek() {
+                tokens.advance();
+                lhs = Node::LogAnd {
+                    lhs: Some(Box::new(lhs)),
+                    rhs: Some(Box::new(Self::add(tokens))),
+                };
+            } else {
+                break 'expr;
+            }
+        }
+        lhs
+    }
+
+    fn logor(tokens: &mut Tokens) -> Self {
+        let mut lhs = Self::logand(tokens);
+        'expr: loop {
+            if let Some((_, Token::LogOr)) = tokens.peek() {
+                tokens.advance();
+                lhs = Node::LogOr {
+                    lhs: Some(Box::new(lhs)),
+                    rhs: Some(Box::new(Self::logand(tokens))),
+                };
+            } else {
+                break 'expr;
+            }
+        }
+        lhs
+    }
+
     fn assign(tokens: &mut Tokens) -> Self {
-        let lhs = Self::expr(tokens);
+        let lhs = Self::logor(tokens);
         if eat(tokens, &Token::Assign) {
             return Node::Assign {
                 lhs: Some(Box::new(lhs)),
-                rhs: Some(Box::new(Self::expr(tokens))),
+                rhs: Some(Box::new(Self::logor(tokens))),
             };
         }
         lhs
@@ -162,12 +204,12 @@ impl Node {
 
                 Node::If { cond, body, else_ }
             }
-            Some((_, Token::Ret)) => {
+            Some((_, Token::Return)) => {
                 tokens.advance();
                 let node = Node::Return {
                     expr: Some(Box::new(Node::assign(tokens))),
                 };
-                check_tok(tokens, &Token::EOS);
+                check_tok(tokens, &Token::Semicolon);
                 node
             }
             Some((_, tok)) if *tok != Token::EOF => {
@@ -177,7 +219,7 @@ impl Node {
                     rhs: None,
                     tok,
                 };
-                check_tok(tokens, &Token::EOS);
+                check_tok(tokens, &Token::Semicolon);
                 node
             }
             Some((pos, tok)) => fail!("unexpected token at {}: {:?}", pos.clone(), tok),
