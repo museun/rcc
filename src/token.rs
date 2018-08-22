@@ -16,6 +16,7 @@ pub enum Token {
     For,           // for
     Num(u32),      // n
     Ident(String), // name
+    Int,           // int
     Assign,        // =
     OpenParen,     // (
     CloseParen,    // )
@@ -57,7 +58,7 @@ impl<'a> Tokens<'a> {
     pub fn next_token(&mut self) -> Option<&(usize, Token)> {
         let tok = self.data.get(self.pos);
         if tok.is_some() {
-            self.pos += 1;
+            self.pos += 1; // why isn't this working
         }
         tok
     }
@@ -93,6 +94,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
+    symbols.push(("int", Token::Int));
     symbols.push(("return", Token::Return));
     symbols.push(("for", Token::For));
     symbols.push(("&&", Token::LogAnd));
@@ -201,6 +203,9 @@ impl fmt::Debug for Token {
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),
             Token::Ident(name) => write!(f, "Ident({})", name),
+            // types
+            Token::Int => write!(f, "Int"),
+            //
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
             Token::CloseParen => write!(f, "CloseParen"),
@@ -210,6 +215,44 @@ impl fmt::Debug for Token {
             Token::Semicolon => write!(f, "Semicolon"),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
+        }
+    }
+}
+
+// impl From<Token> for Token {
+//     fn from(c: Token) -> Token {
+//         c
+//     }
+// }
+
+impl From<&'static str> for Token {
+    fn from(c: &'static str) -> Token {
+        use token::Token::*;
+        match c {
+            "else" => Else,
+            _ => panic!("invalid str/token"),
+        }
+    }
+}
+
+impl From<char> for Token {
+    fn from(c: char) -> Token {
+        use token::Token::*;
+        match c {
+            '+' => Add,
+            '-' => Sub,
+            '*' => Mul,
+            '/' => Div,
+            '=' => Assign,
+            '(' => OpenParen,
+            ')' => CloseParen,
+            '{' => OpenBrace,
+            '}' => CloseBrace,
+            '<' => LessThan,
+            '>' => GreaterThan,
+            ';' => Semicolon,
+            ',' => Comma,
+            _ => panic!("invalid char/token"),
         }
     }
 }
@@ -230,6 +273,9 @@ impl fmt::Display for Token {
             Token::Else => write!(f, "else"),
             Token::For => write!(f, "for"),
             Token::Ident(name) => write!(f, "{}", name),
+            // types
+            Token::Int => write!(f, "int"),
+            //
             Token::Assign => write!(f, "="),
             Token::Semicolon => write!(f, ";"),
             Token::OpenParen => write!(f, "("),

@@ -69,6 +69,10 @@ impl Generate {
 
     fn gen_stmt(&mut self, node: &Node) {
         match node {
+            Node::Vardef { name } => {
+                self.stacksize += 8;
+                self.map.insert(name.clone(), self.stacksize);
+            }
             Node::If { cond, body, else_ } => {
                 let r = self.gen_expr(cond.as_ref().unwrap());
                 let x = self.label;
@@ -250,8 +254,7 @@ impl Generate {
     fn gen_lval(&mut self, node: &Node) -> i32 {
         if let Node::Ident { name } = &node {
             if !self.map.contains_key(name) {
-                self.stacksize += 8;
-                self.map.insert(name.clone(), self.stacksize);
+                fail!("undefined variable: {}", name)
             }
 
             let r = (self.inst.len() + 1) as i32;
