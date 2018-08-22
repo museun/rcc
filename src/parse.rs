@@ -268,6 +268,14 @@ impl Node {
                 check_tok(tokens, &Token::Semicolon);
                 node
             }
+            Some((_, Token::OpenBrace)) => {
+                tokens.advance();
+                let mut stmts = vec![];
+                while !eat(tokens, &Token::CloseBrace) {
+                    stmts.push(Self::stmt(tokens));
+                }
+                Node::Compound { stmts }
+            }
             Some((_, tok)) if *tok != Token::EOF => {
                 let tok = tok.clone();
                 let node = Node::Expression {
