@@ -63,6 +63,28 @@ pub fn generate_x86(inst: Vec<IR>) {
                 println!("  div {}", REGS[*src as usize]);
                 println!("  mov {}, rax", REGS[*dst as usize]);
             }
+            IR::Call(IRType::Call { reg, name, args }) => {
+                // TODO: only support 6 parameters atm
+                const P: [&str; 7] = ["rbx", "rbp", "rsp", "r12", "r13", "r14", "r15"];
+                for r in P.iter().take(args.len()) {
+                    // TODO only push the registers we're using
+                    println!("  push {}", r);
+                }
+
+                const A: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                for (i, arg) in args.iter().enumerate() {
+                    println!("  mov {}, {}", A[i], REGS[*arg as usize]);
+                }
+
+                println!("  mov rax, 0");
+                println!("  call {}", name);
+                println!("  mov {}, rax", REGS[*reg as usize]);
+
+                for r in P.iter().take(args.len()).collect::<Vec<_>>().iter().rev() {
+                    // TODO only push the registers we're using
+                    println!("  push {}", r);
+                }
+            }
             IR::Nop(_) => {}
             ty => fail!("unknown operator: {:?}", ty),
         }

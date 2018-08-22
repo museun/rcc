@@ -20,6 +20,7 @@ pub enum Token {
     Assign,
     OpenParen,
     CloseParen,
+    Comma,
     EOS, // end of statement (expression? what are they called in legallese C)
     Num(u32),
     EOF,
@@ -116,6 +117,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             '=' => Token::Assign,
             '(' => Token::OpenParen,
             ')' => Token::CloseParen,
+            ',' => Token::Comma,
 
             // digits
             c if c.is_ascii_digit() => {
@@ -169,6 +171,7 @@ impl fmt::Debug for Token {
             Token::Assign => write!(f, "Assign"),
             Token::OpenParen => write!(f, "OpenParen"),
             Token::CloseParen => write!(f, "CloseParen"),
+            Token::Comma => write!(f, "Comma"),
             Token::EOS => write!(f, "EOS"),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
@@ -191,6 +194,7 @@ impl fmt::Display for Token {
             Token::EOS => write!(f, ";"),
             Token::OpenParen => write!(f, "("),
             Token::CloseParen => write!(f, ")"),
+            Token::Comma => write!(f, ","),
             Token::Num(n) => write!(f, "{}", n),
             Token::EOF => write!(f, "▯"),
         }

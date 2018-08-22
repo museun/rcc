@@ -34,6 +34,12 @@ impl Registers {
                 RegImm { reg, .. } => {
                     *reg = this.alloc(*reg);
                 }
+                IRType::Call { reg, args, .. } => {
+                    *reg = this.alloc(*reg);
+                    for arg in args {
+                        *arg = this.alloc(*arg)
+                    }
+                }
                 IRType::Imm { .. } | IRType::Nop { .. } => {
                     // doesn't need register allocations
                 }

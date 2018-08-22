@@ -88,7 +88,7 @@ impl Generate {
                     self.gen_stmt(&stmt)
                 }
             }
-            _ => fail!("unknown node: {:?}", node),
+            _ => fail!("unknown node in stmt: {:?}", node),
         }
     }
 
@@ -106,6 +106,25 @@ impl Generate {
                 self.add(Load(reg_reg(r, r)));
                 r
             }
+            Node::Call { name, args } => {
+                let mut vec = vec![];
+                for arg in args {
+                    vec.push(self.gen_expr(arg))
+                }
+
+                let r = self.inst.len() as i32;
+                self.add(Call(IRType::Call {
+                    reg: r,
+                    name: name.clone(),
+                    args: vec.clone(),
+                }));
+
+                for k in vec {
+                    self.add(Kill(reg(k)));
+                }
+                r
+            }
+
             Node::Assign { lhs, rhs } => {
                 let rhs = self.gen_expr(rhs.as_ref().unwrap());
                 let lhs = self.gen_lval(lhs.as_ref().unwrap());
@@ -128,7 +147,7 @@ impl Generate {
                 self.add(Kill(reg(rhs)));
                 lhs
             }
-            _ => fail!("unknown node: {:?}", node),
+            _ => fail!("unknown node in expr: {:?}", node),
         }
     }
 
@@ -161,10 +180,25 @@ impl Generate {
 
 #[derive(Clone)]
 pub enum IRType {
-    RegReg { dst: i32, src: i32 },
-    RegImm { reg: i32, val: i32 },
-    Reg { src: i32 },
-    Imm { val: i32 },
+    RegReg {
+        dst: i32,
+        src: i32,
+    },
+    RegImm {
+        reg: i32,
+        val: i32,
+    },
+    Reg {
+        src: i32,
+    },
+    Imm {
+        val: i32,
+    },
+    Call {
+        reg: i32,
+        name: String,
+        args: Vec<i32>,
+    },
     Nop,
 }
 
@@ -204,6 +238,7 @@ pub enum IR {
     Div(IRType),    // reg->reg
     Kill(IRType),   // reg
     Nop(IRType),    // nothing
+    Call(IRType),   // call name, [args]
 }
 
 impl Deref for IR {
@@ -214,7 +249,7 @@ impl Deref for IR {
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Alloca(ty) | Load(ty) | Store(ty) | Unless(ty)
             | Label(ty) | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty)
-            | Kill(ty) | Nop(ty) => ty,
+            | Kill(ty) | Nop(ty) | Call(ty) => ty,
         }
     }
 }
@@ -225,7 +260,7 @@ impl DerefMut for IR {
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Alloca(ty) | Load(ty) | Store(ty) | Unless(ty)
             | Label(ty) | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty)
-            | Kill(ty) | Nop(ty) => ty,
+            | Kill(ty) | Nop(ty) | Call(ty) => ty,
         }
     }
 }
@@ -238,6 +273,7 @@ impl fmt::Debug for IRType {
             RegImm { reg, val } => write!(f, "RegImm {{ reg: {:?}, val: {:?} }}", reg, val),
             Reg { src } => write!(f, "Reg {{ src: {:?} }}", src),
             Imm { val } => write!(f, "Imm {{ val: {:?} }}", val),
+            Call { reg, name, args } => write!(f, "Call {{ {} @ {}({:?}) }}", reg, name, args),
             Nop => write!(f, "Nop {{ }}"),
         }
     }
@@ -264,6 +300,7 @@ impl fmt::Debug for IR {
             Div(ty) => write!(f, "Div {{ {:?} }}", ty),
             Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
             Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
+            Call(ty) => write!(f, "Call {{ {:?} }}", ty),
         }
     }
 }

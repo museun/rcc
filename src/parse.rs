@@ -28,6 +28,11 @@ pub enum Node {
         body: NodeKind,
     },
 
+    Call {
+        name: String,
+        args: Vec<Node>,
+    },
+
     Expression {
         lhs: NodeKind,
         rhs: NodeKind,
@@ -47,7 +52,27 @@ impl Node {
     fn term(tokens: &mut Tokens) -> Self {
         match tokens.next_token() {
             Some((_, Token::Num(n))) => Node::Constant { val: *n },
-            Some((_, Token::Ident(name))) => Node::Ident { name: name.clone() },
+            Some((_, Token::Ident(ref name))) => {
+                let n = name.clone();
+                if !eat(tokens, &Token::OpenParen) {
+                    return Node::Ident { name: n };
+                }
+
+                if eat(tokens, &Token::CloseParen) {
+                    return Node::Call {
+                        name: n,
+                        args: vec![],
+                    };
+                }
+
+                let mut args = vec![];
+                args.push(Self::assign(tokens));
+                while eat(tokens, &Token::Comma) {
+                    args.push(Self::assign(tokens));
+                }
+                check_tok(tokens, &Token::CloseParen);
+                Node::Call { name: n, args }
+            }
             Some((_, Token::OpenParen)) => {
                 let node = Node::assign(tokens);
                 check_tok(tokens, &Token::CloseParen);
