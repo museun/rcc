@@ -79,9 +79,6 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  add {}, {}", REGS[*dst as usize], REGS[*src as usize]);
             }
             IR::Add(RegImm { reg, val }) => {
-                println!("  add {}, {}", REGS[*reg as usize], val);
-            }
-            IR::AddImm(RegImm { reg, val }) => {
                 println!("  mov {}, {}", REGS[*reg as usize], val);
             }
             IR::Sub(RegReg { dst, src }) => {

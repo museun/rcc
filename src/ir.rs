@@ -149,7 +149,7 @@ impl Generate {
         match &node {
             Node::Constant { val } => {
                 let r = (self.inst.len() + 1) as i32;
-                self.add(IR::AddImm(reg_imm(r, *val as i32)));
+                self.add(IR::Add(reg_imm(r, *val as i32)));
                 r
             }
             Node::LogAnd { lhs, rhs } => {
@@ -322,7 +322,6 @@ pub enum IR {
     Unless(IRType),   // reg->imm
     Label(IRType),    // imm
     Jmp(IRType),      // imm
-    AddImm(IRType),   // reg->imm  couldn't this just be an Add?
     Add(IRType),      // reg->reg
     Sub(IRType),      // reg->reg
     Mul(IRType),      // reg->reg
@@ -334,6 +333,7 @@ pub enum IR {
     SaveArgs(IRType), // args + stack offset
 }
 
+// TODO: this stuff needs to be rewritten
 impl Deref for IR {
     type Target = IRType;
 
@@ -341,8 +341,8 @@ impl Deref for IR {
         use IR::*;
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty)
-            | Kill(ty) | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
+            | Jmp(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty) | Kill(ty)
+            | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -352,8 +352,8 @@ impl DerefMut for IR {
         use IR::*;
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty)
-            | Kill(ty) | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
+            | Jmp(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | LessThan(ty) | Kill(ty)
+            | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -385,7 +385,6 @@ impl fmt::Debug for IR {
             Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
             Label(ty) => write!(f, "Label {{ {:?} }}", ty),
             Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
-            AddImm(ty) => write!(f, "AddImm {{ {:?} }}", ty),
             Add(ty) => write!(f, "Add {{ {:?} }}", ty),
             Sub(ty) => write!(f, "Sub {{ {:?} }}", ty),
             Mul(ty) => write!(f, "Mul {{ {:?} }}", ty),
