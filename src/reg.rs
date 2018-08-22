@@ -1,7 +1,7 @@
 use super::*;
 use std::ops::DerefMut;
 
-pub(crate) const REGS: [&str; 7] = ["rbp", "r10", "r11", "r12", "r13", "r14", "r15"];
+pub(crate) const REGS: [&str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 
 pub struct Registers {
     used: [bool; 8],

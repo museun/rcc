@@ -1,5 +1,7 @@
 use super::*;
 
+const ARGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+
 // this should be a trait
 pub fn generate_x86(funcs: Vec<Function>) {
     println!(".intel_syntax noprefix");
@@ -62,6 +64,9 @@ fn generate(func: &Function, label: &mut u32) {
             IR::Sub(RegReg { dst, src }) => {
                 println!("  sub {}, {}", REGS[*dst as usize], REGS[*src as usize]);
             }
+            IR::Sub(RegImm { reg, val }) => {
+                println!("  sub {}, {}", REGS[*reg as usize], val);
+            }
             IR::Mul(RegReg { dst, src }) => {
                 println!("  mov rax, {}", REGS[*src as usize]);
                 println!("  mul {}", REGS[*dst as usize]);
@@ -73,10 +78,14 @@ fn generate(func: &Function, label: &mut u32) {
                 println!("  div {}", REGS[*src as usize]);
                 println!("  mov {}, rax", REGS[*dst as usize]);
             }
+            IR::SaveArgs(Imm { val }) => {
+                for i in 0..*val {
+                    println!("  mov [rbp-{}], {}", (i + 1) * 8, ARGS[i as usize]);
+                }
+            }
             IR::Call(IRType::Call { reg, name, args }) => {
-                const A: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 for (i, arg) in args.iter().enumerate() {
-                    println!("  mov {}, {}", A[i], REGS[*arg as usize]);
+                    println!("  mov {}, {}", ARGS[i], REGS[*arg as usize]);
                 }
 
                 println!("  push r10");

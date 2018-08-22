@@ -200,8 +200,12 @@ impl Node {
                 tokens.advance();
                 check_tok(tokens, &Token::OpenParen);
                 let mut args = vec![];
-                while !eat(tokens, &Token::CloseParen) {
-                    args.push(Self::term(tokens))
+                if !eat(tokens, &Token::CloseParen) {
+                    args.push(Self::term(tokens));
+                    while eat(tokens, &Token::Comma) {
+                        args.push(Self::term(tokens));
+                    }
+                    check_tok(tokens, &Token::CloseParen);
                 }
                 check_tok(tokens, &Token::OpenBrace);
                 Node::Func {

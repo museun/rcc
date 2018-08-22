@@ -26,14 +26,16 @@ impl Generate {
         let mut out = vec![];
         for node in nodes {
             match node {
-                Node::Func { name, body, .. } => {
+                Node::Func { name, body, args } => {
                     let mut this = Self {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(MAX_INST),
                         map: HashMap::new(),
                         label: 0,
-                        stacksize: 8,
+                        stacksize: 0,
                     };
+
+                    this.gen_args(args);
 
                     this.gen_stmt(body.as_ref().unwrap());
                     let function = Function {
@@ -48,6 +50,23 @@ impl Generate {
             }
         }
         out
+    }
+
+    fn gen_args(&mut self, nodes: &[Node]) {
+        if nodes.is_empty() {
+            return;
+        }
+
+        self.add(IR::SaveArgs(imm(nodes.len() as i32)));
+        for node in nodes {
+            match node {
+                Node::Ident { name } => {
+                    self.stacksize += 8;
+                    self.map.insert(name.clone(), self.stacksize);
+                }
+                _ => fail!("bad parameter"),
+            }
+        }
     }
 
     fn gen_stmt(&mut self, node: &Node) {
@@ -162,7 +181,7 @@ impl Generate {
             self.add(IR::Mov(reg_reg(r, 0)));
 
             let offset = self.map.get(name).expect("var to exist");
-            self.add(IR::Add(reg_imm(r, -offset)));
+            self.add(IR::Sub(reg_imm(r, *offset)));
             return r;
         }
 
@@ -218,22 +237,23 @@ fn imm(val: i32) -> IRType {
 
 #[derive(Clone)]
 pub enum IR {
-    Imm(IRType),    // reg->imm
-    Mov(IRType),    // reg->reg
-    Return(IRType), // reg
-    Load(IRType),   // reg->reg
-    Store(IRType),  // reg->reg
-    Unless(IRType), // reg->imm
-    Label(IRType),  // imm
-    Jmp(IRType),    // imm
-    AddImm(IRType), // reg->imm
-    Add(IRType),    // reg->reg
-    Sub(IRType),    // reg->reg
-    Mul(IRType),    // reg->reg
-    Div(IRType),    // reg->reg
-    Kill(IRType),   // reg
-    Nop(IRType),    // nothing
-    Call(IRType),   // call name, [args]
+    Imm(IRType),      // reg->imm
+    Mov(IRType),      // reg->reg
+    Return(IRType),   // reg
+    Load(IRType),     // reg->reg
+    Store(IRType),    // reg->reg
+    Unless(IRType),   // reg->imm
+    Label(IRType),    // imm
+    Jmp(IRType),      // imm
+    AddImm(IRType),   // reg->imm
+    Add(IRType),      // reg->reg
+    Sub(IRType),      // reg->reg
+    Mul(IRType),      // reg->reg
+    Div(IRType),      // reg->reg
+    Kill(IRType),     // reg
+    Nop(IRType),      // nothing
+    Call(IRType),     // call name, [args]
+    SaveArgs(IRType), // args + stack offset
 }
 
 impl Deref for IR {
@@ -244,7 +264,7 @@ impl Deref for IR {
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
             | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Kill(ty) | Nop(ty)
-            | Call(ty) => ty,
+            | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -255,7 +275,7 @@ impl DerefMut for IR {
         match self {
             Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
             | Jmp(ty) | AddImm(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Kill(ty) | Nop(ty)
-            | Call(ty) => ty,
+            | Call(ty) | SaveArgs(ty) => ty,
         }
     }
 }
@@ -295,6 +315,7 @@ impl fmt::Debug for IR {
             Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
             Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
             Call(ty) => write!(f, "Call {{ {:?} }}", ty),
+            SaveArgs(ty) => write!(f, "Args {{ {:?} }}", ty),
         }
     }
 }
