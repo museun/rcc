@@ -19,5 +19,5 @@ fn main() {
     let nodes = Node::parse(&mut tokens);
     let mut ir = Generate::gen_ir(&nodes);
     Registers::allocate(&mut ir);
-    generate_x86(ir);
+    generate_x64(ABI::SystemV, ir);
 }

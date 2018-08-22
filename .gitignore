@@ -6,3 +6,7 @@
 *.sh
 tmp
 *.o
+*.exe
+*.a
+src/test.rs
+tmp/*

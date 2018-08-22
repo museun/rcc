@@ -58,7 +58,16 @@ fn main() {
                 let ast = Node::parse(&mut tokens);
                 let mut ir = Generate::gen_ir(&ast);
                 Registers::allocate(&mut ir);
-                generate_x86(ir);
+                generate_x64(ABI::SystemV, ir);
+            }
+            "asm_win" => {
+                let args = args.skip(2).collect::<String>();
+                let input: &str = args.as_ref();
+                let mut tokens = Tokens::tokenize(&input);
+                let ast = Node::parse(&mut tokens);
+                let mut ir = Generate::gen_ir(&ast);
+                Registers::allocate(&mut ir);
+                generate_x64(ABI::Windows, ir);
             }
             _ => {}
         }

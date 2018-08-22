@@ -1,17 +1,20 @@
 use super::*;
 
-const ARGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+pub enum ABI {
+    Windows,
+    SystemV,
+}
 
 // this should be a trait
-pub fn generate_x86(funcs: Vec<Function>) {
+pub fn generate_x64(abi: ABI, funcs: Vec<Function>) {
     println!(".intel_syntax noprefix");
     let mut label = 0;
     for func in funcs {
-        generate(&func, &mut label)
+        generate(&abi, &func, &mut label)
     }
 }
 
-fn generate(func: &Function, label: &mut u32) {
+fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     let ret = format!(".Lend{}", label);
     *label += 1;
 
@@ -22,8 +25,28 @@ fn generate(func: &Function, label: &mut u32) {
     println!("  mov rbp, rsp");
     println!("  sub rsp, {}", func.stacksize);
 
-    const R: [&str; 4] = ["r12", "r13", "r14", "r15"];
-    for r in &R {
+    // windows uses RAX RCX RDX R8 R9 R10 11
+    // caller saved
+    // sys-v uses RDI RSI RDX RC9 R8 R9
+    // caller saved
+
+    // windows uses RDI RSI RSP R12 R13 R14 R15
+    // these are callee saved
+    // sys-v uses R12 R13 R14 R15
+    // sys-v must restore original values
+
+    let (callee, caller) = match abi {
+        ABI::Windows => (
+            &["rdi", "rsi", "rdx", "rcx", "r8", "r9"], // caller
+            &["r12", "r13", "r14", "r15"],             // callee
+        ),
+        ABI::SystemV => (
+            &["rdi", "rsi", "rdx", "rcx", "r8", "r9"], // caller
+            &["r12", "r13", "r14", "r15"],             // callee
+        ),
+    };
+
+    for r in caller {
         println!("  push {}", r);
     }
 
@@ -85,12 +108,12 @@ fn generate(func: &Function, label: &mut u32) {
             }
             IR::SaveArgs(Imm { val }) => {
                 for i in 0..*val {
-                    println!("  mov [rbp-{}], {}", (i + 1) * 8, ARGS[i as usize]);
+                    println!("  mov [rbp-{}], {}", (i + 1) * 8, callee[i as usize]);
                 }
             }
             IR::Call(IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
-                    println!("  mov {}, {}", ARGS[i], REGS[*arg as usize]);
+                    println!("  mov {}, {}", callee[i], REGS[*arg as usize]);
                 }
 
                 println!("  push r10");
@@ -108,8 +131,10 @@ fn generate(func: &Function, label: &mut u32) {
     }
 
     println!("{}:", ret);
-    for r in R.iter().rev() {
-        println!("  pop {}", r);
+    if let ABI::SystemV = abi {
+        for r in caller.iter().rev() {
+            println!("  pop {}", r);
+        }
     }
     println!("  mov rsp, rbp");
     println!("  pop rbp");
