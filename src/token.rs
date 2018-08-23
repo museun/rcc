@@ -74,7 +74,13 @@ impl<'a> Tokens<'a> {
     pub fn input_at(&self, pos: usize) -> &'a str {
         &self.input[pos..]
     }
+
+    pub fn tokens_at(&self, pos: usize) -> impl Iterator<Item = &(usize, Token)> {
+        self.data.iter().skip(pos)
+    }
 }
+
+// TODO impl range
 
 impl<'a> Index<usize> for Tokens<'a> {
     type Output = Token;
@@ -219,12 +225,6 @@ impl fmt::Debug for Token {
     }
 }
 
-// impl From<Token> for Token {
-//     fn from(c: Token) -> Token {
-//         c
-//     }
-// }
-
 impl From<&'static str> for Token {
     fn from(c: &'static str) -> Token {
         use token::Token::*;
@@ -280,7 +280,7 @@ impl fmt::Display for Token {
             Token::Semicolon => write!(f, ";"),
             Token::OpenParen => write!(f, "("),
             Token::CloseParen => write!(f, ")"),
-            Token::OpenBrace => writeln!(f, "{{"),
+            Token::OpenBrace => write!(f, "{{"),
             Token::CloseBrace => write!(f, "}}"),
             Token::Comma => write!(f, ","),
             Token::Num(n) => write!(f, "{}", n),

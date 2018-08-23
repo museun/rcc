@@ -20,3 +20,6 @@ pub use reg::*;
 
 mod codegen;
 pub use codegen::*;
+
+#[cfg(test)]
+mod test;

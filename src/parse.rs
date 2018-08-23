@@ -340,7 +340,8 @@ impl Node {
                 check(tokens, ')');
                 node
             }
-            tok => fail!("number or ident expected, but got: {:?}", tok),
+            Some(tok) => fail!("number or ident expected at {}, but got: {}", tok.0, tok.1),
+            _ => unreachable!(),
         }
     }
 }
@@ -361,7 +362,7 @@ fn expect<'a>(
     let cmp = ::std::mem::discriminant(&tok);
     match tokens.next_token() {
         Some((pos, t)) if ::std::mem::discriminant(t) != cmp => {
-            fail!("{} expected at {}. but found: {:?}.", msg.as_ref(), pos, t)
+            fail!("{} expected at {}. but found: {}.", msg.as_ref(), pos, t)
         }
         Some((pos, t)) => (pos, t),
         _ => unreachable!(),
@@ -372,7 +373,7 @@ fn expect<'a>(
 fn expect_ident<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (&'a usize, &'a str) {
     match tokens.next_token() {
         Some((pos, Token::Ident(name))) => (pos, &name),
-        Some((pos, t)) => fail!("{} expected at {}. but found: {:?}.", msg.as_ref(), pos, t),
+        Some((pos, t)) => fail!("{} expected at {}. but found: {}.", msg.as_ref(), pos, t),
         _ => unreachable!(),
     }
 }
@@ -404,7 +405,40 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
 fn check(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();
     match tokens.next_token() {
-        Some((pos, t)) if *t != tok => fail!("{} expected. {:?} found at {}.", tok, t, pos),
+        Some((pos, t)) if *t != tok => {
+            let (t, pos) = (t.clone(), *pos);
+            let input = tokens.input_at(0);
+
+            const MAX: usize = 60;
+            const HALF: usize = MAX / 2;
+            let (input, adjusted) = if input.len() > MAX {
+                if pos < HALF {
+                    (&input[..HALF], pos)
+                } else {
+                    (&input[pos - HALF..], HALF)
+                }
+            } else {
+                (input, pos)
+            };
+
+            use Color::*;
+
+            eprintln!("{}{}", wrap_color!(Yellow, "source=> "), input);
+            draw_caret("source=> ".len() + adjusted, Red);
+
+            fail!(
+                "{} {} was expected. found {} at position: {}.\n",
+                wrap_color!(Red, "ERROR:"),
+                wrap_color!(Green, tok),
+                wrap_color!(Red, t),
+                wrap_color!(Blue, pos),
+            );
+        }
         _ => {}
     }
+}
+
+fn draw_caret(width: usize, color: Color) {
+    let s = ::std::iter::repeat(" ").take(width).collect::<String>();
+    eprintln!("{}{}", s, wrap_color!(color, "^"));
 }
