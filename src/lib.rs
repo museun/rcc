@@ -21,5 +21,8 @@ pub use reg::*;
 mod codegen;
 pub use codegen::*;
 
-#[cfg(test)]
-mod test;
+mod semantics;
+pub use semantics::*;
+
+//#[cfg(test)]
+pub mod test;

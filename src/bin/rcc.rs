@@ -16,7 +16,9 @@ fn main() {
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
-    let nodes = Node::parse(&mut tokens);
+    let mut nodes = Node::parse(&mut tokens);
+    let mut nodes = nodes.iter_mut().collect::<Vec<_>>();
+    let nodes = Semantics::analyze(&mut nodes);
     let mut ir = Generate::gen_ir(&nodes);
     Registers::allocate(&mut ir);
     generate_x64(ABI::SystemV, ir);

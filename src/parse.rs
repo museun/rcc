@@ -2,21 +2,26 @@ use super::*;
 
 type NodeKind = Option<Box<Node>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Constant {
-        val: u32, // does this need the lhs?
+        val: u32,
     },
     Ident {
-        name: String, // does this need the rhs?
+        name: String,
     },
 
     // types
+    LVal {
+        offset: i32,
+    },
+
     Vardef {
         name: String,
         init: NodeKind,
+        offset: i32,
     },
-
+    //
     Return {
         expr: NodeKind,
     },
@@ -61,6 +66,7 @@ pub enum Node {
         name: String,
         args: Vec<Node>,
         body: NodeKind,
+        stacksize: i32,
     },
 
     Statement {
@@ -97,9 +103,9 @@ impl Node {
         check(tokens, '(');
         let mut args = vec![];
         if !consume(tokens, ')') {
-            args.push(Self::term(tokens));
+            args.push(Self::param(tokens));
             while consume(tokens, ',') {
-                args.push(Self::term(tokens));
+                args.push(Self::param(tokens));
             }
             check(tokens, ')');
         }
@@ -109,6 +115,7 @@ impl Node {
             name,
             args,
             body: make(Self::compound_stmt(tokens)),
+            stacksize: 0,
         }
     }
 
@@ -203,7 +210,11 @@ impl Node {
         };
 
         check(tokens, ';');
-        Node::Vardef { name, init }
+        Node::Vardef {
+            name,
+            init,
+            offset: 0,
+        }
     }
 
     fn assign(tokens: &mut Tokens) -> Self {
@@ -309,6 +320,25 @@ impl Node {
             }
         }
         lhs
+    }
+
+    fn param(tokens: &mut Tokens) -> Self {
+        tokens.advance();
+
+        let (_, name) = expect_ident(tokens, "variable name expected");
+        let name = name.to_string();
+
+        let init = if consume(tokens, '=') {
+            make(Self::assign(tokens))
+        } else {
+            None
+        };
+
+        Node::Vardef {
+            name,
+            init,
+            offset: 0,
+        }
     }
 
     fn term(tokens: &mut Tokens) -> Self {

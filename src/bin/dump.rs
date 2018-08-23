@@ -12,6 +12,32 @@ fn main() {
 
     if let Some(arg) = ::std::env::args().nth(1) {
         match &arg[..] {
+            "run" => {
+                let args = args.skip(2).collect::<String>();
+                let input = args.parse::<usize>().expect("a number");
+
+                let (_, input) = test::TESTS[input];
+
+                eprintln!("input: {}", input);
+
+                let mut tokens = Tokens::tokenize(&input);
+                eprintln!("tokens:\n{:#?}", tokens);
+
+                let mut ast = Node::parse(&mut tokens);
+                eprintln!("ast:\n{:#?}", ast);
+                let mut nodes = ast.iter_mut().collect::<Vec<_>>();
+
+                let nodes = Semantics::analyze(&mut nodes);
+                eprintln!("semantics:\n{:#?}", nodes);
+
+                let mut ir = Generate::gen_ir(&nodes);
+                eprintln!("ir:\n{:#?}", ir);
+
+                Registers::allocate(&mut ir);
+                eprintln!("reg:\n{:#?}", ir);
+
+                generate_x64(ABI::SystemV, ir);
+            }
             // naming is hard
             "tok" => {
                 let args = args.skip(2).collect::<String>();

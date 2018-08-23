@@ -60,9 +60,7 @@ pub struct Function {
 #[derive(Debug)]
 pub struct Generate {
     inst: Vec<IR>,
-    map: HashMap<String, i32>, // pointer offset.
     label: i32,
-    stacksize: i32,
 }
 
 impl Generate {
@@ -70,21 +68,24 @@ impl Generate {
         let mut out = vec![];
         for node in nodes {
             match node {
-                Node::Func { name, body, args } => {
+                Node::Func {
+                    name,
+                    body,
+                    args,
+                    stacksize,
+                } => {
                     let mut this = Self {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(MAX_INST),
-                        map: HashMap::new(),
                         label: 0,
-                        stacksize: 0,
                     };
 
-                    this.gen_args(args);
+                    this.add(IR::SaveArgs(imm(args.len() as i32)));
                     this.gen_stmt(body.as_ref().unwrap());
 
                     let function = Function {
                         name: name.clone(),
-                        stacksize: this.stacksize,
+                        stacksize: *stacksize,
                         ir: this.inst,
                     };
                     out.push(function);
@@ -95,30 +96,10 @@ impl Generate {
         out
     }
 
-    fn gen_args(&mut self, nodes: &[Node]) {
-        if nodes.is_empty() {
-            return;
-        }
-
-        self.add(IR::SaveArgs(imm(nodes.len() as i32)));
-
-        for node in nodes {
-            match node {
-                Node::Ident { name } => {
-                    self.stacksize += 8;
-                    self.map.insert(name.clone(), self.stacksize);
-                }
-                _ => fail!("bad parameter"),
-            }
-        }
-    }
-
     fn gen_stmt(&mut self, node: &Node) {
         match node {
-            Node::Vardef { name, init } => {
-                self.stacksize += 8;
-                self.map.insert(name.clone(), self.stacksize);
-
+            // TODO or is this the size?
+            Node::Vardef { name, init, offset } => {
                 if init.is_none() {
                     return;
                 }
@@ -126,7 +107,7 @@ impl Generate {
                 let rhs = self.gen_expr(init.as_ref().unwrap());
                 let lhs = self.next_reg();
                 self.add(IR::Mov(reg_reg(lhs, 0)));
-                self.add(IR::Sub(reg_imm(lhs, self.stacksize)));
+                self.add(IR::Sub(reg_imm(lhs, *offset)));
                 self.add(IR::Store(reg_reg(lhs, rhs)));
                 self.add(IR::Kill(reg(lhs)));
                 self.add(IR::Kill(reg(rhs)));
@@ -198,15 +179,6 @@ impl Generate {
         }
     }
 
-    fn gen_binops(&mut self, mut ir: IR, lhs: &Node, rhs: &Node) -> i32 {
-        let r1 = self.gen_expr(lhs);
-        let r2 = self.gen_expr(rhs);
-        *ir = reg_reg(r1, r2);
-        self.add(ir); // ??
-        self.add(IR::Kill(reg(r2)));
-        r1
-    }
-
     fn gen_expr(&mut self, node: &Node) -> i32 {
         match &node {
             Node::Constant { val } => {
@@ -251,7 +223,7 @@ impl Generate {
                 r1
             }
 
-            Node::Ident { .. } => {
+            Node::LVal { .. } => {
                 let r = self.gen_lval(node);
                 self.add(IR::Load(reg_reg(r, r)));
                 r
@@ -311,16 +283,19 @@ impl Generate {
         }
     }
 
-    fn gen_lval(&mut self, node: &Node) -> i32 {
-        if let Node::Ident { name } = &node {
-            if !self.map.contains_key(name) {
-                fail!("undefined variable: {}", name)
-            }
+    fn gen_binops(&mut self, mut ir: IR, lhs: &Node, rhs: &Node) -> i32 {
+        let r1 = self.gen_expr(lhs);
+        let r2 = self.gen_expr(rhs);
+        *ir = reg_reg(r1, r2);
+        self.add(ir); // ??
+        self.add(IR::Kill(reg(r2)));
+        r1
+    }
 
+    fn gen_lval(&mut self, node: &Node) -> i32 {
+        if let Node::LVal { offset } = &node {
             let r = self.next_reg();
             self.add(IR::Mov(reg_reg(r, 0)));
-
-            let offset = self.map.get(name).expect("var to exist");
             self.add(IR::Sub(reg_imm(r, *offset)));
             return r;
         }

@@ -71,54 +71,54 @@ fn run(fi: impl AsRef<str>) -> i32 {
         .expect("to get status code")
 }
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const TESTS: &[(usize, &str)] = &[
+/*  0 */    (0, "int main() { return 0; }"),
+/*  1 */    (1, "int main() { return 1; }"),
+/*  2 */    (42, "int main() { return 42; }"),
+/*  3 */    (21, "int main() { return 5+20-4; }"),
+/*  4 */    (42, "int main() { return 12 + 35 - 5; }"),
+/*  5 */    (36, "int main() { return 1+2+3+4+5+6+7+8; }"),
+/*  6 */    (153, "int main() { return 1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17; }"),
+/*  7 */    (10, "int main() { return 2*3+4; }"),
+/*  8 */    (14, "int main() { return 2+3*4; }"),
+/*  9 */    (26, "int main() { return 2*3+4*5; }"),
+/* 10 */    (5, "int main() { return 50/10; }"),
+/* 11 */    (9, "int main() { return 6*3/2; }"),
+/* 12 */    (2, "int main() { int a=2; return a; }"),
+/* 13 */    (10, "int main() { int a=2; int b=3+2; return a*b; }"),
+/* 14 */    (45, "int main() { return (2+3)*(4+5); }"),
+/* 15 */    (8, "int main() { return (2 + (2 * 3)); }"),
+/* 16 */    (2, "int main() { if (1) return 2; return 3; }"),
+/* 17 */    (3, "int main() { if (0) return 2; return 3; }"),
+/* 18 */    (2, "int main() { if (1) return 2; else return 3; }"),
+/* 19 */    (3, "int main() { if (0) return 2; else return 3; }"),
+/* 20 */    (5, "int main() { return add(2,3); }"),
+/* 21 */    (6, "int main() { return add(2*2,3-1); }"),
+/* 22 */    (1, "int one() { return 1; } int main() { return one(); }"),
+/* 23 */    (3, "int one() { return 1; } int two() { return 2; } int main() { return add(one(), two()); }"),    
+/* 24 */    (6, "int multiply(int a, int b) { return a * b; } int main() { return multiply(2, 3); }"), 
+/* 25 */    (21, "int sum(int a,int b,int c,int d,int e,int f) { return a+b+c+d+e+f; } int main() { return sum(1,2,3,4,5,6); }"),
+/* 26 */    (0, "int main() { return 0||0; }"),
+/* 27 */    (1, "int main() { return 1||0; }"),
+/* 28 */    (1, "int main() { return 0||1; }"),
+/* 29 */    (1, "int main() { return 1||1; }"),
+/* 30 */    (0, "int main() { return 0&&0; }"),
+/* 31 */    (0, "int main() { return 1&&0; }"),
+/* 32 */    (0, "int main() { return 0&&1; }"),
+/* 33 */    (1, "int main() { return 1&&1; }"),
+/* 34 */    (0, "int main() { return 0<0; }"),
+/* 35 */    (0, "int main() { return 1<0; }"),
+/* 36 */    (1, "int main() { return 0<1; }"),
+/* 37 */    (0, "int main() { return 0>0; }"),
+/* 38 */    (0, "int main() { return 0>1; }"),
+/* 39 */    (1, "int main() { return 1>0; }"),
+/* 40 */    (60, "int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum; }"),
+/* 41 */    (89, "int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m;} return i; }"),
+];
+
 #[test]
 fn compiler() {
-    #[cfg_attr(rustfmt, rustfmt_skip)]
-    let tests = &[
-        (0, "int main() { return 0; }"),
-        (1, "int main() { return 1; }"),
-        (42, "int main() { return 42; }"),
-        (21, "int main() { return 5+20-4; }"),
-        (42, "int main() { return 12 + 35 - 5; }"),
-        (36, "int main() { return 1+2+3+4+5+6+7+8; }"),
-        (153, "int main() { return 1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17; }"),
-        (10, "int main() { return 2*3+4; }"),
-        (14, "int main() { return 2+3*4; }"),
-        (26, "int main() { return 2*3+4*5; }"),
-        (5, "int main() { return 50/10; }"),
-        (9, "int main() { return 6*3/2; }"),
-        (2, "int main() { int a=2; return a; }"),
-        (10, "int main() { int a=2; int b=3+2; return a*b; }"),
-        (45, "int main() { return (2+3)*(4+5); }"),
-        (8, "int main() { return (2 + (2 * 3)); }"),
-        (2, "int main() { if (1) return 2; return 3; }"),
-        (3, "int main() { if (0) return 2; return 3; }"),
-        (2, "int main() { if (1) return 2; else return 3; }"),
-        (3, "int main() { if (0) return 2; else return 3; }"),
-        (5, "int main() { return add(2,3); }"),
-        (6, "int main() { return add(2*2,3-1); }"),
-        (1, "int one() { return 1; } int main() { return one(); }"),
-        (3, "int one() { return 1; } int two() { return 2; } int main() { return add(one(), two()); }"),
-        (6, "int multiply(a, b) { return a * b; } int main() { return multiply(2, 3); }"),
-        (21, "int sum(a,b,c,d,e,f) { return a+b+c+d+e+f; } int main() { return sum(1,2,3,4,5,6); }"),
-        (0, "int main() { return 0||0; }"),
-        (1, "int main() { return 1||0; }"),
-        (1, "int main() { return 0||1; }"),
-        (1, "int main() { return 1||1; }"),
-        (0, "int main() { return 0&&0; }"),
-        (0, "int main() { return 1&&0; }"),
-        (0, "int main() { return 0&&1; }"),
-        (1, "int main() { return 1&&1; }"),
-        (0, "int main() { return 0<0; }"),
-        (0, "int main() { return 1<0; }"),
-        (1, "int main() { return 0<1; }"),
-        (0, "int main() { return 0>0; }"),
-        (0, "int main() { return 0>1; }"),
-        (1, "int main() { return 1>0; }"),
-        (60, "int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum; }"),
-        (89, "int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m;} return i; }"),
-    ];
-
     clean();
 
     let rcc = Command::new("cargo")
@@ -128,13 +128,12 @@ fn compiler() {
 
     assert_eq!(rcc.status.code(), Some(0));
 
-    for (expected, input) in tests.iter() {
+    for (expected, input) in TESTS.iter() {
         eprintln!("\x1B[33m=>\x1B[m {}", input);
         eprint!("\x1B[36m??\x1B[m");
         if let Some(program) = compile(input) {
             let actual = run(program);
-            if actual == *expected {
-                //eprintln!("\x1B[33msource=>\x1B[m {}", p);
+            if actual == *expected as i32 {
                 eprintln!("\x1B[1000D\x1B[32mOK:\x1B[m {}", actual);
             } else {
                 eprintln!(
@@ -142,7 +141,7 @@ fn compiler() {
                     expected, actual
                 );
                 eprintln!();
-                assert_eq!(actual, *expected);
+                assert_eq!(actual, *expected as i32);
             }
         } else {
             panic!("compiler failed");
