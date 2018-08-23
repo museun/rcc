@@ -2,3 +2,7 @@
 name = "rcc"
 version = "0.1.0"
 authors = ["museun <museun@outlook.com>"]
+
+[features]
+default = []
+dump = []

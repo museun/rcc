@@ -2,7 +2,10 @@
 macro_rules! fail {
     ($($arg:tt)*) => {{
         eprintln!($($arg)*);
-        ::std::process::exit(1)
+        if cfg!(test) || cfg!(feature="dump") {
+            panic!();
+        }
+        ::std::process::exit(1);
     }};
 }
 

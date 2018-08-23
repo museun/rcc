@@ -2,28 +2,17 @@ use std::ops::{Index, IndexMut};
 
 #[derive(PartialEq, Clone)]
 pub enum Token {
-    Add,           // +
-    Sub,           // -
-    Mul,           // *
-    Div,           // /
-    LogOr,         // ||
-    LogAnd,        // &&
-    LessThan,      // <
-    GreaterThan,   // >
-    Return,        // return
-    If,            // if
-    Else,          // else
-    For,           // for
+    Char(char),    // all others
     Num(u32),      // n
     Ident(String), // name
     Int,           // int
-    Assign,        // =
-    OpenParen,     // (
-    CloseParen,    // )
-    OpenBrace,     // {
-    CloseBrace,    // }
-    Comma,         // ,
-    Semicolon,     // ;
+    If,            // if
+    Else,          // else
+    For,           // for
+    LogOr,         // ||
+    LogAnd,        // &&
+    Return,        // return
+
     EOF,
 }
 
@@ -96,6 +85,15 @@ impl<'a> IndexMut<usize> for Tokens<'a> {
     }
 }
 
+impl PartialEq<char> for Token {
+    fn eq(&self, other: &char) -> bool {
+        if let Token::Char(c) = self {
+            return c == other;
+        }
+        false
+    }
+}
+
 fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
     symbols.push(("if", Token::If));
@@ -120,19 +118,9 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
         }
 
         let token = match c {
-            '+' => Token::Add,
-            '-' => Token::Sub,
-            '*' => Token::Mul,
-            '/' => Token::Div,
-            ';' => Token::Semicolon,
-            '=' => Token::Assign,
-            '(' => Token::OpenParen,
-            ')' => Token::CloseParen,
-            '{' => Token::OpenBrace,
-            '}' => Token::CloseBrace,
-            ',' => Token::Comma,
-            '<' => Token::LessThan,
-            '>' => Token::GreaterThan,
+            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | '{' | '}' | ',' | '<' | '>' => {
+                Token::Char(c)
+            }
 
             // digits
             c if c.is_ascii_digit() => {
@@ -192,34 +180,30 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     data
 }
 
+impl Token {
+    // this panics if its not a Token::Char
+    pub(crate) fn get_char(&self) -> &char {
+        match self {
+            Token::Char(c) => c,
+            _ => unreachable!(),
+        }
+    }
+}
+
 use std::fmt;
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Token::Add => write!(f, "Add"),
-            Token::Sub => write!(f, "Sub"),
-            Token::Mul => write!(f, "Mul"),
-            Token::Div => write!(f, "Div"),
-            Token::LogOr => write!(f, "Or"),
-            Token::LessThan => write!(f, "LessThan"),
-            Token::GreaterThan => write!(f, "GreaterThan"),
-            Token::LogAnd => write!(f, "And"),
-            Token::Return => write!(f, "Return"),
+            Token::Char(c) => write!(f, "Char({})", c),
+            Token::Num(n) => write!(f, "Num({})", n),
+            Token::Ident(name) => write!(f, "Ident({})", name),
+            Token::Int => write!(f, "Int"),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),
-            Token::Ident(name) => write!(f, "Ident({})", name),
-            // types
-            Token::Int => write!(f, "Int"),
-            //
-            Token::Assign => write!(f, "Assign"),
-            Token::OpenParen => write!(f, "OpenParen"),
-            Token::CloseParen => write!(f, "CloseParen"),
-            Token::OpenBrace => write!(f, "OpenBrace"),
-            Token::CloseBrace => write!(f, "CloseBrace"),
-            Token::Comma => write!(f, "Comma"),
-            Token::Semicolon => write!(f, "Semicolon"),
-            Token::Num(n) => write!(f, "Num({})", n),
+            Token::LogOr => write!(f, "Or"),
+            Token::LogAnd => write!(f, "And"),
+            Token::Return => write!(f, "Return"),
             Token::EOF => write!(f, "EOF"),
         }
     }
@@ -237,54 +221,11 @@ impl From<&'static str> for Token {
 
 impl From<char> for Token {
     fn from(c: char) -> Token {
-        use token::Token::*;
         match c {
-            '+' => Add,
-            '-' => Sub,
-            '*' => Mul,
-            '/' => Div,
-            '=' => Assign,
-            '(' => OpenParen,
-            ')' => CloseParen,
-            '{' => OpenBrace,
-            '}' => CloseBrace,
-            '<' => LessThan,
-            '>' => GreaterThan,
-            ';' => Semicolon,
-            ',' => Comma,
+            '+' | '-' | '*' | '/' | '=' | '(' | ')' | '{' | '}' | '<' | '>' | ';' | ',' => {
+                Token::Char(c)
+            }
             _ => panic!("invalid char/token"),
-        }
-    }
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Token::Add => write!(f, "+"),
-            Token::Sub => write!(f, "-"),
-            Token::Mul => write!(f, "*"),
-            Token::Div => write!(f, "/"),
-            Token::LogOr => write!(f, "||"),
-            Token::LogAnd => write!(f, "&&"),
-            Token::LessThan => write!(f, "<"),
-            Token::GreaterThan => write!(f, ">"),
-            Token::Return => write!(f, "return"),
-            Token::If => write!(f, "if"),
-            Token::Else => write!(f, "else"),
-            Token::For => write!(f, "for"),
-            Token::Ident(name) => write!(f, "{}", name),
-            // types
-            Token::Int => write!(f, "int"),
-            //
-            Token::Assign => write!(f, "="),
-            Token::Semicolon => write!(f, ";"),
-            Token::OpenParen => write!(f, "("),
-            Token::CloseParen => write!(f, ")"),
-            Token::OpenBrace => write!(f, "{{"),
-            Token::CloseBrace => write!(f, "}}"),
-            Token::Comma => write!(f, ","),
-            Token::Num(n) => write!(f, "{}", n),
-            Token::EOF => write!(f, "▯"),
         }
     }
 }
@@ -292,18 +233,10 @@ impl fmt::Display for Token {
 impl<'a> fmt::Debug for Tokens<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (pos, tok) in &self.data {
-            writeln!(f, "{}> {:?}", pos, tok)?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a> fmt::Display for Tokens<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (_pos, tok) in &self.data {
-            write!(f, "{} ", tok)?;
-            if let Token::Semicolon = tok {
-                writeln!(f)?
+            write!(f, "{}> ", pos);
+            match tok {
+                Token::Char(c) => writeln!(f, "{}", c)?,
+                tok => writeln!(f, "{:?}", tok)?,
             }
         }
         Ok(())

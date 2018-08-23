@@ -77,6 +77,7 @@ fn run(fi: impl AsRef<str>) -> i32 {
         .expect("to get status code")
 }
 
+#[cfg(any(test, feature="dump"))]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const TESTS: &[(usize, &str)] = &[
 /*  0 */    (0, "int main() { return 0; }"),
@@ -134,7 +135,7 @@ fn compiler() {
 
     assert_eq!(rcc.status.code(), Some(0));
 
-    for (expected, input) in TESTS.iter() {
+    for (i, (expected, input)) in TESTS.iter().enumerate() {
         eprintln!("\x1B[33m=>\x1B[m {}", input);
         eprint!("\x1B[36m??\x1B[m");
         if let Some(program) = compile(input) {
@@ -143,8 +144,8 @@ fn compiler() {
                 eprintln!("\x1B[1000D\x1B[32mOK:\x1B[m {}", actual);
             } else {
                 eprintln!(
-                    "\x1B[1000D\x1B[31mFAIL\x1B[m expected {}, got {}",
-                    expected, actual
+                    "\x1B[1000D\x1B[31mFAIL\x1B[m #{}, expected {}, got {}",
+                    i, expected, actual
                 );
                 eprintln!();
                 assert_eq!(actual, *expected as i32);

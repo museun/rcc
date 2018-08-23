@@ -12,6 +12,7 @@ fn main() {
 
     if let Some(arg) = ::std::env::args().nth(1) {
         match &arg[..] {
+            #[cfg(not(test))]
             "run" => {
                 let args = args.skip(2).collect::<String>();
                 let input = args.parse::<usize>().expect("a number");
@@ -44,22 +45,11 @@ fn main() {
                 let input: &str = args.as_ref();
                 eprintln!("{:#?}", Tokens::tokenize(&input));
             }
-            "tok_p" => {
-                let args = args.skip(2).collect::<String>();
-                let input: &str = args.as_ref();
-                eprintln!("{}", Tokens::tokenize(&input));
-            }
             "ast" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
                 let mut tokens = Tokens::tokenize(&input);
                 eprintln!("{:#?}", Node::parse(&mut tokens));
-            }
-            "ast_c" => {
-                let args = args.skip(2).collect::<String>();
-                let input: &str = args.as_ref();
-                let mut tokens = Tokens::tokenize(&input);
-                eprintln!("{:?}", Node::parse(&mut tokens));
             }
             "ir" => {
                 let args = args.skip(2).collect::<String>();

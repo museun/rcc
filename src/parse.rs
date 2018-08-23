@@ -11,7 +11,26 @@ pub enum Node {
         name: String,
     },
 
-    // types
+    Add {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
+    Sub {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
+    Mul {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
+    Div {
+        lhs: NodeKind,
+        rhs: NodeKind,
+    },
+
     LVal {
         offset: i32,
     },
@@ -21,23 +40,27 @@ pub enum Node {
         init: NodeKind,
         offset: i32,
     },
-    //
+
     Return {
         expr: NodeKind,
     },
+
     Assign {
         lhs: NodeKind,
         rhs: NodeKind,
     },
+
     LogAnd {
         lhs: NodeKind,
         rhs: NodeKind,
     },
+
     LogOr {
         lhs: NodeKind,
         rhs: NodeKind,
     },
-    LessThan {
+
+    Comparison {
         lhs: NodeKind,
         rhs: NodeKind,
     },
@@ -47,6 +70,7 @@ pub enum Node {
         body: NodeKind,
         else_: NodeKind,
     },
+
     Else {
         body: NodeKind,
     },
@@ -62,6 +86,7 @@ pub enum Node {
         name: String,
         args: Vec<Node>,
     },
+
     Func {
         name: String,
         args: Vec<Node>,
@@ -73,11 +98,6 @@ pub enum Node {
         expr: NodeKind,
     },
 
-    Expression {
-        lhs: NodeKind,
-        rhs: NodeKind,
-        tok: Token,
-    },
     Compound {
         stmts: Vec<Node>,
     },
@@ -98,19 +118,18 @@ impl Node {
     fn function(tokens: &mut Tokens) -> Self {
         let (_, _ty) = expect(tokens, Token::Int, "function return type");
         let (_, name) = expect_ident(tokens, "function name");
-        let name = name.into();
 
-        check(tokens, '(');
+        expect_token(tokens, '(');
         let mut args = vec![];
         if !consume(tokens, ')') {
             args.push(Self::param(tokens));
             while consume(tokens, ',') {
                 args.push(Self::param(tokens));
             }
-            check(tokens, ')');
+            expect_token(tokens, ')');
         }
 
-        check(tokens, '{');
+        expect_token(tokens, '{');
         Node::Func {
             name,
             args,
@@ -128,14 +147,16 @@ impl Node {
     }
 
     fn stmt(tokens: &mut Tokens) -> Self {
-        match tokens.peek() {
-            Some((_, Token::Int)) => Self::decl(tokens),
-            Some((_, Token::If)) => {
+        let (pos, next) = tokens.peek().expect("token for statement");
+
+        match next {
+            Token::Int => Self::decl(tokens),
+            Token::If => {
                 tokens.advance();
-                check(tokens, '(');
+                expect_token(tokens, '(');
                 let cond = make(Self::assign(tokens));
 
-                check(tokens, ')');
+                expect_token(tokens, ')');
                 let body = make(Self::stmt(tokens));
 
                 let else_ = if consume(tokens, "else") {
@@ -146,9 +167,9 @@ impl Node {
 
                 Node::If { cond, body, else_ }
             }
-            Some((_, Token::For)) => {
+            Token::For => {
                 tokens.advance();
-                check(tokens, '(');
+                expect_token(tokens, '(');
                 let init = if is_typename(tokens) {
                     Self::decl(tokens)
                 } else {
@@ -156,10 +177,10 @@ impl Node {
                 };
 
                 let cond = Self::assign(tokens);
-                check(tokens, ';');
+                expect_token(tokens, ';');
 
                 let step = Self::assign(tokens);
-                check(tokens, ')');
+                expect_token(tokens, ')');
 
                 let body = Self::stmt(tokens);
                 Node::For {
@@ -169,15 +190,15 @@ impl Node {
                     body: make(body),
                 }
             }
-            Some((_, Token::Return)) => {
+            Token::Return => {
                 tokens.advance();
                 let node = Node::Return {
                     expr: make(Node::assign(tokens)),
                 };
-                check(tokens, ';');
+                expect_token(tokens, ';');
                 node
             }
-            Some((_, Token::OpenBrace)) => {
+            tok if *tok == '{' => {
                 tokens.advance();
                 let mut stmts = vec![];
                 while !consume(tokens, '}') {
@@ -185,8 +206,8 @@ impl Node {
                 }
                 Node::Compound { stmts }
             }
-            Some((_, tok)) if *tok != Token::EOF => Self::expr_stmt(tokens),
-            _ => fail!("unexpected token"),
+            tok if *tok != Token::EOF => Self::expr_stmt(tokens),
+            _ => expect_fail(tokens.input_at(0), *pos, "token wasn't"), // expected
         }
     }
 
@@ -194,7 +215,7 @@ impl Node {
         let node = Node::Statement {
             expr: make(Self::assign(tokens)),
         };
-        check(tokens, ';');
+        expect_token(tokens, ';');
         node
     }
 
@@ -209,7 +230,7 @@ impl Node {
             None
         };
 
-        check(tokens, ';');
+        expect_token(tokens, ';');
         Node::Vardef {
             name,
             init,
@@ -263,17 +284,18 @@ impl Node {
     fn rel(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::add(tokens);
         'expr: loop {
-            match tokens.peek() {
-                Some((_, Token::LessThan)) => {
+            let (_, next) = tokens.peek().expect("token for rel");
+            match next {
+                tok if *tok == '<' => {
                     tokens.advance();
-                    lhs = Node::LessThan {
+                    lhs = Node::Comparison {
                         lhs: make(lhs),
                         rhs: make(Self::add(tokens)),
                     };
                 }
-                Some((_, Token::GreaterThan)) => {
+                tok if *tok == '>' => {
                     tokens.advance();
-                    lhs = Node::LessThan {
+                    lhs = Node::Comparison {
                         lhs: make(Self::add(tokens)),
                         rhs: make(lhs),
                     };
@@ -287,14 +309,20 @@ impl Node {
     fn add(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::mul(tokens);
         'expr: loop {
-            match tokens.peek() {
-                Some((_, tok @ Token::Add)) | Some((_, tok @ Token::Sub)) => {
-                    let tok = tok.clone();
+            let (_, next) = tokens.peek().expect("token for add");
+            match next {
+                tok if *tok == '+' => {
                     tokens.advance();
-                    lhs = Node::Expression {
+                    lhs = Node::Add {
                         lhs: make(lhs),
                         rhs: make(Self::mul(tokens)),
-                        tok,
+                    };
+                }
+                tok if *tok == '-' => {
+                    tokens.advance();
+                    lhs = Node::Sub {
+                        lhs: make(lhs),
+                        rhs: make(Self::mul(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -306,14 +334,20 @@ impl Node {
     fn mul(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::term(tokens);
         'expr: loop {
-            match tokens.peek() {
-                Some((_, tok @ Token::Mul)) | Some((_, tok @ Token::Div)) => {
-                    let tok = tok.clone();
+            let (_, next) = tokens.peek().expect("token for mul");
+            match next {
+                tok if *tok == '*' => {
                     tokens.advance();
-                    lhs = Node::Expression {
+                    lhs = Node::Mul {
                         lhs: make(lhs),
                         rhs: make(Self::term(tokens)),
-                        tok,
+                    };
+                }
+                tok if *tok == '/' => {
+                    tokens.advance();
+                    lhs = Node::Div {
+                        lhs: make(lhs),
+                        rhs: make(Self::term(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -342,9 +376,10 @@ impl Node {
     }
 
     fn term(tokens: &mut Tokens) -> Self {
-        match tokens.next_token() {
-            Some((_, Token::Num(n))) => Node::Constant { val: *n },
-            Some((_, Token::Ident(ref name))) => {
+        let (pos, next) = tokens.next_token().expect("token for mul");
+        match next {
+            Token::Num(n) => Node::Constant { val: *n },
+            Token::Ident(ref name) => {
                 let n = name.clone();
                 if !consume(tokens, '(') {
                     return Node::Ident { name: n };
@@ -362,16 +397,18 @@ impl Node {
                 while consume(tokens, ',') {
                     args.push(Self::assign(tokens));
                 }
-                check(tokens, ')');
+                expect_token(tokens, ')');
                 Node::Call { name: n, args }
             }
-            Some((_, Token::OpenParen)) => {
+            tok if *tok == '(' => {
                 let node = Node::assign(tokens);
-                check(tokens, ')');
+                expect_token(tokens, ')');
                 node
             }
-            Some(tok) => fail!("number or ident expected at {}, but got: {}", tok.0, tok.1),
-            _ => unreachable!(),
+            _ => {
+                let pos = *pos;
+                expect_fail(tokens.input_at(0), pos, "number or ident")
+            }
         }
     }
 }
@@ -379,33 +416,6 @@ impl Node {
 #[inline]
 fn make(node: Node) -> Option<Box<Node>> {
     Some(Box::new(node))
-}
-
-/// this uses a discriminant comparison
-#[inline]
-fn expect<'a>(
-    tokens: &'a mut Tokens,
-    tok: impl Into<Token>,
-    msg: impl AsRef<str>,
-) -> (&'a usize, &'a Token) {
-    let tok = tok.into();
-    let cmp = ::std::mem::discriminant(&tok);
-    match tokens.next_token() {
-        Some((pos, t)) if ::std::mem::discriminant(t) != cmp => {
-            fail!("{} expected at {}. but found: {}.", msg.as_ref(), pos, t)
-        }
-        Some((pos, t)) => (pos, t),
-        _ => unreachable!(),
-    }
-}
-
-#[inline]
-fn expect_ident<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (&'a usize, &'a str) {
-    match tokens.next_token() {
-        Some((pos, Token::Ident(name))) => (pos, &name),
-        Some((pos, t)) => fail!("{} expected at {}. but found: {}.", msg.as_ref(), pos, t),
-        _ => unreachable!(),
-    }
 }
 
 #[inline]
@@ -420,7 +430,6 @@ fn is_typename(tokens: &mut Tokens) -> bool {
 #[inline]
 fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
     let tok = tok.into();
-
     match tokens.peek() {
         Some((_, t)) if *t == tok => {
             tokens.advance();
@@ -432,39 +441,78 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
 
 // TODO: this really needs a better name
 #[inline]
-fn check(tokens: &mut Tokens, tok: impl Into<Token>) {
+fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();
-    match tokens.next_token() {
-        Some((pos, t)) if *t != tok => {
-            let (t, pos) = (t.clone(), *pos);
-            let input = tokens.input_at(0);
 
-            const MAX: usize = 60;
-            const HALF: usize = MAX / 2;
-            let (input, adjusted) = if input.len() > MAX {
-                if pos < HALF {
-                    (&input[..HALF], pos)
-                } else {
-                    (&input[pos - HALF..], HALF)
-                }
-            } else {
-                (input, pos)
-            };
+    let (pos, next) = tokens.next_token().expect("get next token");
+    if *next == tok {
+        return;
+    }
 
-            use Color::*;
+    const SOURCE_LINE: &str = "source=> ";
+    let (pos, next) = (*pos, next.clone());
+    let (input, adjusted) = midpoint(tokens.input_at(0), pos, 80 - SOURCE_LINE.len());
 
-            eprintln!("{}{}", wrap_color!(Yellow, "source=> "), input);
-            draw_caret("source=> ".len() + adjusted, Red);
+    eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
+    draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
 
-            fail!(
-                "{} {} was expected. found {} at position: {}.\n",
-                wrap_color!(Red, "ERROR:"),
-                wrap_color!(Green, tok),
-                wrap_color!(Red, t),
-                wrap_color!(Blue, pos),
-            );
+    fail!(
+        "{} {} was expected. found {} at position: {}.\n",
+        wrap_color!(Color::Red {}, "ERROR:"),
+        wrap_color!(Color::Green {}, tok.get_char()),
+        wrap_color!(Color::Cyan {}, "{:?}", next),
+        wrap_color!(Color::Blue {}, pos),
+    );
+}
+
+/// this uses a discriminant comparison
+#[inline]
+fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: impl AsRef<str>) -> (usize, Token) {
+    use std::mem::discriminant;
+    let (pos, next) = tokens.next_token().expect("get next token");
+    if discriminant(next) == discriminant(&tok.into()) {
+        return (*pos, next.clone());
+    }
+    let pos = *pos;
+    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+}
+
+#[inline]
+fn expect_ident(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, String) {
+    let (pos, next) = tokens.next_token().expect("get next token");
+    if let Token::Ident(name) = next {
+        return (*pos, name.to_string());
+    }
+    let pos = *pos;
+    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+}
+
+fn expect_fail(input: &str, pos: usize, msg: &str) -> ! {
+    const SOURCE_LINE: &str = "source=> ";
+    let (input, adjusted) = midpoint(&input, pos, 80 - SOURCE_LINE.len());
+
+    eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
+    draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
+
+    fail!(
+        "{} {} was expected. at position: {}.\n",
+        wrap_color!(Color::Red {}, "ERROR:"),
+        wrap_color!(Color::Cyan {}, msg),
+        wrap_color!(Color::Blue {}, pos),
+    );
+}
+
+/// gets +/- `width` around the `cursor`
+fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
+    let half = width / 2;
+    if input.len() > width {
+        if cursor < half {
+            (&input[..half], cursor)
+        } else {
+            (&input[cursor - half..], half)
         }
-        _ => {}
+    } else {
+        (input, cursor)
     }
 }
 

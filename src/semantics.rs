@@ -1,5 +1,4 @@
 use super::*;
-
 use std::collections::HashMap;
 
 pub struct Semantics {
@@ -63,15 +62,13 @@ impl Semantics {
                 self.walk(step.as_mut().unwrap());
                 self.walk(body.as_mut().unwrap());
             }
-            Node::Expression { lhs, rhs, tok } => match tok {
-                Token::Add | Token::Sub | Token::Mul | Token::Div => {
-                    self.walk(lhs.as_mut().unwrap());
-                    self.walk(rhs.as_mut().unwrap());
-                }
-                _ => fail!("invalid node type"),
-            },
-            Node::Assign { lhs, rhs }
-            | Node::LessThan { lhs, rhs }
+
+            Node::Add { lhs, rhs }
+            | Node::Sub { lhs, rhs }
+            | Node::Mul { lhs, rhs }
+            | Node::Div { lhs, rhs }
+            | Node::Assign { lhs, rhs }
+            | Node::Comparison { lhs, rhs }
             | Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs } => {
                 self.walk(lhs.as_mut().unwrap());
