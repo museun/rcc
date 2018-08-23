@@ -86,10 +86,10 @@ impl Generate {
                 self.add(IR::Kill(reg(lhs)));
                 self.add(IR::Kill(reg(rhs)));
             }
+
             Node::If { cond, body, else_ } => {
                 let r = self.gen_expr(cond.as_ref().unwrap());
-                let x = self.label;
-                self.label += 1;
+                let x = self.next_label();
 
                 self.add(IR::Unless(reg_imm(r, x)));
                 self.add(IR::Kill(reg(r)));
@@ -101,25 +101,22 @@ impl Generate {
                     return;
                 }
 
-                let y = self.label;
-                self.label += 1;
-
+                let y = self.next_label();
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
                 self.gen_stmt(else_.as_ref().unwrap());
                 self.add(IR::Label(imm(y)));
             }
+
             Node::For {
                 init,
                 cond,
                 step,
                 body,
             } => {
-                let x = self.label;
-                self.label += 1;
-                let y = self.label;
-                self.label += 1;
+                let x = self.next_label();
+                let y = self.next_label();
 
                 self.gen_stmt(init.as_ref().unwrap());
                 self.add(IR::Label(imm(x)));
@@ -134,15 +131,18 @@ impl Generate {
                 self.add(IR::Jmp(imm(x)));
                 self.add(IR::Label(imm(y)));
             }
+
             Node::Return { expr } => {
                 let r = self.gen_expr(expr.as_ref().unwrap());
                 self.add(IR::Return(reg(r)));
                 self.add(IR::Kill(reg(r)));
             }
+
             Node::Statement { expr } => {
                 let r = self.gen_expr(expr.as_ref().unwrap());
                 self.add(IR::Kill(reg(r)));
             }
+
             Node::Compound { stmts } => {
                 for stmt in stmts {
                     self.gen_stmt(&stmt)
@@ -171,8 +171,7 @@ impl Generate {
             }
 
             Node::LogAnd { lhs, rhs } => {
-                let x = self.label;
-                self.label += 1;
+                let x = self.next_label();
 
                 let r1 = self.gen_expr(lhs.as_ref().unwrap());
                 self.add(IR::Unless(reg_imm(r1, x)));
@@ -188,10 +187,8 @@ impl Generate {
             }
 
             Node::LogOr { lhs, rhs } => {
-                let x = self.label;
-                self.label += 1;
-                let y = self.label;
-                self.label += 1;
+                let x = self.next_label();
+                let y = self.next_label();
 
                 let r1 = self.gen_expr(lhs.as_ref().unwrap());
                 self.add(IR::Unless(reg_imm(r1, x)));
@@ -216,20 +213,20 @@ impl Generate {
             }
 
             Node::Call { name, args } => {
-                let mut vec = vec![];
+                let mut exprs = vec![];
                 for arg in args {
-                    vec.push(self.gen_expr(arg))
+                    exprs.push(self.gen_expr(arg))
                 }
 
                 let r = self.next_reg();
                 self.add(IR::Call(IRType::Call {
                     reg: r,
                     name: name.clone(),
-                    args: vec.clone(),
+                    args: exprs.clone(),
                 }));
 
-                for k in vec {
-                    self.add(IR::Kill(reg(k)));
+                for ex in exprs {
+                    self.add(IR::Kill(reg(ex)));
                 }
                 r
             }
@@ -290,6 +287,12 @@ impl Generate {
         (self.inst.len() + 1) as i32
     }
 
+    fn next_label(&mut self) -> i32 {
+        let n = self.label;
+        self.label += 1;
+        n
+    }
+
     fn add(&mut self, ir: IR) {
         self.inst.push(ir)
     }
@@ -321,18 +324,22 @@ pub enum IRType {
 
 // helpers to make IRTypes
 
+#[inline]
 fn reg_reg(dst: i32, src: i32) -> IRType {
     IRType::RegReg { dst, src }
 }
 
+#[inline]
 fn reg_imm(reg: i32, val: i32) -> IRType {
     IRType::RegImm { reg, val }
 }
 
+#[inline]
 fn reg(src: i32) -> IRType {
     IRType::Reg { src }
 }
 
+#[inline]
 fn imm(val: i32) -> IRType {
     IRType::Imm { val }
 }
