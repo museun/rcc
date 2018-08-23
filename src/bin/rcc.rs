@@ -21,5 +21,5 @@ fn main() {
     let nodes = Semantics::analyze(&mut nodes);
     let mut ir = Generate::gen_ir(&nodes);
     Registers::allocate(&mut ir);
-    generate_x64(ABI::SystemV, ir);
+    generate_x64(&ABI::SystemV, ir);
 }

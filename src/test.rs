@@ -1,24 +1,29 @@
+#![allow(unused_imports)]
 use std::{
     fs,
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+#[cfg(test)]
 static POS: AtomicUsize = AtomicUsize::new(1);
-// static RUN: AtomicBool = AtomicBool::new(false);
 
+#[cfg(test)]
 const CC: &str = "bash";
 
+#[cfg(test)]
 fn clean() {
     // this should only be done once..
     let _ = fs::remove_dir_all("tmp");
     let _ = fs::create_dir("tmp");
 }
 
+#[cfg(test)]
 fn gen_name() -> String {
     format!("{}", POS.fetch_add(1, Ordering::SeqCst))
 }
 
+#[cfg(test)]
 fn compile(p: &str) -> Option<String> {
     let name = gen_name();
     let rcc = Command::new("target/debug/rcc.exe")
@@ -41,7 +46,7 @@ fn compile(p: &str) -> Option<String> {
 
     let gcc = Command::new(CC)
         .arg("-c")
-        .arg(&format!("gcc -o tmp/{} tmp/{}.s add.o", &name, &name))
+        .arg(&format!("gcc -o tmp/{} tmp/{}.s test.o", &name, &name))
         .output()
         .expect("to run gcc");
 
@@ -59,6 +64,7 @@ fn compile(p: &str) -> Option<String> {
     Some(format!("tmp/{}", &name))
 }
 
+#[cfg(test)]
 fn run(fi: impl AsRef<str>) -> i32 {
     let fi = fi.as_ref();
     Command::new(CC)

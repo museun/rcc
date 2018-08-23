@@ -1,11 +1,13 @@
 /target
 **/*.rs.bk
 
+tmp
+tmp/*
+
 *.log
 *.s
 *.sh
-tmp
 *.o
+*.c
 *.exe
 *.a
-tmp/*

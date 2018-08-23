@@ -6,7 +6,7 @@ pub enum ABI {
 }
 
 // this should be a trait
-pub fn generate_x64(abi: ABI, funcs: Vec<Function>) {
+pub fn generate_x64(abi: &ABI, funcs: Vec<Function>) {
     println!(".intel_syntax noprefix");
     let mut label = 0;
     for func in funcs {

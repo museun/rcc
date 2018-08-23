@@ -1,6 +1,5 @@
 use super::*;
 use std::{
-    collections::HashMap,
     fmt,
     ops::{Deref, DerefMut},
 };
@@ -98,8 +97,7 @@ impl Generate {
 
     fn gen_stmt(&mut self, node: &Node) {
         match node {
-            // TODO or is this the size?
-            Node::Vardef { name, init, offset } => {
+            Node::Vardef { init, offset, .. } => {
                 if init.is_none() {
                     return;
                 }
