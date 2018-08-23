@@ -116,7 +116,7 @@ fn compiler() {
         (0, "int main() { return 0>1; }"),
         (1, "int main() { return 1>0; }"),
         (60, "int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum; }"),
-        (89, "int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m;} return i; }"),        
+        (89, "int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m;} return i; }"),
     ];
 
     clean();

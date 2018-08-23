@@ -36,10 +36,7 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     // sys-v must restore original values
 
     let (callee, caller) = match abi {
-        ABI::Windows => (
-            &["rdi", "rsi", "rdx", "rcx", "r8", "r9"], // caller
-            &["r12", "r13", "r14", "r15"],             // callee
-        ),
+        ABI::Windows => unimplemented!(),
         ABI::SystemV => (
             &["rdi", "rsi", "rdx", "rcx", "r8", "r9"], // caller
             &["r12", "r13", "r14", "r15"],             // callee

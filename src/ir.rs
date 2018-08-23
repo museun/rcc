@@ -5,6 +5,51 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+#[derive(Clone, PartialEq)]
+pub enum IRType {
+    RegReg {
+        dst: i32,
+        src: i32,
+    },
+    RegImm {
+        reg: i32,
+        val: i32,
+    },
+    Reg {
+        src: i32,
+    },
+    Imm {
+        val: i32,
+    },
+    Call {
+        reg: i32,
+        name: String,
+        args: Vec<i32>,
+    },
+    Nop,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum IR {
+    Imm(IRType),      // reg->imm
+    Mov(IRType),      // reg->reg
+    Return(IRType),   // reg
+    Load(IRType),     // reg->reg
+    Store(IRType),    // reg->reg
+    Unless(IRType),   // reg->imm
+    Label(IRType),    // imm
+    Jmp(IRType),      // imm
+    Add(IRType),      // reg->reg
+    Sub(IRType),      // reg->reg
+    Mul(IRType),      // reg->reg
+    Div(IRType),      // reg->reg
+    LessThan(IRType), // reg->reg
+    Kill(IRType),     // reg
+    Nop(IRType),      // nothing
+    Call(IRType),     // call name, [args]
+    SaveArgs(IRType), // args + stack offset
+}
+
 #[derive(Debug)]
 pub struct Function {
     pub(crate) name: String,
@@ -298,32 +343,7 @@ impl Generate {
     }
 }
 
-#[derive(Clone)]
-pub enum IRType {
-    RegReg {
-        dst: i32,
-        src: i32,
-    },
-    RegImm {
-        reg: i32,
-        val: i32,
-    },
-    Reg {
-        src: i32,
-    },
-    Imm {
-        val: i32,
-    },
-    Call {
-        reg: i32,
-        name: String,
-        args: Vec<i32>,
-    },
-    Nop,
-}
-
 // helpers to make IRTypes
-
 #[inline]
 fn reg_reg(dst: i32, src: i32) -> IRType {
     IRType::RegReg { dst, src }
@@ -342,27 +362,6 @@ fn reg(src: i32) -> IRType {
 #[inline]
 fn imm(val: i32) -> IRType {
     IRType::Imm { val }
-}
-
-#[derive(Clone)]
-pub enum IR {
-    Imm(IRType),      // reg->imm
-    Mov(IRType),      // reg->reg
-    Return(IRType),   // reg
-    Load(IRType),     // reg->reg
-    Store(IRType),    // reg->reg
-    Unless(IRType),   // reg->imm
-    Label(IRType),    // imm
-    Jmp(IRType),      // imm
-    Add(IRType),      // reg->reg
-    Sub(IRType),      // reg->reg
-    Mul(IRType),      // reg->reg
-    Div(IRType),      // reg->reg
-    LessThan(IRType), // reg->reg
-    Kill(IRType),     // reg
-    Nop(IRType),      // nothing
-    Call(IRType),     // call name, [args]
-    SaveArgs(IRType), // args + stack offset
 }
 
 // TODO: this stuff needs to be rewritten

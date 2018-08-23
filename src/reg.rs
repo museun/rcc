@@ -1,5 +1,5 @@
 use super::*;
-use std::ops::DerefMut;
+use std::{mem, ops::DerefMut};
 
 pub(crate) const REGS: [&str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 pub(crate) const REGS8: [&str; 8] = ["bpl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
@@ -11,7 +11,7 @@ pub struct Registers {
 
 impl Registers {
     pub fn allocate(funcs: &mut Vec<Function>) {
-        for func in funcs {
+        for func in funcs.iter_mut() {
             let mut this = Self {
                 used: [false; 8],
                 map: vec![-1; func.ir.len()],
@@ -22,6 +22,12 @@ impl Registers {
 
             this.visit(&mut func.ir);
         }
+
+        // remove all of the no-ops
+        let nop = mem::discriminant(&IR::Nop(IRType::Nop {}));
+        funcs
+            .iter_mut()
+            .for_each(|f| f.ir.retain(|ir| mem::discriminant(ir) != nop))
     }
 
     fn visit(&mut self, inst: &mut Vec<IR>) {
