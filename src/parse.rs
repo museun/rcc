@@ -63,6 +63,10 @@ pub enum Node {
         body: NodeKind,
     },
 
+    Statement {
+        expr: NodeKind,
+    },
+
     Expression {
         lhs: NodeKind,
         rhs: NodeKind,
@@ -118,20 +122,7 @@ impl Node {
 
     fn stmt(tokens: &mut Tokens) -> Self {
         match tokens.peek() {
-            Some((_, Token::Int)) => {
-                tokens.advance();
-                let (_, name) = expect_ident(tokens, "variable name expected");
-                let name = name.to_string();
-
-                let init = if consume(tokens, '=') {
-                    make(Self::assign(tokens))
-                } else {
-                    None
-                };
-
-                check(tokens, ';');
-                Node::Vardef { name, init }
-            }
+            Some((_, Token::Int)) => Self::decl(tokens),
             Some((_, Token::If)) => {
                 tokens.advance();
                 check(tokens, '(');
@@ -151,17 +142,19 @@ impl Node {
             Some((_, Token::For)) => {
                 tokens.advance();
                 check(tokens, '(');
-                let init = Self::assign(tokens);
+                let init = if is_typename(tokens) {
+                    Self::decl(tokens)
+                } else {
+                    Self::expr_stmt(tokens)
+                };
 
-                check(tokens, ';');
                 let cond = Self::assign(tokens);
-
                 check(tokens, ';');
+
                 let step = Self::assign(tokens);
-
                 check(tokens, ')');
-                let body = Self::stmt(tokens);
 
+                let body = Self::stmt(tokens);
                 Node::For {
                     init: make(init),
                     cond: make(cond),
@@ -185,18 +178,32 @@ impl Node {
                 }
                 Node::Compound { stmts }
             }
-            Some((_, tok)) if *tok != Token::EOF => {
-                let tok = tok.clone();
-                let node = Node::Expression {
-                    lhs: make(Node::assign(tokens)),
-                    rhs: None,
-                    tok,
-                };
-                check(tokens, ';');
-                node
-            }
+            Some((_, tok)) if *tok != Token::EOF => Self::expr_stmt(tokens),
             _ => fail!("unexpected token"),
         }
+    }
+
+    fn expr_stmt(tokens: &mut Tokens) -> Self {
+        let node = Node::Statement {
+            expr: make(Self::assign(tokens)),
+        };
+        check(tokens, ';');
+        node
+    }
+
+    fn decl(tokens: &mut Tokens) -> Self {
+        tokens.advance();
+        let (_, name) = expect_ident(tokens, "variable name expected");
+        let name = name.to_string();
+
+        let init = if consume(tokens, '=') {
+            make(Self::assign(tokens))
+        } else {
+            None
+        };
+
+        check(tokens, ';');
+        Node::Vardef { name, init }
     }
 
     fn assign(tokens: &mut Tokens) -> Self {
@@ -343,19 +350,6 @@ fn make(node: Node) -> Option<Box<Node>> {
     Some(Box::new(node))
 }
 
-#[inline]
-fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
-    let tok = tok.into();
-
-    match tokens.peek() {
-        Some((_, t)) if *t == tok.into() => {
-            tokens.advance();
-            true
-        }
-        _ => false,
-    }
-}
-
 /// this uses a discriminant comparison
 #[inline]
 fn expect<'a>(
@@ -383,6 +377,29 @@ fn expect_ident<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (&'a usize,
     }
 }
 
+#[inline]
+fn is_typename(tokens: &mut Tokens) -> bool {
+    match tokens.peek() {
+        Some((_, Token::Int)) => true,
+        // TODO add more types
+        _ => false,
+    }
+}
+
+#[inline]
+fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
+    let tok = tok.into();
+
+    match tokens.peek() {
+        Some((_, t)) if *t == tok => {
+            tokens.advance();
+            true
+        }
+        _ => false,
+    }
+}
+
+// TODO: this really needs a better name
 #[inline]
 fn check(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();

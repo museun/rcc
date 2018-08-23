@@ -35,8 +35,8 @@ impl Generate {
                     };
 
                     this.gen_args(args);
-
                     this.gen_stmt(body.as_ref().unwrap());
+
                     let function = Function {
                         name: name.clone(),
                         stacksize: this.stacksize,
@@ -56,6 +56,7 @@ impl Generate {
         }
 
         self.add(IR::SaveArgs(imm(nodes.len() as i32)));
+
         for node in nodes {
             match node {
                 Node::Ident { name } => {
@@ -120,8 +121,7 @@ impl Generate {
                 let y = self.label;
                 self.label += 1;
 
-                let n = self.gen_expr(init.as_ref().unwrap());
-                self.add(IR::Kill(reg(n)));
+                self.gen_stmt(init.as_ref().unwrap());
                 self.add(IR::Label(imm(x)));
 
                 let r = self.gen_expr(cond.as_ref().unwrap());
@@ -139,8 +139,8 @@ impl Generate {
                 self.add(IR::Return(reg(r)));
                 self.add(IR::Kill(reg(r)));
             }
-            Node::Expression { lhs, .. } => {
-                let r = self.gen_expr(lhs.as_ref().unwrap());
+            Node::Statement { expr } => {
+                let r = self.gen_expr(expr.as_ref().unwrap());
                 self.add(IR::Kill(reg(r)));
             }
             Node::Compound { stmts } => {
@@ -148,6 +148,7 @@ impl Generate {
                     self.gen_stmt(&stmt)
                 }
             }
+            // TODO make this return a Result so we can print out an instruction trace
             _ => fail!("unknown node in stmt: {:?}", node),
         }
     }
@@ -168,6 +169,7 @@ impl Generate {
                 self.add(IR::Add(reg_imm(r, *val as i32)));
                 r
             }
+
             Node::LogAnd { lhs, rhs } => {
                 let x = self.label;
                 self.label += 1;
@@ -184,6 +186,7 @@ impl Generate {
 
                 r1
             }
+
             Node::LogOr { lhs, rhs } => {
                 let x = self.label;
                 self.label += 1;
@@ -205,11 +208,13 @@ impl Generate {
 
                 r1
             }
+
             Node::Ident { .. } => {
                 let r = self.gen_lval(node);
                 self.add(IR::Load(reg_reg(r, r)));
                 r
             }
+
             Node::Call { name, args } => {
                 let mut vec = vec![];
                 for arg in args {
@@ -259,6 +264,7 @@ impl Generate {
                 self.add(IR::Kill(reg(rhs)));
                 lhs
             }
+            // TODO make this return a Result so we can print out an instruction trace
             _ => fail!("unknown node in expr: {:?}", node),
         }
     }
