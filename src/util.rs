@@ -9,6 +9,7 @@ macro_rules! fail {
     }};
 }
 
+#[derive(Clone, Copy)]
 pub enum Color {
     Red,
     Green,
@@ -37,6 +38,7 @@ impl Color {
     }
 }
 
+#[macro_export]
 macro_rules! wrap_color {
     //, $(arg:tt),* $(,)*
 

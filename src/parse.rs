@@ -7,6 +7,7 @@ pub enum Node {
     Constant {
         val: u32,
     },
+
     Ident {
         name: String,
     },
@@ -519,4 +520,312 @@ fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
 fn draw_caret(width: usize, color: Color) {
     let s = ::std::iter::repeat(" ").take(width).collect::<String>();
     eprintln!("{}{}", s, wrap_color!(color, "^"));
+}
+
+pub fn dump_ast(ast: &[Node]) {
+    macro_rules! kind {
+        ($e:expr) => {
+            $e.as_ref().unwrap()
+        };
+    }
+
+    fn dump(depth: usize, node: &Node) {
+        // const COLORS: [Color; 7] = [
+        //     Color::White,
+        //     Color::Red,
+        //     Color::Green,
+        //     Color::Yellow,
+        //     Color::Cyan,
+        //     Color::Magenta,
+        //     Color::Blue,
+        // ];
+
+        macro_rules! w {
+            ($depth:expr, $($arg:tt)*) => {{
+                // let pad = wrap_color!(
+                //     COLORS[($depth+COLORS.len() - 1) % COLORS.len()],
+                //     "{}",
+                //     ::std::iter::repeat("·").take($depth * 2).collect::<String>()
+                // );
+                let pad = ::std::iter::repeat(" ").take($depth*2).collect::<String>();
+                eprint!("{}{}", pad, format!($($arg)*));
+            }};
+        }
+
+        use Node::*;
+        match node {
+            Func {
+                name,
+                args,
+                body,
+                stacksize,
+            } => {
+                w!(depth, "Func {} (", name);
+                if *stacksize != 0 {
+                    w!(depth, " -- size: {}", stacksize);
+                }
+                w!(0, "\n");
+                for (i, arg) in args.iter().enumerate() {
+                    dump(depth + 1, arg);
+                    if i < args.len() - 1 {
+                        w!(0, "\n");
+                    }
+                }
+                if !args.is_empty() {
+                    w!(0, "\n");
+                }
+                if body.is_some() {
+                    dump(depth + 1, kind!(body));
+                }
+                w!(0, "\n");
+                w!(depth, ")");
+                w!(0, "\n");
+            }
+
+            Vardef { name, init, offset } => {
+                if init.is_none() {
+                    w!(depth, "Var {}", name);
+                    if *offset != 0 {
+                        w!(0, " -- offset: {}", offset);
+                    }
+                } else {
+                    w!(depth, "Var {} (", name);
+                    if *offset != 0 {
+                        w!(0, " -- offset: {}", offset);
+                    }
+                    w!(0, "\n");
+                    dump(depth + 1, kind!(init));
+                    w!(0, "\n");
+                    w!(depth, ")");
+                }
+            }
+
+            Compound { stmts } => {
+                w!(depth, "Compound (");
+                w!(0, "\n");
+                for (i, stmt) in stmts.iter().enumerate() {
+                    dump(depth + 1, stmt);
+                    if i < stmts.len() - 1 {
+                        w!(0, "\n");
+                    }
+                }
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Return { expr } => {
+                w!(depth, "Return (");
+                w!(0, "\n");
+                dump(depth + 1, kind!(expr));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Call { name, args } => {
+                w!(depth, "Call {}(", name);
+                if !args.is_empty() {
+                    w!(0, "\n");
+                }
+
+                for (i, a) in args.iter().enumerate() {
+                    dump(depth + 1, &a);
+                    if i < args.len() - 1 {
+                        w!(0, ",\n")
+                    } else {
+                        w!(0, "\n")
+                    }
+                }
+                w!(if args.is_empty() { 0 } else { depth }, ")");
+            }
+
+            Constant { val } => w!(depth, "Constant {}", val),
+
+            Ident { name } => w!(depth, "Ident {}", name),
+
+            If { cond, body, else_ } => {
+                w!(depth, "If ");
+                if cond.is_some() {
+                    w!(0, "Cond (");
+                    w!(0, "\n");
+                    dump(depth + 1, kind!(cond));
+                }
+                w!(0, "\n");
+                w!(depth, ")");
+                if body.is_some() {
+                    w!(0, "\n");
+                    w!(depth, "Body (");
+                    w!(0, "\n");
+                    dump(depth + 1, kind!(body));
+                    w!(0, "\n");
+                    w!(depth, ")");
+                }
+                if else_.is_some() {
+                    w!(0, "\n");
+                    w!(depth, "Else (");
+                    w!(0, "\n");
+                    dump(depth + 1, kind!(else_));
+                    w!(0, "\n");
+                    w!(depth, ")");
+                }
+            }
+
+            Else { body } => {
+                w!(depth, "Else ");
+                w!(0, "\n");
+                if body.is_some() {
+                    w!(depth, "Body\n");
+                    dump(depth + 1, kind!(body));
+                }
+            }
+
+            For {
+                init,
+                cond,
+                step,
+                body,
+            } => {
+                w!(depth, "For (");
+                w!(0, "\n");
+                if init.is_some() {
+                    w!(depth + 1, "Init (");
+                    w!(0, "\n");
+                    dump(depth + 2, kind!(init));
+                    w!(0, "\n");
+                    w!(depth + 1, ")");
+                }
+                if cond.is_some() {
+                    w!(0, "\n");
+                    w!(depth + 1, "Cond (");
+                    w!(0, "\n");
+                    dump(depth + 2, kind!(cond));
+                    w!(0, "\n");
+                    w!(depth + 1, ")");
+                }
+                if step.is_some() {
+                    w!(0, "\n");
+                    w!(depth + 1, "Step (");
+                    w!(0, "\n");
+                    dump(depth + 2, kind!(step));
+                    w!(0, "\n");
+                    w!(depth + 1, ")");
+                }
+                if body.is_some() {
+                    w!(0, "\n");
+                    w!(depth + 1, "Body (");
+                    w!(0, "\n");
+                    dump(depth + 2, kind!(body));
+                    w!(0, "\n");
+                    w!(depth + 1, ")");
+                }
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Statement { expr } => {
+                w!(depth, "Statement (");
+                w!(0, "\n");
+                dump(depth + 1, kind!(expr));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            LVal { offset } => {
+                w!(depth, "LVal -- offset: {}", offset);
+            }
+
+            Add { lhs, rhs } => {
+                w!(depth, "Add (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Sub { lhs, rhs } => {
+                w!(depth, "Sub (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Mul { lhs, rhs } => {
+                w!(depth, "Mul (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Div { lhs, rhs } => {
+                w!(depth, "Div (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Comparison { lhs, rhs } => {
+                w!(depth, "Cmp (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            LogAnd { lhs, rhs } => {
+                w!(depth, "And (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            LogOr { lhs, rhs } => {
+                w!(depth, "Or (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+
+            Assign { lhs, rhs } => {
+                w!(depth, "Assign (\n");
+                dump(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                dump(depth + 1, kind!(rhs));
+                w!(0, "\n");
+                w!(depth, ")");
+            }
+        }
+    }
+
+    for node in ast {
+        // eprintln!("{:#?}", node);
+        dump(0, node);
+    }
+}
+
+pub fn join_with<S, I, T>(mut iter: I, sep: S) -> String
+where
+    S: AsRef<str>,
+    T: AsRef<str>,
+    I: Iterator<Item = T>,
+{
+    let mut buf = String::new();
+    if let Some(s) = iter.next() {
+        buf.push_str(s.as_ref());
+    }
+    for i in iter {
+        buf.push_str(sep.as_ref());
+        buf.push_str(i.as_ref());
+    }
+    buf
 }

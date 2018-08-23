@@ -1,4 +1,5 @@
 #![feature(nll)]
+#![recursion_limit = "1024"]
 
 pub(crate) const MAX_INST: usize = 1000;
 

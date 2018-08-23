@@ -7,38 +7,45 @@ use rcc::*;
 fn main() {
     let args = args();
     if args.len() != 3 {
-        fail!("usage: dump <option> <code>");
+        fail!("usage: dump <option1> <option2>");
     }
 
     if let Some(arg) = ::std::env::args().nth(1) {
         match &arg[..] {
-            #[cfg(not(test))]
-            "run" => {
-                let args = args.skip(2).collect::<String>();
-                let input = args.parse::<usize>().expect("a number");
+            // TODO fix this
+            // #[cfg(any(test, feature = "dump"))]
+            // "run" => {
+            //     let args = args.skip(2).collect::<String>();
+            //     let input = args.parse::<usize>().expect("a number");
 
-                let (_, input) = test::TESTS[input];
+            //     let (_, input) = test::TESTS[input];
 
-                eprintln!("input: {}", input);
+            //     eprintln!("{}: {}", wrap_color!(Color::Yellow {}, "input"), input);
 
-                let mut tokens = Tokens::tokenize(&input);
-                eprintln!("tokens:\n{:#?}", tokens);
+            //     let mut tokens = Tokens::tokenize(&input);
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
+            //     eprintln!("{:#?}", tokens);
 
-                let mut ast = Node::parse(&mut tokens);
-                eprintln!("ast:\n{:#?}", ast);
-                let mut nodes = ast.iter_mut().collect::<Vec<_>>();
+            //     let mut ast = Node::parse(&mut tokens);
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
+            //     dump_ast(&ast);
 
-                let nodes = Semantics::analyze(&mut nodes);
-                eprintln!("semantics:\n{:#?}", nodes);
+            //     let mut nodes = ast.iter_mut().collect::<Vec<_>>();
+            //     let nodes = Semantics::analyze(&mut nodes);
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "semantics:"));
+            //     dump_ast(&nodes);
 
-                let mut ir = Generate::gen_ir(&nodes);
-                eprintln!("ir:\n{:#?}", ir);
+            //     let mut ir = Generate::gen_ir(&nodes);
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));
+            //     eprintln!("{:#?}", ir);
 
-                Registers::allocate(&mut ir);
-                eprintln!("reg:\n{:#?}", ir);
+            //     Registers::allocate(&mut ir);
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "reg:"));
+            //     eprintln!("{:#?}", ir);
 
-                generate_x64(&ABI::SystemV, ir);
-            }
+            //     eprintln!("{}", wrap_color!(Color::Yellow {}, "asm:"));
+            //     generate_x64(&ABI::SystemV, ir);
+            // }
             // naming is hard
             "tok" => {
                 let args = args.skip(2).collect::<String>();
@@ -49,7 +56,9 @@ fn main() {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
                 let mut tokens = Tokens::tokenize(&input);
-                eprintln!("{:#?}", Node::parse(&mut tokens));
+                let ast = Node::parse(&mut tokens);
+                dump_ast(&ast);
+                // eprintln!("{}", &input);
             }
             "ir" => {
                 let args = args.skip(2).collect::<String>();

@@ -1,3 +1,4 @@
+use super::*;
 use std::ops::{Index, IndexMut};
 
 #[derive(PartialEq, Clone)]
@@ -233,7 +234,7 @@ impl From<char> for Token {
 impl<'a> fmt::Debug for Tokens<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (pos, tok) in &self.data {
-            write!(f, "{}> ", pos);
+            write!(f, "{}", wrap_color!(Color::Cyan {}, "{: >4}>\t", pos));
             match tok {
                 Token::Char(c) => writeln!(f, "{}", c)?,
                 tok => writeln!(f, "{:?}", tok)?,
