@@ -25,5 +25,4 @@ pub use codegen::*;
 mod semantics;
 pub use semantics::*;
 
-//#[cfg(test)]
 pub mod test;

@@ -77,7 +77,6 @@ fn run(fi: impl AsRef<str>) -> i32 {
         .expect("to get status code")
 }
 
-#[cfg(any(test, feature="dump"))]
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const TESTS: &[(usize, &str)] = &[
 /*  0 */    (0, "int main() { return 0; }"),

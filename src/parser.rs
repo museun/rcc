@@ -1,7 +1,57 @@
 use super::*;
 use std::fmt;
 
-type NodeKind = Option<Box<Node>>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Kind {
+    val: Option<Box<Node>>,
+    ty: Option<Type>,
+}
+
+impl Kind {
+    pub fn make(node: Node) -> Self {
+        Kind {
+            val: Some(Box::new(node)),
+            ty: None,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Kind {
+            val: None,
+            ty: None,
+        }
+    }
+
+    pub fn has_val(&self) -> bool {
+        self.val.is_some()
+    }
+
+    pub fn get_type(&self) -> &Type {
+        self.ty.as_ref().unwrap()
+    }
+
+    pub fn get_type_mut(&mut self) -> &mut Type {
+        self.ty.as_mut().unwrap()
+    }
+}
+
+impl AsRef<Node> for Kind {
+    fn as_ref(&self) -> &Node {
+        self.val.as_ref().unwrap()
+    }
+}
+
+impl AsMut<Node> for Kind {
+    fn as_mut(&mut self) -> &mut Node {
+        self.val.as_mut().unwrap()
+    }
+}
+
+impl AsMut<Node> for Node {
+    fn as_mut(&mut self) -> &mut Node {
+        self
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
@@ -15,23 +65,23 @@ pub enum Node {
     },
 
     Add {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     Sub {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     Mul {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     Div {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     LVal {
@@ -39,76 +89,76 @@ pub enum Node {
     },
 
     Deref {
-        expr: NodeKind,
+        expr: Kind,
     },
 
     Vardef {
         name: String,
-        init: NodeKind,
+        init: Kind,
         offset: i32,
         ty: Type,
     },
 
     Return {
-        expr: NodeKind,
+        expr: Kind,
     },
 
     Assign {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     LogAnd {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     LogOr {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
     },
 
     Comparison {
-        lhs: NodeKind,
-        rhs: NodeKind,
+        lhs: Kind,
+        rhs: Kind,
         comp: Comp,
     },
 
     If {
-        cond: NodeKind,
-        body: NodeKind,
-        else_: NodeKind,
+        cond: Kind,
+        body: Kind,
+        else_: Kind,
     },
 
     Else {
-        body: NodeKind,
+        body: Kind,
     },
 
     For {
-        init: NodeKind,
-        cond: NodeKind,
-        step: NodeKind,
-        body: NodeKind,
+        init: Kind,
+        cond: Kind,
+        step: Kind,
+        body: Kind,
     },
 
     Call {
         name: String,
-        args: Vec<Node>,
+        args: Vec<Kind>,
     },
 
     Func {
         name: String,
-        args: Vec<Node>,
-        body: NodeKind,
+        args: Vec<Kind>,
+        body: Kind,
         stacksize: i32,
     },
 
     Statement {
-        expr: NodeKind,
+        expr: Kind,
     },
 
     Compound {
-        stmts: Vec<Node>,
+        stmts: Vec<Kind>,
     },
 }
 
@@ -163,9 +213,9 @@ impl Node {
         expect_token(tokens, '(');
         let mut args = vec![];
         if !consume(tokens, ')') {
-            args.push(Self::param(tokens));
+            args.push(Kind::make(Self::param(tokens)));
             while consume(tokens, ',') {
-                args.push(Self::param(tokens));
+                args.push(Kind::make(Self::param(tokens)));
             }
             expect_token(tokens, ')');
         }
@@ -174,7 +224,7 @@ impl Node {
         Node::Func {
             name,
             args,
-            body: make(Self::compound_stmt(tokens)),
+            body: Kind::make(Self::compound_stmt(tokens)),
             stacksize: 0,
         }
     }
@@ -186,9 +236,9 @@ impl Node {
         let name = name.to_string();
 
         let init = if consume(tokens, '=') {
-            make(Self::assign(tokens))
+            Kind::make(Self::assign(tokens))
         } else {
-            None
+            Kind::empty()
         };
 
         Node::Vardef {
@@ -202,7 +252,7 @@ impl Node {
     fn compound_stmt(tokens: &mut Lexer) -> Self {
         let mut stmts = vec![];
         while !consume(tokens, '}') {
-            stmts.push(Self::stmt(tokens))
+            stmts.push(Kind::make(Self::stmt(tokens)))
         }
         Node::Compound { stmts }
     }
@@ -215,15 +265,15 @@ impl Node {
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
-                let cond = make(Self::assign(tokens));
+                let cond = Kind::make(Self::assign(tokens));
 
                 expect_token(tokens, ')');
-                let body = make(Self::stmt(tokens));
+                let body = Kind::make(Self::stmt(tokens));
 
                 let else_ = if consume(tokens, "else") {
-                    make(Self::stmt(tokens))
+                    Kind::make(Self::stmt(tokens))
                 } else {
-                    None
+                    Kind::empty()
                 };
 
                 Node::If { cond, body, else_ }
@@ -245,16 +295,16 @@ impl Node {
 
                 let body = Self::stmt(tokens);
                 Node::For {
-                    init: make(init),
-                    cond: make(cond),
-                    step: make(step),
-                    body: make(body),
+                    init: Kind::make(init),
+                    cond: Kind::make(cond),
+                    step: Kind::make(step),
+                    body: Kind::make(body),
                 }
             }
             Token::Return => {
                 tokens.advance();
                 let node = Node::Return {
-                    expr: make(Node::assign(tokens)),
+                    expr: Kind::make(Node::assign(tokens)),
                 };
                 expect_token(tokens, ';');
                 node
@@ -263,7 +313,7 @@ impl Node {
                 tokens.advance();
                 let mut stmts = vec![];
                 while !consume(tokens, '}') {
-                    stmts.push(Self::stmt(tokens));
+                    stmts.push(Kind::make(Self::stmt(tokens)));
                 }
                 Node::Compound { stmts }
             }
@@ -274,7 +324,7 @@ impl Node {
 
     fn expr_stmt(tokens: &mut Lexer) -> Self {
         let node = Node::Statement {
-            expr: make(Self::assign(tokens)),
+            expr: Kind::make(Self::assign(tokens)),
         };
         expect_token(tokens, ';');
         node
@@ -287,9 +337,9 @@ impl Node {
         let name = name.to_string();
 
         let init = if consume(tokens, '=') {
-            make(Self::assign(tokens))
+            Kind::make(Self::assign(tokens))
         } else {
-            None
+            Kind::empty()
         };
 
         expect_token(tokens, ';');
@@ -305,8 +355,8 @@ impl Node {
         let lhs = Self::logor(tokens);
         if consume(tokens, '=') {
             return Node::Assign {
-                lhs: make(lhs),
-                rhs: make(Self::logor(tokens)),
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(Self::logor(tokens)),
             };
         }
         lhs
@@ -318,8 +368,8 @@ impl Node {
             if let Some((_, Token::LogOr)) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogOr {
-                    lhs: make(lhs),
-                    rhs: make(Self::logand(tokens)),
+                    lhs: Kind::make(lhs),
+                    rhs: Kind::make(Self::logand(tokens)),
                 };
             } else {
                 break 'expr;
@@ -334,8 +384,8 @@ impl Node {
             if let Some((_, Token::LogAnd)) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
-                    lhs: make(lhs),
-                    rhs: make(Self::rel(tokens)),
+                    lhs: Kind::make(lhs),
+                    rhs: Kind::make(Self::rel(tokens)),
                 };
             } else {
                 break 'expr;
@@ -352,16 +402,16 @@ impl Node {
                 tok if *tok == '<' => {
                     tokens.advance();
                     lhs = Node::Comparison {
-                        lhs: make(lhs),
-                        rhs: make(Self::add(tokens)),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::add(tokens)),
                         comp: Comp::Lt,
                     };
                 }
                 tok if *tok == '>' => {
                     tokens.advance();
                     lhs = Node::Comparison {
-                        lhs: make(Self::add(tokens)),
-                        rhs: make(lhs),
+                        lhs: Kind::make(Self::add(tokens)),
+                        rhs: Kind::make(lhs),
                         comp: Comp::Gt,
                     };
                 }
@@ -379,15 +429,15 @@ impl Node {
                 tok if *tok == '+' => {
                     tokens.advance();
                     lhs = Node::Add {
-                        lhs: make(lhs),
-                        rhs: make(Self::mul(tokens)),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::mul(tokens)),
                     };
                 }
                 tok if *tok == '-' => {
                     tokens.advance();
                     lhs = Node::Sub {
-                        lhs: make(lhs),
-                        rhs: make(Self::mul(tokens)),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::mul(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -404,15 +454,15 @@ impl Node {
                 tok if *tok == '*' => {
                     tokens.advance();
                     lhs = Node::Mul {
-                        lhs: make(lhs),
-                        rhs: make(Self::unary(tokens)),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::unary(tokens)),
                     };
                 }
                 tok if *tok == '/' => {
                     tokens.advance();
                     lhs = Node::Div {
-                        lhs: make(lhs),
-                        rhs: make(Self::unary(tokens)),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::unary(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -424,7 +474,7 @@ impl Node {
     fn unary(tokens: &mut Lexer) -> Self {
         if consume(tokens, '*') {
             return Node::Deref {
-                expr: make(Self::mul(tokens)),
+                expr: Kind::make(Self::mul(tokens)),
             };
         }
         Self::term(tokens)
@@ -451,9 +501,9 @@ impl Node {
                 }
 
                 let mut args = vec![];
-                args.push(Self::assign(tokens));
+                args.push(Kind::make(Self::assign(tokens)));
                 while consume(tokens, ',') {
-                    args.push(Self::assign(tokens));
+                    args.push(Kind::make(Self::assign(tokens)));
                 }
                 expect_token(tokens, ')');
                 Node::Call { name: n, args }
@@ -486,10 +536,6 @@ impl Node {
 }
 
 #[inline]
-fn make(node: Node) -> Option<Box<Node>> {
-    Some(Box::new(node))
-}
-
 fn ptr_of(base: &Type) -> Type {
     Type::Ptr {
         // TODO: will this be a problem with indirection?
@@ -636,7 +682,7 @@ pub fn print_ast(ast: &[Node]) {
 
         macro_rules! kind {
             ($e:expr) => {
-                $e.as_ref().unwrap()
+                $e.as_ref()
             };
         }
 
@@ -656,7 +702,7 @@ pub fn print_ast(ast: &[Node]) {
                 }
                 newline();
                 for (i, arg) in args.iter().enumerate() {
-                    print(depth + 1, arg);
+                    print(depth + 1, arg.as_ref());
                     if i < args.len() - 1 {
                         newline();
                     }
@@ -664,7 +710,7 @@ pub fn print_ast(ast: &[Node]) {
                 if !args.is_empty() {
                     newline();
                 }
-                if body.is_some() {
+                if body.has_val() {
                     print(depth + 1, kind!(body));
                 }
                 newline();
@@ -678,7 +724,7 @@ pub fn print_ast(ast: &[Node]) {
                 offset,
                 ty,
             } => {
-                if init.is_none() {
+                if !init.has_val() {
                     w!(depth, "Var {} {}", name, ty);
                     if *offset != 0 {
                         w!(0, " -- offset: {}", offset);
@@ -699,7 +745,7 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, "Compound (");
                 newline();
                 for (i, stmt) in stmts.iter().enumerate() {
-                    print(depth + 1, stmt);
+                    print(depth + 1, stmt.as_ref());
                     if i < stmts.len() - 1 {
                         newline();
                     }
@@ -723,7 +769,7 @@ pub fn print_ast(ast: &[Node]) {
                 }
 
                 for (i, a) in args.iter().enumerate() {
-                    print(depth + 1, &a);
+                    print(depth + 1, &a.as_ref());
                     if i < args.len() - 1 {
                         w!(0, ",\n")
                     } else {
@@ -744,14 +790,14 @@ pub fn print_ast(ast: &[Node]) {
 
             If { cond, body, else_ } => {
                 w!(depth, "If ");
-                if cond.is_some() {
+                if cond.has_val() {
                     w!(0, "Cond (");
                     newline();
                     print(depth + 1, kind!(cond));
                 }
                 newline();
                 w!(depth, ")");
-                if body.is_some() {
+                if body.has_val() {
                     newline();
                     w!(depth, "Body (");
                     newline();
@@ -759,7 +805,7 @@ pub fn print_ast(ast: &[Node]) {
                     newline();
                     w!(depth, ")");
                 }
-                if else_.is_some() {
+                if else_.has_val() {
                     newline();
                     w!(depth, "Else (");
                     newline();
@@ -772,7 +818,7 @@ pub fn print_ast(ast: &[Node]) {
             Else { body } => {
                 w!(depth, "Else ");
                 newline();
-                if body.is_some() {
+                if body.has_val() {
                     w!(depth, "Body\n");
                     print(depth + 1, kind!(body));
                 }
@@ -786,14 +832,14 @@ pub fn print_ast(ast: &[Node]) {
             } => {
                 w!(depth, "For (");
                 newline();
-                if init.is_some() {
+                if init.has_val() {
                     w!(depth + 1, "Init (");
                     newline();
                     print(depth + 2, kind!(init));
                     newline();
                     w!(depth + 1, ")");
                 }
-                if cond.is_some() {
+                if cond.has_val() {
                     newline();
                     w!(depth + 1, "Cond (");
                     newline();
@@ -801,7 +847,7 @@ pub fn print_ast(ast: &[Node]) {
                     newline();
                     w!(depth + 1, ")");
                 }
-                if step.is_some() {
+                if step.has_val() {
                     newline();
                     w!(depth + 1, "Step (");
                     newline();
@@ -809,7 +855,7 @@ pub fn print_ast(ast: &[Node]) {
                     newline();
                     w!(depth + 1, ")");
                 }
-                if body.is_some() {
+                if body.has_val() {
                     newline();
                     w!(depth + 1, "Body (");
                     newline();

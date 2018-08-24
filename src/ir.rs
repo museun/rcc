@@ -62,12 +62,6 @@ pub struct Generate {
     label: i32,
 }
 
-macro_rules! as_ref {
-    ($e:expr) => {
-        $e.as_ref().unwrap()
-    };
-}
-
 impl Generate {
     pub fn gen_ir(nodes: &[Node]) -> Vec<Function> {
         let mut out = vec![];
@@ -86,7 +80,7 @@ impl Generate {
                     };
 
                     this.add(IR::SaveArgs(imm(args.len() as i32)));
-                    this.gen_stmt(as_ref!(body));
+                    this.gen_stmt(body);
 
                     let function = Function {
                         name: name.clone(),
@@ -101,14 +95,14 @@ impl Generate {
         out
     }
 
-    fn gen_stmt(&mut self, node: &Node) {
-        match node {
+    fn gen_stmt(&mut self, node: impl AsRef<Node>) {
+        match &node.as_ref() {
             Node::Vardef { init, offset, .. } => {
-                if init.is_none() {
+                if !init.has_val() {
                     return;
                 }
 
-                let rhs = self.gen_expr(as_ref!(init));
+                let rhs = self.gen_expr(init);
                 let lhs = self.next_reg();
                 self.add(IR::Mov(reg_reg(lhs, 0)));
                 self.add(IR::Sub(reg_imm(lhs, *offset)));
@@ -118,15 +112,15 @@ impl Generate {
             }
 
             Node::If { cond, body, else_ } => {
-                let r = self.gen_expr(as_ref!(cond));
+                let r = self.gen_expr(cond);
                 let x = self.next_label();
 
                 self.add(IR::Unless(reg_imm(r, x)));
                 self.add(IR::Kill(reg(r)));
 
-                self.gen_stmt(as_ref!(body));
+                self.gen_stmt(body);
 
-                if else_.is_none() {
+                if !else_.has_val() {
                     self.add(IR::Label(imm(x)));
                     return;
                 }
@@ -135,7 +129,7 @@ impl Generate {
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                self.gen_stmt(as_ref!(else_));
+                self.gen_stmt(else_);
                 self.add(IR::Label(imm(y)));
             }
 
@@ -148,43 +142,43 @@ impl Generate {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                self.gen_stmt(as_ref!(init));
+                self.gen_stmt(init);
                 self.add(IR::Label(imm(x)));
 
-                let r = self.gen_expr(as_ref!(cond));
+                let r = self.gen_expr(cond);
                 self.add(IR::Unless(reg_imm(r, y)));
                 self.add(IR::Kill(reg(r)));
-                self.gen_stmt(as_ref!(body));
+                self.gen_stmt(body);
 
-                let n = self.gen_expr(as_ref!(step));
+                let n = self.gen_expr(step);
                 self.add(IR::Kill(reg(n)));
                 self.add(IR::Jmp(imm(x)));
                 self.add(IR::Label(imm(y)));
             }
 
             Node::Return { expr } => {
-                let r = self.gen_expr(as_ref!(expr));
+                let r = self.gen_expr(expr);
                 self.add(IR::Return(reg(r)));
                 self.add(IR::Kill(reg(r)));
             }
 
             Node::Statement { expr } => {
-                let r = self.gen_expr(as_ref!(expr));
+                let r = self.gen_expr(expr);
                 self.add(IR::Kill(reg(r)));
             }
 
-            Node::Compound { stmts } => {
+            Node::Compound { ref stmts } => {
                 for stmt in stmts {
-                    self.gen_stmt(&stmt)
+                    self.gen_stmt(stmt)
                 }
             }
             // TODO make this return a Result so we can print out an instruction trace
-            _ => fail!("unknown node in stmt: {:?}", node),
+            _ => fail!("unknown node in stmt: {:?}", node.as_ref()),
         }
     }
 
-    fn gen_expr(&mut self, node: &Node) -> i32 {
-        match &node {
+    fn gen_expr(&mut self, node: impl AsRef<Node>) -> i32 {
+        match &node.as_ref() {
             Node::Constant { val, .. } => {
                 let r = self.next_reg();
                 self.add(IR::Add(reg_imm(r, *val as i32)));
@@ -194,10 +188,10 @@ impl Generate {
             Node::LogAnd { lhs, rhs } => {
                 let x = self.next_label();
 
-                let r1 = self.gen_expr(as_ref!(lhs));
+                let r1 = self.gen_expr(lhs);
                 self.add(IR::Unless(reg_imm(r1, x)));
 
-                let r2 = self.gen_expr(as_ref!(rhs));
+                let r2 = self.gen_expr(rhs);
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, x)));
@@ -211,13 +205,13 @@ impl Generate {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                let r1 = self.gen_expr(as_ref!(lhs));
+                let r1 = self.gen_expr(lhs);
                 self.add(IR::Unless(reg_imm(r1, x)));
                 self.add(IR::Imm(reg_imm(r1, 1)));
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                let r2 = self.gen_expr(as_ref!(rhs));
+                let r2 = self.gen_expr(rhs);
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, y)));
@@ -253,45 +247,39 @@ impl Generate {
             }
 
             Node::Assign { lhs, rhs } => {
-                let rhs = self.gen_expr(as_ref!(rhs));
-                let lhs = self.gen_lval(as_ref!(lhs));
+                let rhs = self.gen_expr(rhs);
+                let lhs = self.gen_lval(lhs);
                 self.add(IR::Store(reg_reg(lhs, rhs)));
                 self.add(IR::Kill(reg(rhs)));
                 lhs
             }
 
             Node::Comparison { lhs, rhs, .. } => {
-                self.gen_binops(IR::Comparison(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+                self.gen_binops(IR::Comparison(IRType::Nop), lhs, rhs)
             }
 
-            Node::Add { lhs, rhs } => {
-                self.gen_binops(IR::Add(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
-            }
+            Node::Add { lhs, rhs } => self.gen_binops(IR::Add(IRType::Nop), lhs, rhs),
 
-            Node::Sub { lhs, rhs } => {
-                self.gen_binops(IR::Sub(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
-            }
+            Node::Sub { lhs, rhs } => self.gen_binops(IR::Sub(IRType::Nop), lhs, rhs),
 
-            Node::Mul { lhs, rhs } => {
-                self.gen_binops(IR::Mul(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
-            }
+            Node::Mul { lhs, rhs } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
 
-            Node::Div { lhs, rhs } => {
-                self.gen_binops(IR::Div(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
-            }
+            Node::Div { lhs, rhs } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
 
             Node::Deref { expr } => {
-                let r = self.gen_expr(as_ref!(expr));
+                let r = self.gen_expr(expr);
                 self.add(IR::Load(reg_reg(r, r)));
                 r
             }
 
             // TODO make this return a Result so we can print out an instruction trace
-            _ => fail!("unknown node in expr: {:?}", node),
+            _ => fail!("unknown node in expr: {:?}", node.as_ref()),
         }
     }
 
-    fn gen_lval(&mut self, node: &Node) -> i32 {
+    fn gen_lval(&mut self, node: impl AsRef<Node>) -> i32 {
+        let node = node.as_ref();
+
         if let Node::LVal { offset } = &node {
             let r = self.next_reg();
             self.add(IR::Mov(reg_reg(r, 0)));
@@ -302,7 +290,7 @@ impl Generate {
         fail!("not an lvalue: {:?}", node);
     }
 
-    fn gen_binops(&mut self, mut ir: IR, lhs: &Node, rhs: &Node) -> i32 {
+    fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
         let r1 = self.gen_expr(lhs);
         let r2 = self.gen_expr(rhs);
         *ir = reg_reg(r1, r2);
