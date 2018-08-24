@@ -2,8 +2,14 @@ use super::*;
 use std::collections::HashMap;
 
 pub struct Semantics {
-    map: HashMap<String, i32>, // offsets
+    map: HashMap<String, Var>, // variables
     stacksize: i32,
+}
+
+#[derive(Debug, Clone)]
+struct Var {
+    ty: parser::Type, // ??
+    offset: i32,
 }
 
 impl Semantics {
@@ -26,24 +32,41 @@ impl Semantics {
         let node = node.as_mut();
         match node {
             Node::Constant { .. } => return,
+
             Node::Ident { name } => {
                 if !self.map.contains_key(name) {
                     fail!("undefined variable: {}", name)
                 }
+
+                let var = self.map[name].clone(); // TODO: fix this
                 *node = Node::LVal {
-                    offset: self.map[name],
+                    offset: var.offset,
+                    ty: var.ty,
                 }
             }
+
             Node::Vardef {
-                name, init, offset, ..
+                name,
+                init,
+                offset,
+                ty,
             } => {
                 self.stacksize += 8;
-                self.map.insert(name.clone(), self.stacksize);
                 *offset = self.stacksize;
+
+                self.map.insert(
+                    name.clone(),
+                    Var {
+                        ty: ty.clone(),
+                        offset: self.stacksize,
+                    },
+                );
+
                 if init.has_val() {
                     self.walk(init)
                 }
             }
+
             Node::If { cond, body, else_ } => {
                 self.walk(cond);
                 self.walk(body);
@@ -52,6 +75,7 @@ impl Semantics {
                 }
             }
             Node::Else { body } => self.walk(body),
+
             Node::For {
                 init,
                 cond,
@@ -69,29 +93,37 @@ impl Semantics {
             | Node::Mul { lhs, rhs }
             | Node::Div { lhs, rhs }
             | Node::Assign { lhs, rhs }
-            | Node::Comparison { lhs, rhs, .. }
             | Node::LogAnd { lhs, rhs }
-            | Node::LogOr { lhs, rhs } => {
+            | Node::LogOr { lhs, rhs }
+            | Node::Comparison { lhs, rhs, .. } => {
                 self.walk(lhs);
                 self.walk(rhs);
+                // TYPE: can always get the type from the lhs
+                //*ty = *lhs.get_type();
             }
+
             Node::Deref { expr } | Node::Return { expr } => self.walk(expr),
+
             Node::Call { args, .. } => {
                 for arg in args {
                     self.walk(arg)
                 }
+                // TYPE: maybe set default type to int
             }
+
             Node::Func { args, body, .. } => {
                 for arg in args {
                     self.walk(arg)
                 }
                 self.walk(body)
             }
+
             Node::Compound { stmts } => {
                 for stmt in stmts {
                     self.walk(stmt)
                 }
             }
+
             Node::Statement { expr } => self.walk(expr),
             _ => fail!("unexpected node: {:?}", node),
         }

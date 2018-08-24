@@ -53,6 +53,22 @@ impl AsMut<Node> for Node {
     }
 }
 
+// TODO: need to denote the type that the pointer points too
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Int,
+    Ptr { ptr_of: Box<Type> },
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Int => write!(f, "Int"),
+            Type::Ptr { ptr_of } => write!(f, "Ptr: {}", ptr_of),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Constant {
@@ -84,8 +100,30 @@ pub enum Node {
         rhs: Kind,
     },
 
+    LogAnd {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    LogOr {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    Assign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    Comparison {
+        lhs: Kind,
+        rhs: Kind,
+        comp: Comp,
+    },
+
     LVal {
         offset: i32,
+        ty: Type,
     },
 
     Deref {
@@ -101,27 +139,6 @@ pub enum Node {
 
     Return {
         expr: Kind,
-    },
-
-    Assign {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    LogAnd {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    LogOr {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Comparison {
-        lhs: Kind,
-        rhs: Kind,
-        comp: Comp,
     },
 
     If {
@@ -175,22 +192,6 @@ impl fmt::Display for Comp {
             Comp::Gt => '>',
         };
         write!(f, "{}", c)
-    }
-}
-
-// TODO: need to denote the type that the pointer points too
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Int,
-    Ptr { ptr_of: Box<Type> },
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Type::Int => write!(f, "Int"),
-            Type::Ptr { ptr_of } => write!(f, "Ptr: {}", ptr_of),
-        }
     }
 }
 
@@ -484,21 +485,25 @@ impl Node {
     fn term(tokens: &mut Lexer) -> Self {
         let (pos, next) = tokens.next_token().expect("token for term");
         match next {
+            tok if *tok == '(' => {
+                let node = Node::assign(tokens);
+                expect_token(tokens, ')');
+                node
+            }
+
             Token::Num(n) => Node::Constant {
                 val: *n,
                 ty: Type::Int,
             },
+
             Token::Ident(ref name) => {
-                let n = name.clone();
+                let name = name.clone();
                 if !consume(tokens, '(') {
-                    return Node::Ident { name: n };
+                    return Node::Ident { name };
                 }
 
                 if consume(tokens, ')') {
-                    return Node::Call {
-                        name: n,
-                        args: vec![],
-                    };
+                    return Node::Call { name, args: vec![] };
                 }
 
                 let mut args = vec![];
@@ -507,13 +512,9 @@ impl Node {
                     args.push(Kind::make(Self::assign(tokens)));
                 }
                 expect_token(tokens, ')');
-                Node::Call { name: n, args }
+                Node::Call { name, args }
             }
-            tok if *tok == '(' => {
-                let node = Node::assign(tokens);
-                expect_token(tokens, ')');
-                node
-            }
+
             _ => {
                 let pos = *pos;
                 expect_fail(tokens.input_at(0), pos, "number or ident")
@@ -876,8 +877,8 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            LVal { offset } => {
-                w!(depth, "LVal -- offset: {}", offset);
+            LVal { offset, ty } => {
+                w!(depth, "LVal {} -- offset: {}", ty, offset);
             }
 
             Add { lhs, rhs } => {

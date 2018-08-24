@@ -280,7 +280,7 @@ impl Generate {
     fn gen_lval(&mut self, node: impl AsRef<Node>) -> i32 {
         let node = node.as_ref();
 
-        if let Node::LVal { offset } = &node {
+        if let Node::LVal { offset, ty: _ty } = &node {
             let r = self.next_reg();
             self.add(IR::Mov(reg_reg(r, 0)));
             self.add(IR::Sub(reg_imm(r, *offset)));
