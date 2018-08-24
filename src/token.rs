@@ -6,13 +6,14 @@ pub enum Token {
     Char(char),    // all others
     Num(u32),      // n
     Ident(String), // name
-    Int,           // int
-    If,            // if
-    Else,          // else
-    For,           // for
-    LogOr,         // ||
-    LogAnd,        // &&
-    Return,        // return
+    Type(String),  // types
+
+    If,     // if
+    Else,   // else
+    For,    // for
+    LogOr,  // ||
+    LogAnd, // &&
+    Return, // return
 
     EOF,
 }
@@ -99,11 +100,13 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
-    symbols.push(("int", Token::Int));
     symbols.push(("return", Token::Return));
     symbols.push(("for", Token::For));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
+
+    let mut types = vec![];
+    types.push("int");
 
     let mut data = vec![];
     let mut skip = 0;
@@ -164,8 +167,13 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                         out = Some(symbol.1.clone());
                     }
                 }
+
                 if out.is_none() {
-                    Token::Ident(name)
+                    if types.contains(&name.as_ref()) {
+                        Token::Type(name)
+                    } else {
+                        Token::Ident(name)
+                    }
                 } else {
                     out.unwrap()
                 }
@@ -198,7 +206,7 @@ impl fmt::Debug for Token {
             Token::Char(c) => write!(f, "Char({})", c),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::Ident(name) => write!(f, "Ident({})", name),
-            Token::Int => write!(f, "Int"),
+            Token::Type(name) => write!(f, "Type({})", name),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),

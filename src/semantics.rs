@@ -68,7 +68,7 @@ impl Semantics {
             | Node::Mul { lhs, rhs }
             | Node::Div { lhs, rhs }
             | Node::Assign { lhs, rhs }
-            | Node::Comparison { lhs, rhs }
+            | Node::Comparison { lhs, rhs,.. }
             | Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs } => {
                 self.walk(lhs.as_mut().unwrap());

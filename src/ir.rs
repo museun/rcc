@@ -254,7 +254,7 @@ impl Generate {
                 lhs
             }
 
-            Node::Comparison { lhs, rhs } => self.gen_binops(
+            Node::Comparison { lhs, rhs, .. } => self.gen_binops(
                 IR::Comparison(IRType::Nop),
                 lhs.as_ref().unwrap(),
                 rhs.as_ref().unwrap(),

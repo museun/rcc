@@ -1,4 +1,5 @@
 use super::*;
+use std::fmt;
 
 type NodeKind = Option<Box<Node>>;
 
@@ -64,6 +65,7 @@ pub enum Node {
     Comparison {
         lhs: NodeKind,
         rhs: NodeKind,
+        comp: Comp,
     },
 
     If {
@@ -104,6 +106,24 @@ pub enum Node {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Comp {
+    Lt,
+    Gt,
+}
+impl fmt::Display for Comp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Comp::Lt => '<',
+                Comp::Gt => '>',
+            }
+        )
+    }
+}
+
 impl Node {
     pub fn parse(tokens: &mut Tokens) -> Vec<Self> {
         let mut nodes = vec![];
@@ -117,7 +137,7 @@ impl Node {
     }
 
     fn function(tokens: &mut Tokens) -> Self {
-        let (_, _ty) = expect(tokens, Token::Int, "function return type");
+        let (_, _ty) = expect_type(tokens, "function return type");
         let (_, name) = expect_ident(tokens, "function name");
 
         expect_token(tokens, '(');
@@ -151,7 +171,7 @@ impl Node {
         let (pos, next) = tokens.peek().expect("token for statement");
 
         match next {
-            Token::Int => Self::decl(tokens),
+            Token::Type(_) => Self::decl(tokens),
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
@@ -292,6 +312,7 @@ impl Node {
                     lhs = Node::Comparison {
                         lhs: make(lhs),
                         rhs: make(Self::add(tokens)),
+                        comp: Comp::Lt,
                     };
                 }
                 tok if *tok == '>' => {
@@ -299,6 +320,7 @@ impl Node {
                     lhs = Node::Comparison {
                         lhs: make(Self::add(tokens)),
                         rhs: make(lhs),
+                        comp: Comp::Gt,
                     };
                 }
                 _ => break 'expr,
@@ -377,7 +399,7 @@ impl Node {
     }
 
     fn term(tokens: &mut Tokens) -> Self {
-        let (pos, next) = tokens.next_token().expect("token for mul");
+        let (pos, next) = tokens.next_token().expect("token for term");
         match next {
             Token::Num(n) => Node::Constant { val: *n },
             Token::Ident(ref name) => {
@@ -422,8 +444,7 @@ fn make(node: Node) -> Option<Box<Node>> {
 #[inline]
 fn is_typename(tokens: &mut Tokens) -> bool {
     match tokens.peek() {
-        Some((_, Token::Int)) => true,
-        // TODO add more types
+        Some((_, Token::Type(_))) => true,
         _ => false,
     }
 }
@@ -467,11 +488,22 @@ fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
 
 /// this uses a discriminant comparison
 #[inline]
+#[allow(dead_code)]
 fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: impl AsRef<str>) -> (usize, Token) {
     use std::mem::discriminant;
     let (pos, next) = tokens.next_token().expect("get next token");
     if discriminant(next) == discriminant(&tok.into()) {
         return (*pos, next.clone());
+    }
+    let pos = *pos;
+    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+}
+
+#[inline]
+fn expect_type(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, String) {
+    let (pos, next) = tokens.next_token().expect("get next token");
+    if let Token::Type(name) = next {
+        return (*pos, name.to_string());
     }
     let pos = *pos;
     expect_fail(tokens.input_at(0), pos, msg.as_ref());
@@ -770,8 +802,8 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            Comparison { lhs, rhs } => {
-                w!(depth, "Cmp (\n");
+            Comparison { lhs, rhs, comp } => {
+                w!(depth, "Cmp {:?} (\n", comp);
                 print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
                 print(depth + 1, kind!(rhs));
