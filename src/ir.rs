@@ -62,6 +62,12 @@ pub struct Generate {
     label: i32,
 }
 
+macro_rules! as_ref {
+    ($e:expr) => {
+        $e.as_ref().unwrap()
+    };
+}
+
 impl Generate {
     pub fn gen_ir(nodes: &[Node]) -> Vec<Function> {
         let mut out = vec![];
@@ -80,7 +86,7 @@ impl Generate {
                     };
 
                     this.add(IR::SaveArgs(imm(args.len() as i32)));
-                    this.gen_stmt(body.as_ref().unwrap());
+                    this.gen_stmt(as_ref!(body));
 
                     let function = Function {
                         name: name.clone(),
@@ -102,7 +108,7 @@ impl Generate {
                     return;
                 }
 
-                let rhs = self.gen_expr(init.as_ref().unwrap());
+                let rhs = self.gen_expr(as_ref!(init));
                 let lhs = self.next_reg();
                 self.add(IR::Mov(reg_reg(lhs, 0)));
                 self.add(IR::Sub(reg_imm(lhs, *offset)));
@@ -112,13 +118,13 @@ impl Generate {
             }
 
             Node::If { cond, body, else_ } => {
-                let r = self.gen_expr(cond.as_ref().unwrap());
+                let r = self.gen_expr(as_ref!(cond));
                 let x = self.next_label();
 
                 self.add(IR::Unless(reg_imm(r, x)));
                 self.add(IR::Kill(reg(r)));
 
-                self.gen_stmt(body.as_ref().unwrap());
+                self.gen_stmt(as_ref!(body));
 
                 if else_.is_none() {
                     self.add(IR::Label(imm(x)));
@@ -129,7 +135,7 @@ impl Generate {
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                self.gen_stmt(else_.as_ref().unwrap());
+                self.gen_stmt(as_ref!(else_));
                 self.add(IR::Label(imm(y)));
             }
 
@@ -142,28 +148,28 @@ impl Generate {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                self.gen_stmt(init.as_ref().unwrap());
+                self.gen_stmt(as_ref!(init));
                 self.add(IR::Label(imm(x)));
 
-                let r = self.gen_expr(cond.as_ref().unwrap());
+                let r = self.gen_expr(as_ref!(cond));
                 self.add(IR::Unless(reg_imm(r, y)));
                 self.add(IR::Kill(reg(r)));
-                self.gen_stmt(body.as_ref().unwrap());
+                self.gen_stmt(as_ref!(body));
 
-                let n = self.gen_expr(step.as_ref().unwrap());
+                let n = self.gen_expr(as_ref!(step));
                 self.add(IR::Kill(reg(n)));
                 self.add(IR::Jmp(imm(x)));
                 self.add(IR::Label(imm(y)));
             }
 
             Node::Return { expr } => {
-                let r = self.gen_expr(expr.as_ref().unwrap());
+                let r = self.gen_expr(as_ref!(expr));
                 self.add(IR::Return(reg(r)));
                 self.add(IR::Kill(reg(r)));
             }
 
             Node::Statement { expr } => {
-                let r = self.gen_expr(expr.as_ref().unwrap());
+                let r = self.gen_expr(as_ref!(expr));
                 self.add(IR::Kill(reg(r)));
             }
 
@@ -188,10 +194,10 @@ impl Generate {
             Node::LogAnd { lhs, rhs } => {
                 let x = self.next_label();
 
-                let r1 = self.gen_expr(lhs.as_ref().unwrap());
+                let r1 = self.gen_expr(as_ref!(lhs));
                 self.add(IR::Unless(reg_imm(r1, x)));
 
-                let r2 = self.gen_expr(rhs.as_ref().unwrap());
+                let r2 = self.gen_expr(as_ref!(rhs));
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, x)));
@@ -205,13 +211,13 @@ impl Generate {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                let r1 = self.gen_expr(lhs.as_ref().unwrap());
+                let r1 = self.gen_expr(as_ref!(lhs));
                 self.add(IR::Unless(reg_imm(r1, x)));
                 self.add(IR::Imm(reg_imm(r1, 1)));
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                let r2 = self.gen_expr(rhs.as_ref().unwrap());
+                let r2 = self.gen_expr(as_ref!(rhs));
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, y)));
@@ -247,45 +253,35 @@ impl Generate {
             }
 
             Node::Assign { lhs, rhs } => {
-                let rhs = self.gen_expr(rhs.as_ref().unwrap());
-                let lhs = self.gen_lval(lhs.as_ref().unwrap());
+                let rhs = self.gen_expr(as_ref!(rhs));
+                let lhs = self.gen_lval(as_ref!(lhs));
                 self.add(IR::Store(reg_reg(lhs, rhs)));
                 self.add(IR::Kill(reg(rhs)));
                 lhs
             }
 
-            Node::Comparison { lhs, rhs, .. } => self.gen_binops(
-                IR::Comparison(IRType::Nop),
-                lhs.as_ref().unwrap(),
-                rhs.as_ref().unwrap(),
-            ),
+            Node::Comparison { lhs, rhs, .. } => {
+                self.gen_binops(IR::Comparison(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+            }
 
-            Node::Add { lhs, rhs } => self.gen_binops(
-                IR::Add(IRType::Nop),
-                lhs.as_ref().unwrap(),
-                rhs.as_ref().unwrap(),
-            ),
+            Node::Add { lhs, rhs } => {
+                self.gen_binops(IR::Add(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+            }
 
-            Node::Sub { lhs, rhs } => self.gen_binops(
-                IR::Sub(IRType::Nop),
-                lhs.as_ref().unwrap(),
-                rhs.as_ref().unwrap(),
-            ),
+            Node::Sub { lhs, rhs } => {
+                self.gen_binops(IR::Sub(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+            }
 
-            Node::Mul { lhs, rhs } => self.gen_binops(
-                IR::Mul(IRType::Nop),
-                lhs.as_ref().unwrap(),
-                rhs.as_ref().unwrap(),
-            ),
+            Node::Mul { lhs, rhs } => {
+                self.gen_binops(IR::Mul(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+            }
 
-            Node::Div { lhs, rhs } => self.gen_binops(
-                IR::Div(IRType::Nop),
-                lhs.as_ref().unwrap(),
-                rhs.as_ref().unwrap(),
-            ),
+            Node::Div { lhs, rhs } => {
+                self.gen_binops(IR::Div(IRType::Nop), as_ref!(lhs), as_ref!(rhs))
+            }
 
             Node::Deref { expr } => {
-                let r = self.gen_expr(expr.as_ref().unwrap());
+                let r = self.gen_expr(as_ref!(expr));
                 self.add(IR::Load(reg_reg(r, r)));
                 r
             }
