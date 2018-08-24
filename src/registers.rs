@@ -10,7 +10,7 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn allocate(funcs: &mut Vec<Function>) {
+    pub fn allocate(funcs: &mut [Function]) -> &mut [Function] {
         for func in funcs.iter_mut() {
             let mut this = Self {
                 used: [false; 8],
@@ -27,7 +27,9 @@ impl Registers {
         let nop = mem::discriminant(&IR::Nop(IRType::Nop {}));
         funcs
             .iter_mut()
-            .for_each(|f| f.ir.retain(|ir| mem::discriminant(ir) != nop))
+            .for_each(|f| f.ir.retain(|ir| mem::discriminant(ir) != nop));
+
+        funcs
     }
 
     fn visit(&mut self, inst: &mut Vec<IR>) {

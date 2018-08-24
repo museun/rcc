@@ -24,15 +24,15 @@ fn main() {
 fn compile(input: &str) {
     eprintln!("{} {}", wrap_color!(Color::Yellow {}, "input:"), input);
 
-    let mut tokens = Lexer::tokenize(&input);
+    let tokens = Lexer::tokenize(&input);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
     eprintln!("{:#?}", tokens);
 
-    let ast = Node::parse(&mut tokens); // why is this mutable?
+    let mut ast = Node::parse(tokens);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
     print_ast(&ast);
 
-    let nodes = Semantics::analyze(ast);
+    let nodes = Semantics::analyze(&mut ast);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "semantics:"));
     print_ast(&nodes);
 
@@ -40,7 +40,7 @@ fn compile(input: &str) {
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));
     eprintln!("{:#?}", ir);
 
-    Registers::allocate(&mut ir);
+    let ir = Registers::allocate(&mut ir);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "reg:"));
     eprintln!("{:#?}", ir);
 

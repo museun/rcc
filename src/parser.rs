@@ -195,7 +195,8 @@ impl fmt::Display for Type {
 }
 
 impl Node {
-    pub fn parse(tokens: &mut Lexer) -> Vec<Self> {
+    pub fn parse(mut tokens: Lexer) -> Vec<Self> {
+        let tokens = &mut tokens;
         let mut nodes = vec![];
         while let Some((_, tok)) = tokens.peek() {
             if *tok == Token::EOF {

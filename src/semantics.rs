@@ -7,9 +7,8 @@ pub struct Semantics {
 }
 
 impl Semantics {
-    pub fn analyze(mut nodes: Vec<Node>) -> Vec<Node> {
-        let mut out = vec![];
-        for mut node in &mut nodes {
+    pub fn analyze(nodes: &mut [Node]) -> &mut [Node] {
+        for mut node in nodes.iter_mut() {
             let mut this = Self {
                 map: HashMap::new(),
                 stacksize: 0,
@@ -19,9 +18,8 @@ impl Semantics {
             if let Node::Func { stacksize, .. } = &mut node {
                 *stacksize = this.stacksize
             }
-            out.push(node.clone()); // will this break the references?
         }
-        out
+        nodes
     }
 
     fn walk(&mut self, mut node: impl AsMut<Node>) {
