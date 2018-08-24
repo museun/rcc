@@ -1,15 +1,15 @@
 use super::*;
 use std::collections::HashMap;
 
-pub struct Semantics {
-    map: HashMap<String, Var>, // variables
-    stacksize: i32,
-}
-
 #[derive(Debug, Clone)]
 struct Var {
     ty: parser::Type, // ??
     offset: i32,
+}
+
+pub struct Semantics {
+    map: HashMap<String, Var>, // variables
+    stacksize: i32,
 }
 
 impl Semantics {
@@ -28,8 +28,7 @@ impl Semantics {
         nodes
     }
 
-    fn walk(&mut self, mut node: impl AsMut<Node>) {
-        let node = node.as_mut();
+    fn walk(&mut self, node: &mut Node) {
         match node {
             Node::Constant { .. } => return,
 
@@ -63,18 +62,18 @@ impl Semantics {
                 );
 
                 if init.has_val() {
-                    self.walk(init)
+                    self.walk(init.as_mut())
                 }
             }
 
             Node::If { cond, body, else_ } => {
-                self.walk(cond);
-                self.walk(body);
+                self.walk(cond.as_mut());
+                self.walk(body.as_mut());
                 if else_.has_val() {
-                    self.walk(else_);
+                    self.walk(else_.as_mut());
                 }
             }
-            Node::Else { body } => self.walk(body),
+            Node::Else { body } => self.walk(body.as_mut()),
 
             Node::For {
                 init,
@@ -82,49 +81,77 @@ impl Semantics {
                 step,
                 body,
             } => {
-                self.walk(init);
-                self.walk(cond);
-                self.walk(step);
-                self.walk(body);
+                self.walk(init.as_mut());
+                self.walk(cond.as_mut());
+                self.walk(step.as_mut());
+                self.walk(body.as_mut());
             }
 
-            Node::Add { lhs, rhs }
-            | Node::Sub { lhs, rhs }
-            | Node::Mul { lhs, rhs }
-            | Node::Div { lhs, rhs }
-            | Node::Assign { lhs, rhs }
+            Node::Assign { lhs, rhs }
             | Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs }
             | Node::Comparison { lhs, rhs, .. } => {
-                self.walk(lhs);
-                self.walk(rhs);
-                // TYPE: can always get the type from the lhs
-                //*ty = *lhs.get_type();
+                self.walk(lhs.as_mut());
+                self.walk(rhs.as_mut());
             }
 
-            Node::Deref { expr } | Node::Return { expr } => self.walk(expr),
+            Node::Mul { lhs, rhs, .. }
+            | Node::Div { lhs, rhs, .. }
+            | Node::Add { lhs, rhs, .. }
+            | Node::Sub { lhs, rhs, .. } => {
+                self.walk(lhs.as_mut());
+                self.walk(rhs.as_mut());
+
+                eprintln!("lhs: {:#?}", lhs);
+                eprintln!("rhs: {:#?}", rhs);
+
+                if let Type::Ptr { ptr: r } = rhs.get_type() {
+                    if let Type::Ptr { ptr: l } = lhs.get_type() {
+                        let r = *r.clone();
+                        let l = *l.clone();
+                        {
+                            lhs.set_type(r);
+                        }
+                        {
+                            rhs.set_type(l);
+                        }
+                    }
+                }
+
+                // TYPE: make sure its not circular pointers
+
+                let ty = lhs.get_type().clone();
+                node.set_type(ty);
+            }
+
+            Node::Deref { expr } => {
+                self.walk(expr.as_mut());
+                // TYPE: we don't flatten the pointers..
+            }
+
+            Node::Return { expr } => self.walk(expr.as_mut()),
 
             Node::Call { args, .. } => {
                 for arg in args {
-                    self.walk(arg)
+                    self.walk(arg.as_mut())
                 }
                 // TYPE: maybe set default type to int
             }
 
             Node::Func { args, body, .. } => {
                 for arg in args {
-                    self.walk(arg)
+                    self.walk(arg.as_mut())
                 }
-                self.walk(body)
+                self.walk(body.as_mut())
             }
 
             Node::Compound { stmts } => {
                 for stmt in stmts {
-                    self.walk(stmt)
+                    self.walk(stmt.as_mut())
                 }
             }
 
-            Node::Statement { expr } => self.walk(expr),
+            Node::Statement { expr } => self.walk(expr.as_mut()),
             _ => fail!("unexpected node: {:?}", node),
         }
     }

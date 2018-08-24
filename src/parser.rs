@@ -3,15 +3,21 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Kind {
-    val: Option<Box<Node>>,
+    val: Option<Box<Node>>, // node uses kind
     ty: Option<Type>,
 }
 
 impl Kind {
     pub fn make(node: Node) -> Self {
+        let ty = if node.has_type() {
+            Some(node.get_type().clone()) // sad
+        } else {
+            None
+        };
+
         Kind {
             val: Some(Box::new(node)),
-            ty: None,
+            ty,
         }
     }
 
@@ -26,12 +32,65 @@ impl Kind {
         self.val.is_some()
     }
 
-    pub fn get_type(&self) -> &Type {
-        self.ty.as_ref().unwrap()
+    pub fn has_type(&self) -> bool {
+        match self.ty.as_ref() {
+            None => self.get_val().has_type(),
+            Some(_) => true,
+        }
     }
 
-    pub fn get_type_mut(&mut self) -> &mut Type {
-        self.ty.as_mut().unwrap()
+    pub fn get_val(&self) -> &Node {
+        self.val.as_ref().unwrap()
+    }
+
+    pub fn get_val_mut(&mut self) -> &mut Node {
+        self.val.as_mut().unwrap()
+    }
+
+    pub fn get_type(&self) -> &Type {
+        match self.ty.as_ref() {
+            None => self.get_val().get_type(),
+            Some(ty) => ty,
+        }
+    }
+
+    pub fn set_type(&mut self, ty: Type) {
+        let _ = self.ty.get_or_insert(ty);
+    }
+}
+
+impl Node {
+    /// instrinsic types
+    pub(crate) fn has_type(&self) -> bool {
+        match self {
+            Node::Constant { .. } | Node::LVal { .. } | Node::Vardef { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn get_type(&self) -> &Type {
+        match self {
+            Node::Add { ty, .. }
+            | Node::Sub { ty, .. }
+            | Node::Mul { ty, .. }
+            | Node::Div { ty, .. } => ty.as_ref().expect("type"),
+
+            Node::Deref { expr } => expr.get_type(),
+
+            Node::Constant { ty, .. } | Node::LVal { ty, .. } | Node::Vardef { ty, .. } => ty,
+            _ => fail!("{:?} doesn't have a type", self),
+        }
+    }
+
+    pub(crate) fn set_type(&mut self, newtype: Type) {
+        match self {
+            Node::Add { ty, .. }
+            | Node::Sub { ty, .. }
+            | Node::Mul { ty, .. }
+            | Node::Div { ty, .. } => ty.get_or_insert(newtype),
+
+            _ => panic!("can't set type"),
+        };
     }
 }
 
@@ -57,15 +116,46 @@ impl AsMut<Node> for Node {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Int,
-    Ptr { ptr_of: Box<Type> },
+    Ptr { ptr: Box<Type> },
+}
+
+impl Type {
+    pub fn ptr(&self) -> &Self {
+        match self {
+            Type::Ptr { ptr } => &ptr,
+            _ => panic!("not a pointer"),
+        }
+    }
+
+    pub fn ptr_mut(&mut self) -> &mut Self {
+        match self {
+            Type::Ptr { ref mut ptr } => ptr,
+            _ => panic!("not a pointer"),
+        }
+    }
+
+    pub fn size_of(&self) -> i32 {
+        match self {
+            Type::Int => 4,
+            Type::Ptr { .. } => 8,
+        }
+    }
 }
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Type::Int => write!(f, "Int"),
-            Type::Ptr { ptr_of } => write!(f, "Ptr: {}", ptr_of),
+            Type::Ptr { ptr } => write!(f, "Ptr: {}", ptr),
         }
+    }
+}
+
+#[inline]
+fn ptr_of(base: &Type) -> Type {
+    Type::Ptr {
+        // TODO: will this be a problem with indirection?
+        ptr: Box::new(base.clone()),
     }
 }
 
@@ -83,21 +173,25 @@ pub enum Node {
     Add {
         lhs: Kind,
         rhs: Kind,
+        ty: Option<Type>,
     },
 
     Sub {
         lhs: Kind,
         rhs: Kind,
+        ty: Option<Type>,
     },
 
     Mul {
         lhs: Kind,
         rhs: Kind,
+        ty: Option<Type>,
     },
 
     Div {
         lhs: Kind,
         rhs: Kind,
+        ty: Option<Type>,
     },
 
     LogAnd {
@@ -433,6 +527,7 @@ impl Node {
                     lhs = Node::Add {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::mul(tokens)),
+                        ty: None,
                     };
                 }
                 tok if *tok == '-' => {
@@ -440,6 +535,7 @@ impl Node {
                     lhs = Node::Sub {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::mul(tokens)),
+                        ty: None,
                     };
                 }
                 _ => break 'expr,
@@ -458,6 +554,7 @@ impl Node {
                     lhs = Node::Mul {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::unary(tokens)),
+                        ty: None,
                     };
                 }
                 tok if *tok == '/' => {
@@ -465,6 +562,7 @@ impl Node {
                     lhs = Node::Div {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::unary(tokens)),
+                        ty: None,
                     };
                 }
                 _ => break 'expr,
@@ -529,19 +627,11 @@ impl Node {
             lexer::Type::Int => {
                 let mut ty = Type::Int;
                 while consume(tokens, '*') {
-                    ty = ptr_of(&ty);
+                    ty = ptr_of(&ty); // TODO: is this right?
                 }
                 ty
             }
         }
-    }
-}
-
-#[inline]
-fn ptr_of(base: &Type) -> Type {
-    Type::Ptr {
-        // TODO: will this be a problem with indirection?
-        ptr_of: Box::new(base.clone()),
     }
 }
 
@@ -881,7 +971,7 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, "LVal {} -- offset: {}", ty, offset);
             }
 
-            Add { lhs, rhs } => {
+            Add { lhs, rhs, .. } => {
                 w!(depth, "Add (\n");
                 print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
@@ -890,7 +980,7 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            Sub { lhs, rhs } => {
+            Sub { lhs, rhs, .. } => {
                 w!(depth, "Sub (\n");
                 print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
@@ -899,7 +989,7 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            Mul { lhs, rhs } => {
+            Mul { lhs, rhs, .. } => {
                 w!(depth, "Mul (\n");
                 print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
@@ -908,7 +998,7 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            Div { lhs, rhs } => {
+            Div { lhs, rhs, .. } => {
                 w!(depth, "Div (\n");
                 print(depth + 1, kind!(lhs));
                 w!(0, ",\n");

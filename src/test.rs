@@ -122,6 +122,9 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 40 */    (60, "int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum; }"),
 /* 41 */    (89, "int main() { int i=1; int j=1; for (int k=0; k<10; k=k+1) { int m=i+j; i=j; j=m;} return i; }"),
 /* 42 */    (42, "int main() { int *p = alloc(42); return *p; }"),
+/* 43 */    (8, "int main() { int *p = alloc_pair(3, 5); return *p + *(p + 1); }"),
+/* 44 */    (9, "int main() { int *p = alloc_offset(2, 7); return *p + *(p - 1); }"),
+/* 45 */    (42, "int main() { int **p = alloc_pointer(42); return **p; }"),
 ];
 
 #[test]
@@ -137,11 +140,11 @@ fn compiler() {
 
     for (i, (expected, input)) in TESTS.iter().enumerate() {
         eprintln!("\x1B[33m=>\x1B[m {}", input);
-        eprint!("\x1B[36m??\x1B[m");
+        eprint!("\x1B[36m??: {}\x1B[m", i);
         if let Some(program) = compile(input) {
             let actual = run(program);
             if actual == *expected as i32 {
-                eprintln!("\x1B[1000D\x1B[32mOK:\x1B[m {}", actual);
+                eprintln!("\x1B[1000D\x1B[32mOK:\x1B[m {}          ", actual);
             } else {
                 eprintln!(
                     "\x1B[1000D\x1B[31mFAIL\x1B[m #{}, expected {}, got {}",

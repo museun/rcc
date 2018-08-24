@@ -258,13 +258,36 @@ impl Generate {
                 self.gen_binops(IR::Comparison(IRType::Nop), lhs, rhs)
             }
 
-            Node::Add { lhs, rhs } => self.gen_binops(IR::Add(IRType::Nop), lhs, rhs),
+            Node::Add { lhs, rhs, ty: _ty } | Node::Sub { lhs, rhs, ty: _ty } => {
+                if let parser::Type::Ptr { .. } = lhs.get_type() {
+                    let rhs = self.gen_expr(rhs);
+                    let r = self.next_reg();
+                    self.add(IR::Imm(reg_imm(r, lhs.get_type().ptr().size_of())));
+                    self.add(IR::Mul(reg_reg(rhs, r)));
+                    self.add(IR::Kill(reg(r)));
 
-            Node::Sub { lhs, rhs } => self.gen_binops(IR::Sub(IRType::Nop), lhs, rhs),
+                    let lhs = self.gen_expr(lhs);
+                    let ir = match node.as_ref() {
+                        Node::Add { .. } => IR::Add(reg_reg(lhs, rhs)),
+                        Node::Sub { .. } => IR::Sub(reg_reg(lhs, rhs)),
+                        _ => unreachable!(),
+                    };
+                    self.add(ir);
+                    self.add(IR::Kill(reg(rhs)));
+                    return lhs;
+                }
 
-            Node::Mul { lhs, rhs } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
+                let ir = match node.as_ref() {
+                    Node::Add { .. } => IR::Add(IRType::Nop),
+                    Node::Sub { .. } => IR::Sub(IRType::Nop),
+                    _ => unreachable!(),
+                };
+                self.gen_binops(ir, lhs, rhs)
+            }
 
-            Node::Div { lhs, rhs } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
+            Node::Mul { lhs, rhs, ty: _ty } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
+
+            Node::Div { lhs, rhs, ty: _ty } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
 
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
