@@ -35,7 +35,9 @@ impl Semantics {
                     offset: self.map[name],
                 }
             }
-            Node::Vardef { name, init, offset } => {
+            Node::Vardef {
+                name, init, offset, ..
+            } => {
                 self.stacksize += 8;
                 self.map.insert(name.clone(), self.stacksize);
                 *offset = self.stacksize;
@@ -68,13 +70,13 @@ impl Semantics {
             | Node::Mul { lhs, rhs }
             | Node::Div { lhs, rhs }
             | Node::Assign { lhs, rhs }
-            | Node::Comparison { lhs, rhs,.. }
+            | Node::Comparison { lhs, rhs, .. }
             | Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs } => {
                 self.walk(lhs.as_mut().unwrap());
                 self.walk(rhs.as_mut().unwrap());
             }
-            Node::Return { expr } => self.walk(expr.as_mut().unwrap()),
+            Node::Deref { expr } | Node::Return { expr } => self.walk(expr.as_mut().unwrap()),
             Node::Call { args, .. } => {
                 for arg in args {
                     self.walk(arg)

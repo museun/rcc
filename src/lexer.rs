@@ -6,7 +6,7 @@ pub enum Token {
     Char(char),    // all others
     Num(u32),      // n
     Ident(String), // name
-    Type(String),  // types
+    Type(Type),    // types
 
     If,     // if
     Else,   // else
@@ -16,6 +16,11 @@ pub enum Token {
     Return, // return
 
     EOF,
+}
+
+#[derive(PartialEq, Clone)]
+pub enum Type {
+    Int,
 }
 
 #[derive(Clone)]
@@ -98,15 +103,13 @@ impl PartialEq<char> for Token {
 
 fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
+    symbols.push(("int", Token::Type(Type::Int)));
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
     symbols.push(("return", Token::Return));
     symbols.push(("for", Token::For));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
-
-    let mut types = vec![];
-    types.push("int");
 
     let mut data = vec![];
     let mut skip = 0;
@@ -169,11 +172,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                 }
 
                 if out.is_none() {
-                    if types.contains(&name.as_ref()) {
-                        Token::Type(name)
-                    } else {
-                        Token::Ident(name)
-                    }
+                    Token::Ident(name)
                 } else {
                     out.unwrap()
                 }
@@ -190,7 +189,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
 }
 
 impl Token {
-    // this panics if its not a Token::Char
+    /// this panics if its not a Token::Char
     pub(crate) fn get_char(&self) -> &char {
         match self {
             Token::Char(c) => c,
@@ -206,7 +205,7 @@ impl fmt::Debug for Token {
             Token::Char(c) => write!(f, "Char({})", c),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::Ident(name) => write!(f, "Ident({})", name),
-            Token::Type(name) => write!(f, "Type({})", name),
+            Token::Type(ty) => write!(f, "Type({:?})", ty),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),
@@ -214,6 +213,14 @@ impl fmt::Debug for Token {
             Token::LogAnd => write!(f, "And"),
             Token::Return => write!(f, "Return"),
             Token::EOF => write!(f, "EOF"),
+        }
+    }
+}
+
+impl fmt::Debug for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Int => write!(f, "Int"),
         }
     }
 }

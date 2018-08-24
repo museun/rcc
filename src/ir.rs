@@ -179,7 +179,7 @@ impl Generate {
 
     fn gen_expr(&mut self, node: &Node) -> i32 {
         match &node {
-            Node::Constant { val } => {
+            Node::Constant { val, .. } => {
                 let r = self.next_reg();
                 self.add(IR::Add(reg_imm(r, *val as i32)));
                 r
@@ -283,6 +283,12 @@ impl Generate {
                 lhs.as_ref().unwrap(),
                 rhs.as_ref().unwrap(),
             ),
+
+            Node::Deref { expr } => {
+                let r = self.gen_expr(expr.as_ref().unwrap());
+                self.add(IR::Load(reg_reg(r, r)));
+                r
+            }
 
             // TODO make this return a Result so we can print out an instruction trace
             _ => fail!("unknown node in expr: {:?}", node),

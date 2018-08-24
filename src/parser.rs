@@ -7,6 +7,7 @@ type NodeKind = Option<Box<Node>>;
 pub enum Node {
     Constant {
         val: u32,
+        ty: Type,
     },
 
     Ident {
@@ -37,10 +38,15 @@ pub enum Node {
         offset: i32,
     },
 
+    Deref {
+        expr: NodeKind,
+    },
+
     Vardef {
         name: String,
         init: NodeKind,
         offset: i32,
+        ty: Type,
     },
 
     Return {
@@ -111,16 +117,30 @@ pub enum Comp {
     Lt,
     Gt,
 }
+
 impl fmt::Display for Comp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Comp::Lt => '<',
-                Comp::Gt => '>',
-            }
-        )
+        let c = match self {
+            Comp::Lt => '<',
+            Comp::Gt => '>',
+        };
+        write!(f, "{}", c)
+    }
+}
+
+// TODO: need to denote the type that the pointer points too
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Int,
+    Ptr { ptr_of: Box<Type> },
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Int => write!(f, "Int"),
+            Type::Ptr { ptr_of } => write!(f, "Ptr: {}", ptr_of),
+        }
     }
 }
 
@@ -156,6 +176,26 @@ impl Node {
             args,
             body: make(Self::compound_stmt(tokens)),
             stacksize: 0,
+        }
+    }
+
+    fn param(tokens: &mut Lexer) -> Self {
+        let ty = Self::ty(tokens);
+
+        let (_, name) = expect_ident(tokens, "variable name as param");
+        let name = name.to_string();
+
+        let init = if consume(tokens, '=') {
+            make(Self::assign(tokens))
+        } else {
+            None
+        };
+
+        Node::Vardef {
+            name,
+            init,
+            offset: 0,
+            ty,
         }
     }
 
@@ -241,8 +281,9 @@ impl Node {
     }
 
     fn decl(tokens: &mut Lexer) -> Self {
-        tokens.advance();
-        let (_, name) = expect_ident(tokens, "variable name");
+        let ty = Self::ty(tokens);
+
+        let (_, name) = expect_ident(tokens, "variable name as decl");
         let name = name.to_string();
 
         let init = if consume(tokens, '=') {
@@ -256,6 +297,7 @@ impl Node {
             name,
             init,
             offset: 0,
+            ty,
         }
     }
 
@@ -355,7 +397,7 @@ impl Node {
     }
 
     fn mul(tokens: &mut Lexer) -> Self {
-        let mut lhs = Self::term(tokens);
+        let mut lhs = Self::unary(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for mul");
             match next {
@@ -363,14 +405,14 @@ impl Node {
                     tokens.advance();
                     lhs = Node::Mul {
                         lhs: make(lhs),
-                        rhs: make(Self::term(tokens)),
+                        rhs: make(Self::unary(tokens)),
                     };
                 }
                 tok if *tok == '/' => {
                     tokens.advance();
                     lhs = Node::Div {
                         lhs: make(lhs),
-                        rhs: make(Self::term(tokens)),
+                        rhs: make(Self::unary(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -379,29 +421,22 @@ impl Node {
         lhs
     }
 
-    fn param(tokens: &mut Lexer) -> Self {
-        tokens.advance();
-
-        let (_, name) = expect_ident(tokens, "variable name");
-        let name = name.to_string();
-
-        let init = if consume(tokens, '=') {
-            make(Self::assign(tokens))
-        } else {
-            None
-        };
-
-        Node::Vardef {
-            name,
-            init,
-            offset: 0,
+    fn unary(tokens: &mut Lexer) -> Self {
+        if consume(tokens, '*') {
+            return Node::Deref {
+                expr: make(Self::mul(tokens)),
+            };
         }
+        Self::term(tokens)
     }
 
     fn term(tokens: &mut Lexer) -> Self {
         let (pos, next) = tokens.next_token().expect("token for term");
         match next {
-            Token::Num(n) => Node::Constant { val: *n },
+            Token::Num(n) => Node::Constant {
+                val: *n,
+                ty: Type::Int,
+            },
             Token::Ident(ref name) => {
                 let n = name.clone();
                 if !consume(tokens, '(') {
@@ -434,11 +469,32 @@ impl Node {
             }
         }
     }
+
+    fn ty(tokens: &mut Lexer) -> Type {
+        let (_pos, ty) = expect_type(tokens, "typename");
+
+        match ty {
+            lexer::Type::Int => {
+                let mut ty = Type::Int;
+                while consume(tokens, '*') {
+                    ty = ptr_of(&ty);
+                }
+                ty
+            }
+        }
+    }
 }
 
 #[inline]
 fn make(node: Node) -> Option<Box<Node>> {
     Some(Box::new(node))
+}
+
+fn ptr_of(base: &Type) -> Type {
+    Type::Ptr {
+        // TODO: will this be a problem with indirection?
+        ptr_of: Box::new(base.clone()),
+    }
 }
 
 #[inline]
@@ -501,10 +557,10 @@ fn expect(tokens: &mut Lexer, tok: impl Into<Token>, msg: impl AsRef<str>) -> (u
 }
 
 #[inline]
-fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, String) {
+fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, lexer::Type) {
     let (pos, next) = tokens.next_token().expect("get next token");
-    if let Token::Type(name) = next {
-        return (*pos, name.to_string());
+    if let Token::Type(ty) = next {
+        return (*pos, ty.clone());
     }
     let pos = *pos;
     expect_fail(tokens.input_at(0), pos, msg.as_ref());
@@ -616,14 +672,19 @@ pub fn print_ast(ast: &[Node]) {
                 newline();
             }
 
-            Vardef { name, init, offset } => {
+            Vardef {
+                name,
+                init,
+                offset,
+                ty,
+            } => {
                 if init.is_none() {
-                    w!(depth, "Var {}", name);
+                    w!(depth, "Var {} {}", name, ty);
                     if *offset != 0 {
                         w!(0, " -- offset: {}", offset);
                     }
                 } else {
-                    w!(depth, "Var {} (", name);
+                    w!(depth, "Var {} {} (", name, ty);
                     if *offset != 0 {
                         w!(0, " -- offset: {}", offset);
                     }
@@ -672,7 +733,12 @@ pub fn print_ast(ast: &[Node]) {
                 w!(if args.is_empty() { 0 } else { depth }, ")");
             }
 
-            Constant { val } => w!(depth, "Constant {}", val),
+            Constant { val, ty } => {
+                w!(depth, "Constant {} (\n", ty);
+                w!(depth + 1, "{}", val);
+                newline();
+                w!(depth, ")");
+            }
 
             Ident { name } => w!(depth, "Ident {}", name),
 
@@ -838,6 +904,14 @@ pub fn print_ast(ast: &[Node]) {
                 newline();
                 w!(depth, ")");
             }
+
+            Deref { expr } => {
+                w!(depth, "Deref (\n");
+                print(depth + 1, kind!(expr));
+                newline();
+                w!(depth, ")");
+            }
+            //tok => w!(depth, "?? {:?}\n", tok),
         }
     }
 
