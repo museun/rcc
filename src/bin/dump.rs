@@ -57,7 +57,7 @@ fn main() {
                 let input: &str = args.as_ref();
                 let mut tokens = Tokens::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
-                dump_ast(&ast);
+                print_ast(&ast);
                 // eprintln!("{}", &input);
             }
             "ir" => {
@@ -85,14 +85,34 @@ fn main() {
                 Registers::allocate(&mut ir);
                 generate_x64(&ABI::SystemV, ir);
             }
-            "asm_win" => {
+            "all" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
+                eprintln!("{}: {}", wrap_color!(Color::Yellow {}, "input"), input);
+
                 let mut tokens = Tokens::tokenize(&input);
-                let ast = Node::parse(&mut tokens);
-                let mut ir = Generate::gen_ir(&ast);
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
+                eprintln!("{:#?}", tokens);
+
+                let mut ast = Node::parse(&mut tokens);
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
+                print_ast(&ast);
+
+                let mut nodes = ast.iter_mut().collect::<Vec<_>>();
+                let nodes = Semantics::analyze(&mut nodes);
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "semantics:"));
+                print_ast(&nodes);
+
+                let mut ir = Generate::gen_ir(&nodes);
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));
+                eprintln!("{:#?}", ir);
+
                 Registers::allocate(&mut ir);
-                generate_x64(&ABI::Windows, ir);
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "reg:"));
+                eprintln!("{:#?}", ir);
+
+                eprintln!("{}", wrap_color!(Color::Yellow {}, "asm:"));
+                generate_x64(&ABI::SystemV, ir);
             }
             _ => {}
         }

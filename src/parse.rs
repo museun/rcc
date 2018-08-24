@@ -440,7 +440,6 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
     }
 }
 
-// TODO: this really needs a better name
 #[inline]
 fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();
@@ -522,14 +521,14 @@ fn draw_caret(width: usize, color: Color) {
     eprintln!("{}{}", s, wrap_color!(color, "^"));
 }
 
-pub fn dump_ast(ast: &[Node]) {
+pub fn print_ast(ast: &[Node]) {
     macro_rules! kind {
         ($e:expr) => {
             $e.as_ref().unwrap()
         };
     }
 
-    fn dump(depth: usize, node: &Node) {
+    fn print(depth: usize, node: &Node) {
         // const COLORS: [Color; 7] = [
         //     Color::White,
         //     Color::Red,
@@ -552,6 +551,8 @@ pub fn dump_ast(ast: &[Node]) {
             }};
         }
 
+        let newline = || eprintln!();
+
         use Node::*;
         match node {
             Func {
@@ -564,22 +565,22 @@ pub fn dump_ast(ast: &[Node]) {
                 if *stacksize != 0 {
                     w!(depth, " -- size: {}", stacksize);
                 }
-                w!(0, "\n");
+                newline();
                 for (i, arg) in args.iter().enumerate() {
-                    dump(depth + 1, arg);
+                    print(depth + 1, arg);
                     if i < args.len() - 1 {
-                        w!(0, "\n");
+                        newline();
                     }
                 }
                 if !args.is_empty() {
-                    w!(0, "\n");
+                    newline();
                 }
                 if body.is_some() {
-                    dump(depth + 1, kind!(body));
+                    print(depth + 1, kind!(body));
                 }
-                w!(0, "\n");
+                newline();
                 w!(depth, ")");
-                w!(0, "\n");
+                newline();
             }
 
             Vardef { name, init, offset } => {
@@ -593,42 +594,42 @@ pub fn dump_ast(ast: &[Node]) {
                     if *offset != 0 {
                         w!(0, " -- offset: {}", offset);
                     }
-                    w!(0, "\n");
-                    dump(depth + 1, kind!(init));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 1, kind!(init));
+                    newline();
                     w!(depth, ")");
                 }
             }
 
             Compound { stmts } => {
                 w!(depth, "Compound (");
-                w!(0, "\n");
+                newline();
                 for (i, stmt) in stmts.iter().enumerate() {
-                    dump(depth + 1, stmt);
+                    print(depth + 1, stmt);
                     if i < stmts.len() - 1 {
-                        w!(0, "\n");
+                        newline();
                     }
                 }
-                w!(0, "\n");
+                newline();
                 w!(depth, ")");
             }
 
             Return { expr } => {
                 w!(depth, "Return (");
-                w!(0, "\n");
-                dump(depth + 1, kind!(expr));
-                w!(0, "\n");
+                newline();
+                print(depth + 1, kind!(expr));
+                newline();
                 w!(depth, ")");
             }
 
             Call { name, args } => {
                 w!(depth, "Call {}(", name);
                 if !args.is_empty() {
-                    w!(0, "\n");
+                    newline();
                 }
 
                 for (i, a) in args.iter().enumerate() {
-                    dump(depth + 1, &a);
+                    print(depth + 1, &a);
                     if i < args.len() - 1 {
                         w!(0, ",\n")
                     } else {
@@ -646,35 +647,35 @@ pub fn dump_ast(ast: &[Node]) {
                 w!(depth, "If ");
                 if cond.is_some() {
                     w!(0, "Cond (");
-                    w!(0, "\n");
-                    dump(depth + 1, kind!(cond));
+                    newline();
+                    print(depth + 1, kind!(cond));
                 }
-                w!(0, "\n");
+                newline();
                 w!(depth, ")");
                 if body.is_some() {
-                    w!(0, "\n");
+                    newline();
                     w!(depth, "Body (");
-                    w!(0, "\n");
-                    dump(depth + 1, kind!(body));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 1, kind!(body));
+                    newline();
                     w!(depth, ")");
                 }
                 if else_.is_some() {
-                    w!(0, "\n");
+                    newline();
                     w!(depth, "Else (");
-                    w!(0, "\n");
-                    dump(depth + 1, kind!(else_));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 1, kind!(else_));
+                    newline();
                     w!(depth, ")");
                 }
             }
 
             Else { body } => {
                 w!(depth, "Else ");
-                w!(0, "\n");
+                newline();
                 if body.is_some() {
                     w!(depth, "Body\n");
-                    dump(depth + 1, kind!(body));
+                    print(depth + 1, kind!(body));
                 }
             }
 
@@ -685,47 +686,47 @@ pub fn dump_ast(ast: &[Node]) {
                 body,
             } => {
                 w!(depth, "For (");
-                w!(0, "\n");
+                newline();
                 if init.is_some() {
                     w!(depth + 1, "Init (");
-                    w!(0, "\n");
-                    dump(depth + 2, kind!(init));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 2, kind!(init));
+                    newline();
                     w!(depth + 1, ")");
                 }
                 if cond.is_some() {
-                    w!(0, "\n");
+                    newline();
                     w!(depth + 1, "Cond (");
-                    w!(0, "\n");
-                    dump(depth + 2, kind!(cond));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 2, kind!(cond));
+                    newline();
                     w!(depth + 1, ")");
                 }
                 if step.is_some() {
-                    w!(0, "\n");
+                    newline();
                     w!(depth + 1, "Step (");
-                    w!(0, "\n");
-                    dump(depth + 2, kind!(step));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 2, kind!(step));
+                    newline();
                     w!(depth + 1, ")");
                 }
                 if body.is_some() {
-                    w!(0, "\n");
+                    newline();
                     w!(depth + 1, "Body (");
-                    w!(0, "\n");
-                    dump(depth + 2, kind!(body));
-                    w!(0, "\n");
+                    newline();
+                    print(depth + 2, kind!(body));
+                    newline();
                     w!(depth + 1, ")");
                 }
-                w!(0, "\n");
+                newline();
                 w!(depth, ")");
             }
 
             Statement { expr } => {
                 w!(depth, "Statement (");
-                w!(0, "\n");
-                dump(depth + 1, kind!(expr));
-                w!(0, "\n");
+                newline();
+                print(depth + 1, kind!(expr));
+                newline();
                 w!(depth, ")");
             }
 
@@ -735,81 +736,80 @@ pub fn dump_ast(ast: &[Node]) {
 
             Add { lhs, rhs } => {
                 w!(depth, "Add (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             Sub { lhs, rhs } => {
                 w!(depth, "Sub (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             Mul { lhs, rhs } => {
                 w!(depth, "Mul (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             Div { lhs, rhs } => {
                 w!(depth, "Div (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             Comparison { lhs, rhs } => {
                 w!(depth, "Cmp (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             LogAnd { lhs, rhs } => {
                 w!(depth, "And (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             LogOr { lhs, rhs } => {
                 w!(depth, "Or (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
 
             Assign { lhs, rhs } => {
                 w!(depth, "Assign (\n");
-                dump(depth + 1, kind!(lhs));
+                print(depth + 1, kind!(lhs));
                 w!(0, ",\n");
-                dump(depth + 1, kind!(rhs));
-                w!(0, "\n");
+                print(depth + 1, kind!(rhs));
+                newline();
                 w!(depth, ")");
             }
         }
     }
 
     for node in ast {
-        // eprintln!("{:#?}", node);
-        dump(0, node);
+        print(0, node);
     }
 }
 
