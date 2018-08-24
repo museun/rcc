@@ -611,12 +611,6 @@ fn draw_caret(width: usize, color: Color) {
 }
 
 pub fn print_ast(ast: &[Node]) {
-    macro_rules! kind {
-        ($e:expr) => {
-            $e.as_ref().unwrap()
-        };
-    }
-
     fn print(depth: usize, node: &Node) {
         // const COLORS: [Color; 7] = [
         //     Color::White,
@@ -638,6 +632,12 @@ pub fn print_ast(ast: &[Node]) {
                 let pad = ::std::iter::repeat(" ").take($depth*2).collect::<String>();
                 eprint!("{}{}", pad, format!($($arg)*));
             }};
+        }
+
+        macro_rules! kind {
+            ($e:expr) => {
+                $e.as_ref().unwrap()
+            };
         }
 
         let newline = || eprintln!();

@@ -1,6 +1,12 @@
 use super::*;
 use std::collections::HashMap;
 
+macro_rules! as_mut {
+    ($e:expr) => {
+        $e.as_mut().unwrap()
+    };
+}
+
 pub struct Semantics {
     map: HashMap<String, i32>, // offsets
     stacksize: i32,
@@ -42,27 +48,27 @@ impl Semantics {
                 self.map.insert(name.clone(), self.stacksize);
                 *offset = self.stacksize;
                 if init.is_some() {
-                    self.walk(init.as_mut().unwrap())
+                    self.walk(as_mut!(init))
                 }
             }
             Node::If { cond, body, else_ } => {
-                self.walk(cond.as_mut().unwrap());
-                self.walk(body.as_mut().unwrap());
+                self.walk(as_mut!(cond));
+                self.walk(as_mut!(body));
                 if else_.is_some() {
-                    self.walk(else_.as_mut().unwrap());
+                    self.walk(as_mut!(else_));
                 }
             }
-            Node::Else { body } => self.walk(body.as_mut().unwrap()),
+            Node::Else { body } => self.walk(as_mut!(body)),
             Node::For {
                 init,
                 cond,
                 step,
                 body,
             } => {
-                self.walk(init.as_mut().unwrap());
-                self.walk(cond.as_mut().unwrap());
-                self.walk(step.as_mut().unwrap());
-                self.walk(body.as_mut().unwrap());
+                self.walk(as_mut!(init));
+                self.walk(as_mut!(cond));
+                self.walk(as_mut!(step));
+                self.walk(as_mut!(body));
             }
 
             Node::Add { lhs, rhs }
@@ -73,10 +79,10 @@ impl Semantics {
             | Node::Comparison { lhs, rhs, .. }
             | Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs } => {
-                self.walk(lhs.as_mut().unwrap());
-                self.walk(rhs.as_mut().unwrap());
+                self.walk(as_mut!(lhs));
+                self.walk(as_mut!(rhs));
             }
-            Node::Deref { expr } | Node::Return { expr } => self.walk(expr.as_mut().unwrap()),
+            Node::Deref { expr } | Node::Return { expr } => self.walk(as_mut!(expr)),
             Node::Call { args, .. } => {
                 for arg in args {
                     self.walk(arg)
@@ -86,14 +92,14 @@ impl Semantics {
                 for arg in args {
                     self.walk(arg)
                 }
-                self.walk(body.as_mut().unwrap())
+                self.walk(as_mut!(body))
             }
             Node::Compound { stmts } => {
                 for stmt in stmts {
                     self.walk(stmt)
                 }
             }
-            Node::Statement { expr } => self.walk(expr.as_mut().unwrap()),
+            Node::Statement { expr } => self.walk(as_mut!(expr)),
             _ => fail!("unexpected node: {:?}", node),
         }
     }
