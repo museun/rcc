@@ -22,7 +22,7 @@ fn main() {
 
             //     eprintln!("{}: {}", wrap_color!(Color::Yellow {}, "input"), input);
 
-            //     let mut tokens = Tokens::tokenize(&input);
+            //     let mut tokens = Lexer::tokenize(&input);
             //     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
             //     eprintln!("{:#?}", tokens);
 
@@ -50,12 +50,12 @@ fn main() {
             "tok" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                eprintln!("{:#?}", Tokens::tokenize(&input));
+                eprintln!("{:#?}", Lexer::tokenize(&input));
             }
             "ast" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                let mut tokens = Tokens::tokenize(&input);
+                let mut tokens = Lexer::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
                 print_ast(&ast);
                 // eprintln!("{}", &input);
@@ -63,14 +63,14 @@ fn main() {
             "ir" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                let mut tokens = Tokens::tokenize(&input);
+                let mut tokens = Lexer::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
                 eprintln!("{:#?}", Generate::gen_ir(&ast));
             }
             "reg" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                let mut tokens = Tokens::tokenize(&input);
+                let mut tokens = Lexer::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
                 let mut ir = Generate::gen_ir(&ast);
                 Registers::allocate(&mut ir);
@@ -79,7 +79,7 @@ fn main() {
             "asm" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                let mut tokens = Tokens::tokenize(&input);
+                let mut tokens = Lexer::tokenize(&input);
                 let ast = Node::parse(&mut tokens);
                 let mut ir = Generate::gen_ir(&ast);
                 Registers::allocate(&mut ir);
@@ -88,9 +88,9 @@ fn main() {
             "all" => {
                 let args = args.skip(2).collect::<String>();
                 let input: &str = args.as_ref();
-                eprintln!("{}: {}", wrap_color!(Color::Yellow {}, "input"), input);
+                eprintln!("{} {}", wrap_color!(Color::Yellow {}, "input:"), input);
 
-                let mut tokens = Tokens::tokenize(&input);
+                let mut tokens = Lexer::tokenize(&input);
                 eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
                 eprintln!("{:#?}", tokens);
 

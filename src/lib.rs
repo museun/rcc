@@ -7,17 +7,17 @@ pub(crate) const MAX_INST: usize = 1000;
 mod util;
 pub use util::*;
 
-mod parse;
-pub use parse::*;
+mod parser;
+pub use parser::*;
 
-mod token;
-pub use token::*;
+mod lexer;
+pub use lexer::*;
 
 mod ir;
 pub use ir::*;
 
-mod reg;
-pub use reg::*;
+mod registers;
+pub use registers::*;
 
 mod codegen;
 pub use codegen::*;

@@ -12,7 +12,7 @@ fn main() {
     let args = args.skip(1).collect::<String>();
     let input: &str = args.as_ref();
 
-    let mut tokens = Tokens::tokenize(&input);
+    let mut tokens = Lexer::tokenize(&input);
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
@@ -20,6 +20,6 @@ fn main() {
     let mut nodes = nodes.iter_mut().collect::<Vec<_>>();
     let nodes = Semantics::analyze(&mut nodes);
     let mut ir = Generate::gen_ir(&nodes);
-    Registers::allocate(&mut ir);
+    Registers::allocate(&mut ir); // TODO: this should return the new IR
     generate_x64(&ABI::SystemV, ir);
 }
