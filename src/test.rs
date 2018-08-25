@@ -125,6 +125,7 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 43 */    (8, "int main() { int *p = alloc_pair(3, 5); return *p + *(p + 1); }"),
 /* 44 */    (9, "int main() { int *p = alloc_offset(2, 7); return *p + *(p - 1); }"),
 /* 45 */    (42, "int main() { int **p = alloc_pointer(42); return **p; }"),
+/* 46 */    (3, "int main() { int arr[2]; *arr=1; *(arr+1)=2; return *arr + *(arr + 1); }"),
 ];
 
 #[test]

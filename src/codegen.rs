@@ -35,15 +35,16 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     // sys-v uses R12 R13 R14 R15
     // sys-v must restore original values
 
-    let (callee, caller) = match abi {
+    let (caller32, caller64, callee) = match abi {
         ABI::Windows => unimplemented!(),
         ABI::SystemV => (
-            &["rdi", "rsi", "rdx", "rcx", "r8", "r9"], // caller
-            &["r12", "r13", "r14", "r15"],             // callee
+            &["edi", "esi", "edx", "ecx", "r8d", "r9d"], // caller 32
+            &["rdi", "rsi", "rdx", "rcx", "r8", "r9"],   // caller 64
+            &["r12", "r13", "r14", "r15"],               // callee
         ),
     };
 
-    for r in caller {
+    for r in callee {
         println!("  push {}", r);
     }
 
@@ -60,11 +61,23 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  mov rax, {}", REGS[*src as usize]);
                 println!("  jmp {}", ret);
             }
-            IR::Load(RegReg { dst, src }) => {
+            IR::Load(Width::W32, RegReg { dst, src }) => {
+                println!("  mov {}, [{}]", REGS32[*dst as usize], REGS[*src as usize]);
+            }
+            IR::Load(Width::W64, RegReg { dst, src }) => {
                 println!("  mov {}, [{}]", REGS[*dst as usize], REGS[*src as usize]);
             }
-            IR::Store(RegReg { dst, src }) => {
+            IR::Store(Width::W32, RegReg { dst, src }) => {
+                println!("  mov [{}], {}", REGS[*dst as usize], REGS32[*src as usize]);
+            }
+            IR::Store(Width::W64, RegReg { dst, src }) => {
                 println!("  mov [{}], {}", REGS[*dst as usize], REGS[*src as usize]);
+            }
+            IR::StoreArg(Width::W32, RegImm { reg, val }) => {
+                println!("  mov [rbp-{}], {}", val, caller32[*reg as usize]);
+            }
+            IR::StoreArg(Width::W64, RegImm { reg, val }) => {
+                println!("  mov [rbp-{}], {}", val, caller64[*reg as usize]);
             }
             IR::Label(IRType::Imm { val }) => println!(".L{}:", val),
             IR::Unless(RegImm { reg, val }) => {
@@ -100,14 +113,9 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  setl {}", REGS8[*dst as usize]);
                 println!("  movzb {}, {}", REGS[*dst as usize], REGS8[*dst as usize]);
             }
-            IR::SaveArgs(Imm { val }) => {
-                for i in 0..*val {
-                    println!("  mov [rbp-{}], {}", (i + 1) * 8, callee[i as usize]);
-                }
-            }
             IR::Call(IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
-                    println!("  mov {}, {}", callee[i], REGS[*arg as usize]);
+                    println!("  mov {}, {}", caller64[i], REGS[*arg as usize]);
                 }
 
                 println!("  push r10");
@@ -126,7 +134,7 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
 
     println!("{}:", ret);
     if let ABI::SystemV = abi {
-        for r in caller.iter().rev() {
+        for r in callee.iter().rev() {
             println!("  pop {}", r);
         }
     }

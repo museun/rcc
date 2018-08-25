@@ -51,3 +51,22 @@ macro_rules! wrap_color {
         format!("{}{}{}", $color.get(), format!($fmt, $($arg)*), Color::reset())
     }};
 }
+
+/// gets +/- `width` around the `cursor`
+pub fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
+    let half = width / 2;
+    if input.len() > width {
+        if cursor < half {
+            (&input[..half], cursor)
+        } else {
+            (&input[cursor - half..], half)
+        }
+    } else {
+        (input, cursor)
+    }
+}
+
+pub fn draw_caret(width: usize, color: Color) {
+    let s = ::std::iter::repeat(" ").take(width).collect::<String>();
+    eprintln!("{}{}", s, wrap_color!(color, "^"));
+}

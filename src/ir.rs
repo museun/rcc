@@ -29,12 +29,33 @@ pub enum IRType {
 }
 
 #[derive(Clone, PartialEq)]
+pub enum Width {
+    W32,
+    W64,
+    Base,
+}
+
+impl fmt::Debug for Width {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let w = match self {
+            Width::W32 => "32",
+            Width::W64 => "64",
+            Width::Base => "Base",
+        };
+        write!(f, "{}", w)
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub enum IR {
-    Imm(IRType),        // reg->imm
-    Mov(IRType),        // reg->reg
-    Return(IRType),     // reg
-    Load(IRType),       // reg->reg
-    Store(IRType),      // reg->reg
+    Imm(IRType),    // reg->imm
+    Mov(IRType),    // reg->reg
+    Return(IRType), // reg
+
+    Load(Width, IRType),     // reg->reg
+    Store(Width, IRType),    // reg->reg
+    StoreArg(Width, IRType), // reg->reg
+
     Unless(IRType),     // reg->imm
     Label(IRType),      // imm
     Jmp(IRType),        // imm
@@ -46,7 +67,6 @@ pub enum IR {
     Kill(IRType),       // reg
     Nop(IRType),        // nothing
     Call(IRType),       // call name, [args]
-    SaveArgs(IRType),   // args + stack offset
 }
 
 #[derive(Debug)]
@@ -79,7 +99,20 @@ impl Generate {
                         label: 0,
                     };
 
-                    this.add(IR::SaveArgs(imm(args.len() as i32)));
+                    for (i, arg) in args.iter().enumerate() {
+                        let offset = match arg.get_val() {
+                            Node::LVal { offset, .. } => offset,
+                            Node::Vardef { offset, .. } => offset,
+                            _ => unreachable!(),
+                        };
+
+                        if arg.get_type().is_ptr() {
+                            this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
+                        } else {
+                            this.add(IR::StoreArg(Width::W32, reg_imm(i as i32, *offset)));
+                        }
+                    }
+
                     this.gen_stmt(body);
 
                     let function = Function {
@@ -106,7 +139,11 @@ impl Generate {
                 let lhs = self.next_reg();
                 self.add(IR::Mov(reg_reg(lhs, 0)));
                 self.add(IR::Sub(reg_imm(lhs, *offset)));
-                self.add(IR::Store(reg_reg(lhs, rhs)));
+                if node.as_ref().get_type().is_ptr() {
+                    self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
+                } else {
+                    self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+                }
                 self.add(IR::Kill(reg(lhs)));
                 self.add(IR::Kill(reg(rhs)));
             }
@@ -221,9 +258,13 @@ impl Generate {
                 r1
             }
 
-            Node::LVal { .. } => {
-                let r = self.gen_lval(node);
-                self.add(IR::Load(reg_reg(r, r)));
+            Node::LVal { ty, .. } => {
+                let r = self.gen_lval(&node);
+                if ty.is_ptr() {
+                    self.add(IR::Load(Width::W64, reg_reg(r, r)));
+                } else {
+                    self.add(IR::Load(Width::W32, reg_reg(r, r)));
+                }
                 r
             }
 
@@ -247,9 +288,17 @@ impl Generate {
             }
 
             Node::Assign { lhs, rhs } => {
+                let l = lhs;
+
                 let rhs = self.gen_expr(rhs);
                 let lhs = self.gen_lval(lhs);
-                self.add(IR::Store(reg_reg(lhs, rhs)));
+
+                if l.get_type().is_ptr() {
+                    self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
+                } else {
+                    self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+                }
+
                 self.add(IR::Kill(reg(rhs)));
                 lhs
             }
@@ -289,9 +338,11 @@ impl Generate {
 
             Node::Div { lhs, rhs, ty: _ty } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
 
+            Node::Addr { expr, .. } => self.gen_lval(expr),
+
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
-                self.add(IR::Load(reg_reg(r, r)));
+                self.add(IR::Load(Width::W64, reg_reg(r, r)));
                 r
             }
 
@@ -302,6 +353,10 @@ impl Generate {
 
     fn gen_lval(&mut self, node: impl AsRef<Node>) -> i32 {
         let node = node.as_ref();
+
+        if let Node::Deref { expr } = &node {
+            return self.gen_expr(expr);
+        }
 
         if let Node::LVal { offset, ty: _ty } = &node {
             let r = self.next_reg();
@@ -365,9 +420,23 @@ impl Deref for IR {
     fn deref(&self) -> &Self::Target {
         use IR::*;
         match self {
-            Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Comparison(ty) | Kill(ty)
-            | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
+            Imm(ty)
+            | Mov(ty)
+            | Return(ty)
+            | Load(_, ty)
+            | Store(_, ty)
+            | StoreArg(_, ty)
+            | Unless(ty)
+            | Label(ty)
+            | Jmp(ty)
+            | Add(ty)
+            | Sub(ty)
+            | Mul(ty)
+            | Div(ty)
+            | Comparison(ty)
+            | Kill(ty)
+            | Nop(ty)
+            | Call(ty) => ty,
         }
     }
 }
@@ -376,9 +445,23 @@ impl DerefMut for IR {
     fn deref_mut(&mut self) -> &mut Self::Target {
         use IR::*;
         match self {
-            Imm(ty) | Mov(ty) | Return(ty) | Load(ty) | Store(ty) | Unless(ty) | Label(ty)
-            | Jmp(ty) | Add(ty) | Sub(ty) | Mul(ty) | Div(ty) | Comparison(ty) | Kill(ty)
-            | Nop(ty) | Call(ty) | SaveArgs(ty) => ty,
+            Imm(ty)
+            | Mov(ty)
+            | Return(ty)
+            | Load(_, ty)
+            | Store(_, ty)
+            | StoreArg(_, ty)
+            | Unless(ty)
+            | Label(ty)
+            | Jmp(ty)
+            | Add(ty)
+            | Sub(ty)
+            | Mul(ty)
+            | Div(ty)
+            | Comparison(ty)
+            | Kill(ty)
+            | Nop(ty)
+            | Call(ty) => ty,
         }
     }
 }
@@ -405,8 +488,9 @@ impl fmt::Debug for IR {
             Imm(ty) => write!(f, "Imm {{ {:?} }}", ty),
             Mov(ty) => write!(f, "Mov {{ {:?} }}", ty),
             Return(ty) => write!(f, "Return {{ {:?} }}", ty),
-            Load(ty) => write!(f, "Load {{ {:?} }}", ty),
-            Store(ty) => write!(f, "Store {{ {:?} }}", ty),
+            Load(w, ty) => write!(f, "Load {:?} {{ {:?} }}", w, ty),
+            Store(w, ty) => write!(f, "Store {:?} {{ {:?} }}", w, ty),
+            StoreArg(w, ty) => write!(f, "StoreArg {:?} {{ {:?} }}", w, ty),
             Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
             Label(ty) => write!(f, "Label {{ {:?} }}", ty),
             Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
@@ -418,7 +502,6 @@ impl fmt::Debug for IR {
             Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
             Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
             Call(ty) => write!(f, "Call {{ {:?} }}", ty),
-            SaveArgs(ty) => write!(f, "Args {{ {:?} }}", ty),
         }
     }
 }

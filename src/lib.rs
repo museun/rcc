@@ -25,4 +25,7 @@ pub use codegen::*;
 mod semantics;
 pub use semantics::*;
 
+mod print;
+pub use print::*;
+
 pub mod test;

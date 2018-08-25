@@ -12,7 +12,7 @@ fn main() {
 
     let mut args = args.skip(1);
     match &args.next().unwrap()[..] {
-        "run" => {
+        "test" => {
             let input = args.next().unwrap().parse::<usize>().expect("a number");
             let (_, input) = test::TESTS[input];
             compile(&input);

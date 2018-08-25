@@ -75,10 +75,11 @@ impl Node {
             | Node::Mul { ty, .. }
             | Node::Div { ty, .. } => ty.as_ref().expect("type"),
 
+            Node::Addr { ty, .. } => ty,
             Node::Deref { expr } => expr.get_type(),
 
             Node::Constant { ty, .. } | Node::LVal { ty, .. } | Node::Vardef { ty, .. } => ty,
-            _ => fail!("{:?} doesn't have a type", self),
+            _ => fail!("doesn't have a type\n{:#?}", self),
         }
     }
 
@@ -87,9 +88,18 @@ impl Node {
             Node::Add { ty, .. }
             | Node::Sub { ty, .. }
             | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => ty.get_or_insert(newtype),
+            | Node::Div { ty, .. } => {
+                ty.get_or_insert(newtype);
+            }
 
-            _ => panic!("can't set type"),
+            Node::Assign { lhs, .. } => {
+                lhs.set_type(newtype);
+            }
+
+            // this must panic
+            _ => {
+                panic!("can't set type");
+            }
         };
     }
 }
@@ -112,14 +122,27 @@ impl AsMut<Node> for Node {
     }
 }
 
-// TODO: need to denote the type that the pointer points too
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Int,
-    Ptr { ptr: Box<Type> },
+    Ptr {
+        ptr: Box<Type>,
+    },
+    Array {
+        base: Box<Type>,
+        len: usize,
+        data: Vec<Type>,
+    },
 }
 
 impl Type {
+    pub fn is_ptr(&self) -> bool {
+        match self {
+            Type::Ptr { .. } => true,
+            _ => false,
+        }
+    }
+
     pub fn ptr(&self) -> &Self {
         match self {
             Type::Ptr { ptr } => &ptr,
@@ -134,10 +157,24 @@ impl Type {
         }
     }
 
+    pub fn ptr_of(&self) -> Self {
+        Type::Ptr {
+            ptr: Box::new(self.clone()),
+        }
+    }
+
+    pub fn addr_of(&self, node: &Node) -> Node {
+        Node::Addr {
+            ty: self.ptr_of(),
+            expr: Kind::make(node.clone()),
+        }
+    }
+
     pub fn size_of(&self) -> i32 {
         match self {
             Type::Int => 4,
             Type::Ptr { .. } => 8,
+            Type::Array { base, len, .. } => ((base.size_of() as usize) * len) as i32,
         }
     }
 }
@@ -147,15 +184,8 @@ impl fmt::Display for Type {
         match self {
             Type::Int => write!(f, "Int"),
             Type::Ptr { ptr } => write!(f, "Ptr: {}", ptr),
+            Type::Array { base, len, .. } => write!(f, "Arr of {}, {}", base, len),
         }
-    }
-}
-
-#[inline]
-fn ptr_of(base: &Type) -> Type {
-    Type::Ptr {
-        // TODO: will this be a problem with indirection?
-        ptr: Box::new(base.clone()),
     }
 }
 
@@ -168,6 +198,11 @@ pub enum Node {
 
     Ident {
         name: String,
+    },
+
+    Addr {
+        expr: Kind,
+        ty: Type,
     },
 
     Add {
@@ -427,10 +462,27 @@ impl Node {
     }
 
     fn decl(tokens: &mut Lexer) -> Self {
-        let ty = Self::ty(tokens);
+        let mut ty = Self::ty(tokens);
 
         let (_, name) = expect_ident(tokens, "variable name as decl");
         let name = name.to_string();
+
+        let mut param = vec![];
+        while consume(tokens, '[') {
+            match Self::term(tokens) {
+                Node::Constant { val, .. } => param.push(val),
+                _ => expect_fail(tokens.input_at(0), tokens.pos(), "number"),
+            };
+            expect_token(tokens, ']');
+        }
+
+        for el in param.iter().rev() {
+            ty = Type::Array {
+                base: Box::new(ty.clone()),
+                len: *el as usize,
+                data: vec![],
+            }
+        }
 
         let init = if consume(tokens, '=') {
             Kind::make(Self::assign(tokens))
@@ -627,7 +679,7 @@ impl Node {
             lexer::Type::Int => {
                 let mut ty = Type::Int;
                 while consume(tokens, '*') {
-                    ty = ptr_of(&ty); // TODO: is this right?
+                    ty = ty.ptr_of(); // TODO: is this right?
                 }
                 ty
             }
@@ -727,350 +779,4 @@ fn expect_fail(input: &str, pos: usize, msg: &str) -> ! {
         wrap_color!(Color::Cyan {}, msg),
         wrap_color!(Color::Blue {}, pos),
     );
-}
-
-/// gets +/- `width` around the `cursor`
-fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
-    let half = width / 2;
-    if input.len() > width {
-        if cursor < half {
-            (&input[..half], cursor)
-        } else {
-            (&input[cursor - half..], half)
-        }
-    } else {
-        (input, cursor)
-    }
-}
-
-fn draw_caret(width: usize, color: Color) {
-    let s = ::std::iter::repeat(" ").take(width).collect::<String>();
-    eprintln!("{}{}", s, wrap_color!(color, "^"));
-}
-
-pub fn print_ast(ast: &[Node]) {
-    fn print(depth: usize, node: &Node) {
-        // const COLORS: [Color; 7] = [
-        //     Color::White,
-        //     Color::Red,
-        //     Color::Green,
-        //     Color::Yellow,
-        //     Color::Cyan,
-        //     Color::Magenta,
-        //     Color::Blue,
-        // ];
-
-        macro_rules! w {
-            ($depth:expr, $($arg:tt)*) => {{
-                // let pad = wrap_color!(
-                //     COLORS[($depth+COLORS.len() - 1) % COLORS.len()],
-                //     "{}",
-                //     ::std::iter::repeat("·").take($depth * 2).collect::<String>()
-                // );
-                let pad = ::std::iter::repeat(" ").take($depth*2).collect::<String>();
-                eprint!("{}{}", pad, format!($($arg)*));
-            }};
-        }
-
-        macro_rules! kind {
-            ($e:expr) => {
-                $e.as_ref()
-            };
-        }
-
-        let newline = || eprintln!();
-
-        use Node::*;
-        match node {
-            Func {
-                name,
-                args,
-                body,
-                stacksize,
-            } => {
-                w!(depth, "Func {} (", name);
-                if *stacksize != 0 {
-                    w!(depth, " -- size: {}", stacksize);
-                }
-                newline();
-                for (i, arg) in args.iter().enumerate() {
-                    print(depth + 1, arg.as_ref());
-                    if i < args.len() - 1 {
-                        newline();
-                    }
-                }
-                if !args.is_empty() {
-                    newline();
-                }
-                if body.has_val() {
-                    print(depth + 1, kind!(body));
-                }
-                newline();
-                w!(depth, ")");
-                newline();
-            }
-
-            Vardef {
-                name,
-                init,
-                offset,
-                ty,
-            } => {
-                if !init.has_val() {
-                    w!(depth, "Var {} {}", name, ty);
-                    if *offset != 0 {
-                        w!(0, " -- offset: {}", offset);
-                    }
-                } else {
-                    w!(depth, "Var {} {} (", name, ty);
-                    if *offset != 0 {
-                        w!(0, " -- offset: {}", offset);
-                    }
-                    newline();
-                    print(depth + 1, kind!(init));
-                    newline();
-                    w!(depth, ")");
-                }
-            }
-
-            Compound { stmts } => {
-                w!(depth, "Compound (");
-                newline();
-                for (i, stmt) in stmts.iter().enumerate() {
-                    print(depth + 1, stmt.as_ref());
-                    if i < stmts.len() - 1 {
-                        newline();
-                    }
-                }
-                newline();
-                w!(depth, ")");
-            }
-
-            Return { expr } => {
-                w!(depth, "Return (");
-                newline();
-                print(depth + 1, kind!(expr));
-                newline();
-                w!(depth, ")");
-            }
-
-            Call { name, args } => {
-                w!(depth, "Call {}(", name);
-                if !args.is_empty() {
-                    newline();
-                }
-
-                for (i, a) in args.iter().enumerate() {
-                    print(depth + 1, &a.as_ref());
-                    if i < args.len() - 1 {
-                        w!(0, ",\n")
-                    } else {
-                        w!(0, "\n")
-                    }
-                }
-                w!(if args.is_empty() { 0 } else { depth }, ")");
-            }
-
-            Constant { val, ty } => {
-                w!(depth, "Constant {} (\n", ty);
-                w!(depth + 1, "{}", val);
-                newline();
-                w!(depth, ")");
-            }
-
-            Ident { name } => w!(depth, "Ident {}", name),
-
-            If { cond, body, else_ } => {
-                w!(depth, "If ");
-                if cond.has_val() {
-                    w!(0, "Cond (");
-                    newline();
-                    print(depth + 1, kind!(cond));
-                }
-                newline();
-                w!(depth, ")");
-                if body.has_val() {
-                    newline();
-                    w!(depth, "Body (");
-                    newline();
-                    print(depth + 1, kind!(body));
-                    newline();
-                    w!(depth, ")");
-                }
-                if else_.has_val() {
-                    newline();
-                    w!(depth, "Else (");
-                    newline();
-                    print(depth + 1, kind!(else_));
-                    newline();
-                    w!(depth, ")");
-                }
-            }
-
-            Else { body } => {
-                w!(depth, "Else ");
-                newline();
-                if body.has_val() {
-                    w!(depth, "Body\n");
-                    print(depth + 1, kind!(body));
-                }
-            }
-
-            For {
-                init,
-                cond,
-                step,
-                body,
-            } => {
-                w!(depth, "For (");
-                newline();
-                if init.has_val() {
-                    w!(depth + 1, "Init (");
-                    newline();
-                    print(depth + 2, kind!(init));
-                    newline();
-                    w!(depth + 1, ")");
-                }
-                if cond.has_val() {
-                    newline();
-                    w!(depth + 1, "Cond (");
-                    newline();
-                    print(depth + 2, kind!(cond));
-                    newline();
-                    w!(depth + 1, ")");
-                }
-                if step.has_val() {
-                    newline();
-                    w!(depth + 1, "Step (");
-                    newline();
-                    print(depth + 2, kind!(step));
-                    newline();
-                    w!(depth + 1, ")");
-                }
-                if body.has_val() {
-                    newline();
-                    w!(depth + 1, "Body (");
-                    newline();
-                    print(depth + 2, kind!(body));
-                    newline();
-                    w!(depth + 1, ")");
-                }
-                newline();
-                w!(depth, ")");
-            }
-
-            Statement { expr } => {
-                w!(depth, "Statement (");
-                newline();
-                print(depth + 1, kind!(expr));
-                newline();
-                w!(depth, ")");
-            }
-
-            LVal { offset, ty } => {
-                w!(depth, "LVal {} -- offset: {}", ty, offset);
-            }
-
-            Add { lhs, rhs, .. } => {
-                w!(depth, "Add (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Sub { lhs, rhs, .. } => {
-                w!(depth, "Sub (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Mul { lhs, rhs, .. } => {
-                w!(depth, "Mul (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Div { lhs, rhs, .. } => {
-                w!(depth, "Div (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Comparison { lhs, rhs, comp } => {
-                w!(depth, "Cmp {:?} (\n", comp);
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            LogAnd { lhs, rhs } => {
-                w!(depth, "And (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            LogOr { lhs, rhs } => {
-                w!(depth, "Or (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Assign { lhs, rhs } => {
-                w!(depth, "Assign (\n");
-                print(depth + 1, kind!(lhs));
-                w!(0, ",\n");
-                print(depth + 1, kind!(rhs));
-                newline();
-                w!(depth, ")");
-            }
-
-            Deref { expr } => {
-                w!(depth, "Deref (\n");
-                print(depth + 1, kind!(expr));
-                newline();
-                w!(depth, ")");
-            }
-            //tok => w!(depth, "?? {:?}\n", tok),
-        }
-    }
-
-    for node in ast {
-        print(0, node);
-    }
-}
-
-pub fn join_with<S, I, T>(mut iter: I, sep: S) -> String
-where
-    S: AsRef<str>,
-    T: AsRef<str>,
-    I: Iterator<Item = T>,
-{
-    let mut buf = String::new();
-    if let Some(s) = iter.next() {
-        buf.push_str(s.as_ref());
-    }
-    for i in iter {
-        buf.push_str(sep.as_ref());
-        buf.push_str(i.as_ref());
-    }
-    buf
 }

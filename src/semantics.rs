@@ -28,6 +28,23 @@ impl Semantics {
         nodes
     }
 
+    fn walk_nodecay(&mut self, node: &mut Node) {
+        match node {
+            Node::Ident { name } => {
+                if !self.map.contains_key(name) {
+                    fail!("undefined variable: {}", name)
+                }
+
+                let var = self.map[name].clone();
+                *node = Node::LVal {
+                    offset: var.offset,
+                    ty: var.ty,
+                }
+            }
+            node => self.walk(node),
+        }
+    }
+
     fn walk(&mut self, node: &mut Node) {
         match node {
             Node::Constant { .. } => return,
@@ -37,10 +54,20 @@ impl Semantics {
                     fail!("undefined variable: {}", name)
                 }
 
-                let var = self.map[name].clone(); // TODO: fix this
-                *node = Node::LVal {
-                    offset: var.offset,
-                    ty: var.ty,
+                let var = self.map[name].clone();
+
+                // I think I need an indirection
+                if let Type::Array { .. } = var.ty {
+                    *node = Node::LVal {
+                        offset: var.offset,
+                        ty: var.ty.clone(),
+                    };
+                    *node = var.ty.addr_of(&node)
+                } else {
+                    *node = Node::LVal {
+                        offset: var.offset,
+                        ty: var.ty,
+                    }
                 }
             }
 
@@ -50,7 +77,7 @@ impl Semantics {
                 offset,
                 ty,
             } => {
-                self.stacksize += 8;
+                self.stacksize += ty.size_of();
                 *offset = self.stacksize;
 
                 self.map.insert(
@@ -73,6 +100,7 @@ impl Semantics {
                     self.walk(else_.as_mut());
                 }
             }
+
             Node::Else { body } => self.walk(body.as_mut()),
 
             Node::For {
@@ -87,8 +115,14 @@ impl Semantics {
                 self.walk(body.as_mut());
             }
 
-            Node::Assign { lhs, rhs }
-            | Node::LogAnd { lhs, rhs }
+            Node::Assign { lhs, rhs } => {
+                self.walk_nodecay(lhs.as_mut()); // can't decay this
+                self.walk(rhs.as_mut());
+                let lhs = lhs.get_type().clone();
+                node.set_type(lhs)
+            }
+
+            Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs }
             | Node::Comparison { lhs, rhs, .. } => {
                 self.walk(lhs.as_mut());
@@ -101,9 +135,6 @@ impl Semantics {
             | Node::Sub { lhs, rhs, .. } => {
                 self.walk(lhs.as_mut());
                 self.walk(rhs.as_mut());
-
-                eprintln!("lhs: {:#?}", lhs);
-                eprintln!("rhs: {:#?}", rhs);
 
                 if let Type::Ptr { ptr: r } = rhs.get_type() {
                     if let Type::Ptr { ptr: l } = lhs.get_type() {

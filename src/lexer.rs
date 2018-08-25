@@ -124,10 +124,10 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             continue;
         }
 
-        let token = match c {
-            '+' | '-' | '*' | '/' | ';' | '=' | '(' | ')' | '{' | '}' | ',' | '<' | '>' => {
-                Token::Char(c)
-            }
+        let token = match c {                    // don't
+            '+' | '-' | '*' | '/' | ';' | '=' |  // format
+            '(' | ')' | '{' | '}' | '[' | ']' |  // this
+            ',' | '<' | '>' => Token::Char(c),   // please
 
             // digits
             c if c.is_ascii_digit() => {
@@ -238,9 +238,8 @@ impl From<&'static str> for Token {
 impl From<char> for Token {
     fn from(c: char) -> Token {
         match c {
-            '+' | '-' | '*' | '/' | '=' | '(' | ')' | '{' | '}' | '<' | '>' | ';' | ',' => {
-                Token::Char(c)
-            }
+            '+' | '-' | '*' | '/' | '=' | '(' | ')' | '{' | '}' | '[' | ']' | '<' | '>' | ';'
+            | ',' => Token::Char(c),
             _ => panic!("invalid char/token"),
         }
     }
