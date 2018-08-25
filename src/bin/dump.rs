@@ -1,4 +1,7 @@
-use std::env::args;
+use std::{
+    env::args,
+    io::{self, prelude::*},
+};
 
 #[macro_use]
 extern crate rcc;
@@ -7,6 +10,11 @@ use rcc::*;
 fn main() {
     let args = args();
     if args.len() == 1 {
+        let mut buffer = String::new();
+        io::stdin()
+            .read_to_string(&mut buffer)
+            .expect("to read stdin");
+        compile(&buffer);
         return;
     }
 
