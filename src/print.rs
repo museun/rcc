@@ -26,12 +26,24 @@ pub fn print_ast(ast: &[Node]) {
                 args,
                 body,
                 stacksize,
+                strings,
             } => {
                 w!(depth, "Func {} (", name);
                 if *stacksize != 0 {
                     w!(depth, " -- size: {}", stacksize);
                 }
                 newline();
+                w!(depth+1, "Strings (\n");
+                for (i, (label, data)) in strings.iter().enumerate() {
+                     w!(depth + 2, "{}: '{}'", label, data);
+                    if i < strings.len() - 1 {
+                        newline();
+                    }
+                }
+                newline();
+                w!(depth+1, ")");
+                newline();
+
                 for (i, arg) in args.iter().enumerate() {
                     print(depth + 1, arg.as_ref());
                     if i < args.len() - 1 {
@@ -70,7 +82,7 @@ pub fn print_ast(ast: &[Node]) {
                     newline();
                     w!(depth, ")");
                 }
-            }
+            },
 
             Addr { expr, ty} => {
                 w!(depth, "Addr {} (\n", ty);                
@@ -224,6 +236,14 @@ pub fn print_ast(ast: &[Node]) {
             LVal { offset, ty } => {
                 w!(depth, "LVal {} -- offset: {}", ty,  offset);
             }
+
+            GVar{name, ty} =>{
+                w!(depth, "GVar {}: {}", name, ty);
+            },
+
+            Str{str, ty}=>{
+                w!(depth, "Str '{}' of {}", str, ty);
+            },
 
             Add { lhs, rhs, .. } => {
                 w!(depth, "Add (\n");

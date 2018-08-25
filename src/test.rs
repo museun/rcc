@@ -46,8 +46,10 @@ fn compile(p: &str) -> Option<String> {
 
     let gcc = Command::new(CC)
         .arg("-c")
-        .arg(&format!("gcc -o tmp/{} tmp/{}.s test.o", &name, &name))
-        .output()
+        .arg(&format!(
+            "gcc -static -o tmp/{} tmp/{}.s test.o",
+            &name, &name
+        )).output()
         .expect("to run gcc");
 
     let err = String::from_utf8_lossy(&gcc.stderr);
@@ -135,6 +137,10 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 53 */    (16, "int main() { int x[4]; return sizeof x; }"),
 /* 54 */    (5, "int main() { char x = 5; return x; }"),
 /* 55 */    (42, "int main() { int x = 0; char *p = &x; p[0] = 42; return x; }"),
+/* 56 */    (97, r#"int main() { char *p = "abc"; return p[0]; }"#),
+/* 57 */    (98, r#"int main() { char *p = "abc"; return p[1]; }"#),
+/* 58 */    (99, r#"int main() { char *p = "abc"; return p[2]; }"#),
+/* 59 */    (0, r#"int main() { char *p = "abc"; return p[3]; }"#),
 ];
 
 #[test]

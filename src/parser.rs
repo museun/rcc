@@ -12,6 +12,11 @@ pub enum Node {
         name: String,
     },
 
+    Str {
+        str: String,
+        ty: Type, // array
+    },
+
     Addr {
         expr: Kind,
         ty: Type,
@@ -67,6 +72,11 @@ pub enum Node {
         ty: Type,
     },
 
+    GVar {
+        name: String,
+        ty: Type,
+    },
+
     Deref {
         expr: Kind,
     },
@@ -113,6 +123,7 @@ pub enum Node {
         args: Vec<Kind>,
         body: Kind,
         stacksize: i32,
+        strings: Vec<(String, String)>,
     },
 
     Statement {
@@ -236,6 +247,7 @@ impl Node {
             args,
             body: Kind::make(Self::compound_stmt(tokens)),
             stacksize: 0,
+            strings: vec![],
         }
     }
 
@@ -534,6 +546,15 @@ impl Node {
             Token::Num(n) => Node::Constant {
                 val: *n,
                 ty: Type::Int,
+            },
+
+            Token::Str(ref s) => Node::Str {
+                str: s.clone(),
+                ty: Type::Array {
+                    base: Box::new(Type::Char),
+                    len: s.len(),
+                    data: vec![], // HACK: probably not needed
+                },
             },
 
             Token::Ident(ref name) => {

@@ -5,11 +5,14 @@ use std::collections::HashMap;
 struct Var {
     ty: Type,
     offset: i32,
+    global: Option<String>,
 }
 
 pub struct Semantics {
     map: HashMap<String, Var>, // variables
+    strings: Vec<(String, String)>,
     stacksize: i32,
+    string_label: u32,
 }
 
 impl Semantics {
@@ -17,57 +20,63 @@ impl Semantics {
         for mut node in nodes.iter_mut() {
             let mut this = Self {
                 map: HashMap::new(),
+                strings: vec![],
                 stacksize: 0,
+                string_label: 0,
             };
 
-            this.walk(&mut node);
-            if let Node::Func { stacksize, .. } = &mut node {
-                *stacksize = this.stacksize
+            this.walk(&mut node, true);
+            if let Node::Func {
+                stacksize, strings, ..
+            } = &mut node
+            {
+                *stacksize = this.stacksize;
+                *strings = this.strings.clone()
             }
         }
         nodes
     }
 
-    fn walk_nodecay(&mut self, node: &mut Node) {
+    // TODO maybe return a new node instead of mutating the current
+    fn walk(&mut self, node: &mut Node, decay: bool) {
         match node {
-            Node::Ident { name } => {
+            Node::Constant { .. } => return,
+
+            Node::Str { str, ty } => {
+                let label = self.next_string_label();
+                self.strings.push((label.clone(), str.clone()));
+                *node = Node::GVar {
+                    name: label,
+                    ty: ty.clone(),
+                };
+                self.walk(node, decay);
+            }
+
+            Node::Ident { ref name } => {
                 if !self.map.contains_key(name) {
                     fail!("undefined variable: {}", name)
                 }
 
                 let var = self.map[name].clone();
+                if decay {
+                    if let Type::Array { .. } = var.ty {
+                        *node = var.ty.addr_of(&Node::LVal {
+                            offset: var.offset,
+                            ty: var.ty.clone(),
+                        });
+                        return;
+                    }
+                }
                 *node = Node::LVal {
                     offset: var.offset,
                     ty: var.ty,
                 }
             }
-            node => self.walk(node),
-        }
-    }
 
-    // TODO maybe return a new node instead of mutating the current
-    fn walk(&mut self, node: &mut Node) {
-        match node {
-            Node::Constant { .. } => return,
-
-            Node::Ident { name } => {
-                if !self.map.contains_key(name) {
-                    fail!("undefined variable: {}", name)
-                }
-
-                let var = self.map[name].clone();
-
-                // I think I need an indirection
-                if let Type::Array { .. } = var.ty {
-                    *node = Node::LVal {
-                        offset: var.offset,
-                        ty: var.ty.clone(),
-                    };
-                    *node = var.ty.addr_of(&node)
-                } else {
-                    *node = Node::LVal {
-                        offset: var.offset,
-                        ty: var.ty,
+            Node::GVar { ref ty, .. } => {
+                if decay {
+                    if let Type::Array { .. } = ty {
+                        *node = ty.addr_of(&node);
                     }
                 }
             }
@@ -86,23 +95,24 @@ impl Semantics {
                     Var {
                         ty: ty.clone(),
                         offset: self.stacksize,
+                        global: None,
                     },
                 );
 
                 if init.has_val() {
-                    self.walk(init.as_mut())
+                    self.walk(init.as_mut(), true)
                 }
             }
 
             Node::If { cond, body, else_ } => {
-                self.walk(cond.as_mut());
-                self.walk(body.as_mut());
+                self.walk(cond.as_mut(), true);
+                self.walk(body.as_mut(), true);
                 if else_.has_val() {
-                    self.walk(else_.as_mut());
+                    self.walk(else_.as_mut(), true);
                 }
             }
 
-            Node::Else { body } => self.walk(body.as_mut()),
+            Node::Else { body } => self.walk(body.as_mut(), true),
 
             Node::For {
                 init,
@@ -110,20 +120,20 @@ impl Semantics {
                 step,
                 body,
             } => {
-                self.walk(init.as_mut());
-                self.walk(cond.as_mut());
-                self.walk(step.as_mut());
-                self.walk(body.as_mut());
+                self.walk(init.as_mut(), true);
+                self.walk(cond.as_mut(), true);
+                self.walk(step.as_mut(), true);
+                self.walk(body.as_mut(), true);
             }
 
             Node::Assign { lhs, rhs } => {
-                self.walk_nodecay(lhs.as_mut()); // can't decay this
+                self.walk(lhs.as_mut(), false); // can't decay this
                 match lhs.get_val() {
                     Node::LVal { .. } | Node::Deref { .. } => {}
                     _ => fail!("not an lvalue: {:?}", node),
                 }
 
-                self.walk(rhs.as_mut());
+                self.walk(rhs.as_mut(), true);
                 let lhs = lhs.get_type().clone();
                 node.set_type(lhs)
             }
@@ -131,27 +141,22 @@ impl Semantics {
             Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs }
             | Node::Comparison { lhs, rhs, .. } => {
-                self.walk(lhs.as_mut());
-                self.walk(rhs.as_mut());
+                self.walk(lhs.as_mut(), true);
+                self.walk(rhs.as_mut(), true);
             }
 
             Node::Mul { lhs, rhs, .. }
             | Node::Div { lhs, rhs, .. }
             | Node::Add { lhs, rhs, .. }
             | Node::Sub { lhs, rhs, .. } => {
-                self.walk(lhs.as_mut());
-                self.walk(rhs.as_mut());
+                self.walk(lhs.as_mut(), true);
+                self.walk(rhs.as_mut(), true);
 
                 if let Type::Ptr { ptr: r } = rhs.get_type() {
                     if let Type::Ptr { ptr: l } = lhs.get_type() {
-                        let r = *r.clone();
-                        let l = *l.clone();
-                        {
-                            lhs.set_type(r);
-                        }
-                        {
-                            rhs.set_type(l);
-                        }
+                        let (r, l) = (*r.clone(), *l.clone());
+                        lhs.set_type(r);
+                        rhs.set_type(l);
                     }
                 }
 
@@ -162,19 +167,19 @@ impl Semantics {
             }
 
             Node::Addr { expr, ty } => {
-                self.walk(expr.as_mut());
+                self.walk(expr.as_mut(), true);
                 *ty = expr.get_type().ptr_of()
             }
 
             Node::Deref { expr } => {
-                self.walk(expr.as_mut());
+                self.walk(expr.as_mut(), true);
                 // TYPE: we don't flatten the pointers..
             }
 
-            Node::Return { expr } => self.walk(expr.as_mut()),
+            Node::Return { expr } => self.walk(expr.as_mut(), true),
 
             Node::Sizeof { expr } => {
-                self.walk_nodecay(expr.as_mut());
+                self.walk(expr.as_mut(), false);
                 *node = Node::Constant {
                     val: expr.get_type().size_of() as u32,
                     ty: Type::Int,
@@ -183,26 +188,32 @@ impl Semantics {
 
             Node::Call { args, .. } => {
                 for arg in args {
-                    self.walk(arg.as_mut())
+                    self.walk(arg.as_mut(), true)
                 }
                 // TYPE: maybe set default type to int
             }
 
             Node::Func { args, body, .. } => {
                 for arg in args {
-                    self.walk(arg.as_mut())
+                    self.walk(arg.as_mut(), true)
                 }
-                self.walk(body.as_mut())
+                self.walk(body.as_mut(), true)
             }
 
             Node::Compound { stmts } => {
                 for stmt in stmts {
-                    self.walk(stmt.as_mut())
+                    self.walk(stmt.as_mut(), true)
                 }
             }
 
-            Node::Statement { expr } => self.walk(expr.as_mut()),
+            Node::Statement { expr } => self.walk(expr.as_mut(), true),
             _ => fail!("unexpected node: {:?}", node),
         }
+    }
+
+    fn next_string_label(&mut self) -> String {
+        let label = format!(".L.str{}", self.string_label);
+        self.string_label += 1;
+        label
     }
 }

@@ -19,9 +19,16 @@ pub fn generate_x64(abi: &ABI, funcs: &[Function]) {
 }
 
 fn generate(abi: &ABI, func: &Function, label: &mut u32) {
+    println!(".data");
+    for (name, data) in &func.strings {
+        println!("{}:", &name);
+        println!("  .asciz \"{}\"", &data);
+    }
+
     let ret = format!(".Lend{}", label);
     *label += 1;
 
+    println!(".text");
     println!(".global {}", func.name);
     println!("{}:", func.name);
 
@@ -79,6 +86,13 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                     },
                     REGS64[*src as usize]
                 );
+
+                if let Width::W8 = w {
+                    println!(
+                        "  movzb {}, {}",
+                        REGS64[*dst as usize], REGS8[*dst as usize]
+                    )
+                }
             }
 
             IR::Store(w, RegReg { dst, src }) => {
@@ -106,6 +120,9 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
             }
 
             IR::Label(IRType::Imm { val }) => println!(".L{}:", val),
+            IR::Label(IRType::RegLabel { reg, label }) => {
+                println!("  lea {}, {}", REGS64[*reg as usize], label)
+            }
 
             IR::Unless(RegImm { reg, val }) => {
                 println!("  cmp {}, 0", REGS64[*reg as usize]);

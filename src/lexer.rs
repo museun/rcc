@@ -4,9 +4,10 @@ use std::ops::{Index, IndexMut};
 #[derive(PartialEq, Clone)]
 pub enum Token {
     Char(char),    // all others
-    Num(u32),      // n
+    Num(u32),      // constant
     Ident(String), // name
     Type(LexType), // types
+    Str(String),   // string
 
     If,     // if
     Else,   // else
@@ -141,6 +142,17 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                 Token::Num(k)
             }
 
+            '"' => {
+                let s: String = s[i + 1..]
+                    .chars()
+                    .take_while(|c| *c != '"')
+                    .inspect(|_| skip += 1)
+                    .collect();
+                skip += 1;
+                // need to skip the last "
+                Token::Str(s)
+            }
+
             // multi-character token
             c if c.is_ascii_punctuation() => {
                 let mut out = None;
@@ -218,6 +230,7 @@ impl fmt::Debug for Token {
             Token::Num(n) => write!(f, "Num({})", n),
             Token::Ident(name) => write!(f, "Ident({})", name),
             Token::Type(ty) => write!(f, "Type({:?})", ty),
+            Token::Str(s) => write!(f, "String(\"{}\")", s),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),

@@ -48,16 +48,24 @@ impl Registers {
                     *dst = self.alloc(*dst);
                     *src = self.alloc(*src);
                 }
+
                 Reg { src } => *src = self.alloc(*src),
+
+                RegLabel { reg, .. } => {
+                    *reg = self.alloc(*reg);
+                }
+
                 RegImm { reg, .. } => {
                     *reg = self.alloc(*reg);
                 }
+
                 IRType::Call { reg, args, .. } => {
                     *reg = self.alloc(*reg);
                     for arg in args {
                         *arg = self.alloc(*arg)
                     }
                 }
+
                 IRType::Imm { .. } | IRType::Nop { .. } => {
                     // doesn't need register allocations
                 }

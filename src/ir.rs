@@ -14,6 +14,10 @@ pub enum IRType {
         reg: i32,
         val: i32,
     },
+    RegLabel {
+        reg: i32,
+        label: String,
+    },
     Reg {
         src: i32,
     },
@@ -57,7 +61,7 @@ pub enum IR {
     StoreArg(Width, IRType), // reg->reg
 
     Unless(IRType),     // reg->imm
-    Label(IRType),      // imm
+    Label(IRType),      // imm OR reg_label
     Jmp(IRType),        // imm
     Add(IRType),        // reg->reg
     Sub(IRType),        // reg->reg
@@ -74,6 +78,7 @@ pub struct Function {
     pub(crate) name: String,
     pub(crate) stacksize: i32,
     pub(crate) ir: Vec<IR>,
+    pub(crate) strings: Vec<(String, String)>, // name, data
 }
 
 #[derive(Debug)]
@@ -92,6 +97,7 @@ impl Generate {
                     body,
                     args,
                     stacksize,
+                    strings,
                 } => {
                     let mut this = Self {
                         // TODO be smarter about this
@@ -125,6 +131,7 @@ impl Generate {
                         name: name.clone(),
                         stacksize: *stacksize,
                         ir: this.inst,
+                        strings: strings.clone(),
                     };
                     out.push(function);
                 }
@@ -272,19 +279,15 @@ impl Generate {
                 r1
             }
 
-            Node::LVal { ty, .. } => {
+            Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
                 let r = self.gen_lval(&node);
                 match ty {
-                    Type::Char => {
-                        self.add(IR::Load(Width::W8, reg_reg(r, r)));
-                    }
-                    Type::Int => {
-                        self.add(IR::Load(Width::W32, reg_reg(r, r)));
-                    }
+                    Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
+                    Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
                     Type::Ptr { .. } | Type::Array { .. } => {
-                        self.add(IR::Load(Width::W64, reg_reg(r, r)));
+                        self.add(IR::Load(Width::W64, reg_reg(r, r)))
                     }
-                }
+                };
                 r
             }
 
@@ -314,16 +317,12 @@ impl Generate {
                 let lhs = self.gen_lval(lhs);
 
                 match l.get_type() {
-                    Type::Char => {
-                        self.add(IR::Store(Width::W8, reg_reg(lhs, rhs)));
-                    }
-                    Type::Int => {
-                        self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
-                    }
+                    Type::Char => self.add(IR::Store(Width::W8, reg_reg(lhs, rhs))),
+                    Type::Int => self.add(IR::Store(Width::W32, reg_reg(lhs, rhs))),
                     Type::Ptr { .. } | Type::Array { .. } => {
-                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
+                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)))
                     }
-                }
+                };
 
                 self.add(IR::Kill(reg(rhs)));
                 lhs
@@ -368,7 +367,14 @@ impl Generate {
 
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
-                self.add(IR::Load(Width::W64, reg_reg(r, r)));
+                match expr.get_type().ptr() {
+                    // TYPE: is this right?
+                    Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
+                    Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
+                    Type::Ptr { .. } | Type::Array { .. } => {
+                        self.add(IR::Load(Width::W64, reg_reg(r, r)))
+                    }
+                }
                 r
             }
 
@@ -379,7 +385,6 @@ impl Generate {
 
     fn gen_lval(&mut self, node: impl AsRef<Node>) -> i32 {
         let node = node.as_ref();
-
         if let Node::Deref { expr } = &node {
             return self.gen_expr(expr);
         }
@@ -388,6 +393,12 @@ impl Generate {
             let r = self.next_reg();
             self.add(IR::Mov(reg_reg(r, 0)));
             self.add(IR::Sub(reg_imm(r, *offset)));
+            return r;
+        }
+
+        if let Node::GVar { name, ty: _ty } = &node {
+            let r = self.next_reg();
+            self.add(IR::Label(reg_label(r, name.clone())));
             return r;
         }
 
@@ -437,6 +448,11 @@ fn reg(src: i32) -> IRType {
 #[inline]
 fn imm(val: i32) -> IRType {
     IRType::Imm { val }
+}
+
+#[inline]
+fn reg_label(reg: i32, label: String) -> IRType {
+    IRType::RegLabel { reg, label }
 }
 
 // TODO: this stuff needs to be rewritten
@@ -498,6 +514,7 @@ impl fmt::Debug for IRType {
         match self {
             RegReg { dst, src } => write!(f, "RegReg {{ dst: {:?}, src: {:?} }}", dst, src),
             RegImm { reg, val } => write!(f, "RegImm {{ reg: {:?}, val: {:?} }}", reg, val),
+            RegLabel { reg, label } => write!(f, "RegLabel {{ reg: {:?}, label: {} }}", reg, label),
             Reg { src } => write!(f, "Reg {{ src: {:?} }}", src),
             Imm { val } => write!(f, "Imm {{ val: {:?} }}", val),
             Call { reg, name, args } => write!(f, "Call {{ {} @ {}({:?}) }}", reg, name, args),
