@@ -580,15 +580,15 @@ impl Node {
     fn ty(tokens: &mut Lexer) -> Type {
         let (_pos, ty) = expect_type(tokens, "typename");
 
-        match ty {
-            LexType::Int => {
-                let mut ty = Type::Int;
-                while consume(tokens, '*') {
-                    ty = ty.ptr_of(); // TODO: is this right?
-                }
-                ty
-            }
+        let mut ty = match ty {
+            LexType::Char => Type::Char,
+            LexType::Int => Type::Int,
+        };
+
+        while consume(tokens, '*') {
+            ty = ty.ptr_of();
         }
+        ty
     }
 }
 

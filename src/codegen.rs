@@ -35,9 +35,10 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     // sys-v uses R12 R13 R14 R15
     // sys-v must restore original values
 
-    let (caller32, caller64, callee) = match abi {
+    let (caller8, caller32, caller64, callee) = match abi {
         ABI::Windows => unimplemented!(),
         ABI::SystemV => (
+            &["dil", "sil", "dl", "cl", "r8b", "r9b"],   // caller 8
             &["edi", "esi", "edx", "ecx", "r8d", "r9d"], // caller 32
             &["rdi", "rsi", "rdx", "rcx", "r8", "r9"],   // caller 64
             &["r12", "r13", "r14", "r15"],               // callee
@@ -61,24 +62,43 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  mov rax, {}", REGS[*src as usize]);
                 println!("  jmp {}", ret);
             }
-            IR::Load(Width::W32, RegReg { dst, src }) => {
-                println!("  mov {}, [{}]", REGS32[*dst as usize], REGS[*src as usize]);
+
+            IR::Load(w, RegReg { dst, src }) => {
+                println!(
+                    "  mov {}, [{}]",
+                    match w {
+                        Width::W8 => REGS8[*dst as usize],
+                        Width::W32 => REGS32[*dst as usize],
+                        Width::W64 => REGS[*dst as usize],
+                    },
+                    REGS[*src as usize]
+                );
             }
-            IR::Load(Width::W64, RegReg { dst, src }) => {
-                println!("  mov {}, [{}]", REGS[*dst as usize], REGS[*src as usize]);
+
+            IR::Store(w, RegReg { dst, src }) => {
+                println!(
+                    "  mov [{}], {}",
+                    REGS[*dst as usize],
+                    match w {
+                        Width::W8 => REGS8[*src as usize],
+                        Width::W32 => REGS32[*src as usize],
+                        Width::W64 => REGS[*src as usize],
+                    },
+                );
             }
-            IR::Store(Width::W32, RegReg { dst, src }) => {
-                println!("  mov [{}], {}", REGS[*dst as usize], REGS32[*src as usize]);
+
+            IR::StoreArg(w, RegImm { reg, val }) => {
+                println!(
+                    "  mov [rbp-{}], {}",
+                    val,
+                    match w {
+                        Width::W8 => caller8[*reg as usize],
+                        Width::W32 => caller32[*reg as usize],
+                        Width::W64 => caller64[*reg as usize],
+                    },
+                );
             }
-            IR::Store(Width::W64, RegReg { dst, src }) => {
-                println!("  mov [{}], {}", REGS[*dst as usize], REGS[*src as usize]);
-            }
-            IR::StoreArg(Width::W32, RegImm { reg, val }) => {
-                println!("  mov [rbp-{}], {}", val, caller32[*reg as usize]);
-            }
-            IR::StoreArg(Width::W64, RegImm { reg, val }) => {
-                println!("  mov [rbp-{}], {}", val, caller64[*reg as usize]);
-            }
+
             IR::Label(IRType::Imm { val }) => println!(".L{}:", val),
             IR::Unless(RegImm { reg, val }) => {
                 println!("  cmp {}, 0", REGS[*reg as usize]);

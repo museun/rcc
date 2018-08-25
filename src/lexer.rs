@@ -21,6 +21,7 @@ pub enum Token {
 
 #[derive(PartialEq, Clone)]
 pub enum LexType {
+    Char,
     Int,
 }
 
@@ -105,6 +106,7 @@ impl PartialEq<char> for Token {
 fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
     symbols.push(("int", Token::Type(LexType::Int)));
+    symbols.push(("char", Token::Type(LexType::Char)));
     symbols.push(("for", Token::For));
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
@@ -231,6 +233,7 @@ impl fmt::Debug for Token {
 impl fmt::Debug for LexType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            LexType::Char => write!(f, "Char"),
             LexType::Int => write!(f, "Int"),
         }
     }

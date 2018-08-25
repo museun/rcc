@@ -30,17 +30,17 @@ pub enum IRType {
 
 #[derive(Clone, PartialEq)]
 pub enum Width {
+    W8,
     W32,
     W64,
-    Base,
 }
 
 impl fmt::Debug for Width {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w = match self {
+            Width::W8 => "8",
             Width::W32 => "32",
             Width::W64 => "64",
-            Width::Base => "Base",
         };
         write!(f, "{}", w)
     }
@@ -106,10 +106,16 @@ impl Generate {
                             _ => unreachable!(),
                         };
 
-                        if arg.get_type().is_ptr() {
-                            this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
-                        } else {
-                            this.add(IR::StoreArg(Width::W32, reg_imm(i as i32, *offset)));
+                        match arg.get_type() {
+                            Type::Char => {
+                                this.add(IR::StoreArg(Width::W8, reg_imm(i as i32, *offset)));
+                            }
+                            Type::Int => {
+                                this.add(IR::StoreArg(Width::W32, reg_imm(i as i32, *offset)));
+                            }
+                            Type::Ptr { .. } | Type::Array { .. } => {
+                                this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
+                            }
                         }
                     }
 
@@ -139,11 +145,19 @@ impl Generate {
                 let lhs = self.next_reg();
                 self.add(IR::Mov(reg_reg(lhs, 0)));
                 self.add(IR::Sub(reg_imm(lhs, *offset)));
-                if node.as_ref().get_type().is_ptr() {
-                    self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
-                } else {
-                    self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+
+                match node.as_ref().get_type() {
+                    Type::Char => {
+                        self.add(IR::Store(Width::W8, reg_reg(lhs, rhs)));
+                    }
+                    Type::Int => {
+                        self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+                    }
+                    Type::Ptr { .. } | Type::Array { .. } => {
+                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
+                    }
                 }
+
                 self.add(IR::Kill(reg(lhs)));
                 self.add(IR::Kill(reg(rhs)));
             }
@@ -260,10 +274,16 @@ impl Generate {
 
             Node::LVal { ty, .. } => {
                 let r = self.gen_lval(&node);
-                if ty.is_ptr() {
-                    self.add(IR::Load(Width::W64, reg_reg(r, r)));
-                } else {
-                    self.add(IR::Load(Width::W32, reg_reg(r, r)));
+                match ty {
+                    Type::Char => {
+                        self.add(IR::Load(Width::W8, reg_reg(r, r)));
+                    }
+                    Type::Int => {
+                        self.add(IR::Load(Width::W32, reg_reg(r, r)));
+                    }
+                    Type::Ptr { .. } | Type::Array { .. } => {
+                        self.add(IR::Load(Width::W64, reg_reg(r, r)));
+                    }
                 }
                 r
             }
@@ -293,10 +313,16 @@ impl Generate {
                 let rhs = self.gen_expr(rhs);
                 let lhs = self.gen_lval(lhs);
 
-                if l.get_type().is_ptr() {
-                    self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
-                } else {
-                    self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+                match l.get_type() {
+                    Type::Char => {
+                        self.add(IR::Store(Width::W8, reg_reg(lhs, rhs)));
+                    }
+                    Type::Int => {
+                        self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
+                    }
+                    Type::Ptr { .. } | Type::Array { .. } => {
+                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
+                    }
                 }
 
                 self.add(IR::Kill(reg(rhs)));

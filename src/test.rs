@@ -129,9 +129,12 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 47 */    (5, "int main() { int x; int *p = &x; x = 5; return *p; }"),
 /* 48 */    (3, "int main() { int arr[2]; arr[0]=1; arr[1]=2; return arr[0] + arr[1]; }"),
 /* 49 */    (5, "int main() { int x; int *p = &x; x = 5; return p[0]; }"),
-/* 50 */    (4, "int main() { int x; return sizeof(x); }"),
-/* 51 */    (8, "int main() { int *x; return sizeof x; }"),
-/* 52 */    (16, "int main() { int x[4]; return sizeof x; }"),
+/* 50 */    (1, "int main() { char x; return sizeof(x); }"),
+/* 51 */    (4, "int main() { int x; return sizeof(x); }"),
+/* 52 */    (8, "int main() { int *x; return sizeof x; }"),
+/* 53 */    (16, "int main() { int x[4]; return sizeof x; }"),
+/* 54 */    (5, "int main() { char x = 5; return x; }"),
+/* 55 */    (42, "int main() { int x = 0; char *p = &x; p[0] = 42; return x; }"),
 ];
 
 #[test]
