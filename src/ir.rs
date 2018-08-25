@@ -308,7 +308,7 @@ impl Generate {
             }
 
             Node::Add { lhs, rhs, ty: _ty } | Node::Sub { lhs, rhs, ty: _ty } => {
-                if let parser::Type::Ptr { .. } = lhs.get_type() {
+                if let Type::Ptr { .. } = lhs.get_type() {
                     let rhs = self.gen_expr(rhs);
                     let r = self.next_reg();
                     self.add(IR::Imm(reg_imm(r, lhs.get_type().ptr().size_of())));

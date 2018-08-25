@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 struct Var {
-    ty: parser::Type, // ??
+    ty: Type,
     offset: i32,
 }
 

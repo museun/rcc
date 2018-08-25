@@ -2,194 +2,6 @@ use super::*;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Kind {
-    val: Option<Box<Node>>, // node uses kind
-    ty: Option<Type>,
-}
-
-impl Kind {
-    pub fn make(node: Node) -> Self {
-        let ty = if node.has_type() {
-            Some(node.get_type().clone()) // sad
-        } else {
-            None
-        };
-
-        Kind {
-            val: Some(Box::new(node)),
-            ty,
-        }
-    }
-
-    pub fn empty() -> Self {
-        Kind {
-            val: None,
-            ty: None,
-        }
-    }
-
-    pub fn has_val(&self) -> bool {
-        self.val.is_some()
-    }
-
-    pub fn has_type(&self) -> bool {
-        match self.ty.as_ref() {
-            None => self.get_val().has_type(),
-            Some(_) => true,
-        }
-    }
-
-    pub fn get_val(&self) -> &Node {
-        self.val.as_ref().unwrap()
-    }
-
-    pub fn get_val_mut(&mut self) -> &mut Node {
-        self.val.as_mut().unwrap()
-    }
-
-    pub fn get_type(&self) -> &Type {
-        match self.ty.as_ref() {
-            None => self.get_val().get_type(),
-            Some(ty) => ty,
-        }
-    }
-
-    pub fn set_type(&mut self, ty: Type) {
-        let _ = self.ty.get_or_insert(ty);
-    }
-}
-
-impl Node {
-    /// instrinsic types
-    pub(crate) fn has_type(&self) -> bool {
-        match self {
-            Node::Constant { .. } | Node::LVal { .. } | Node::Vardef { .. } => true,
-            _ => false,
-        }
-    }
-
-    pub(crate) fn get_type(&self) -> &Type {
-        match self {
-            Node::Add { ty, .. }
-            | Node::Sub { ty, .. }
-            | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => ty.as_ref().expect("type"),
-
-            Node::Addr { ty, .. } => ty,
-            Node::Deref { expr } => expr.get_type(),
-
-            Node::Constant { ty, .. } | Node::LVal { ty, .. } | Node::Vardef { ty, .. } => ty,
-            _ => fail!("doesn't have a type\n{:#?}", self),
-        }
-    }
-
-    pub(crate) fn set_type(&mut self, newtype: Type) {
-        match self {
-            Node::Add { ty, .. }
-            | Node::Sub { ty, .. }
-            | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => {
-                ty.get_or_insert(newtype);
-            }
-
-            Node::Assign { lhs, .. } => {
-                lhs.set_type(newtype);
-            }
-
-            // this must panic
-            _ => {
-                panic!("can't set type");
-            }
-        };
-    }
-}
-
-impl AsRef<Node> for Kind {
-    fn as_ref(&self) -> &Node {
-        self.val.as_ref().unwrap()
-    }
-}
-
-impl AsMut<Node> for Kind {
-    fn as_mut(&mut self) -> &mut Node {
-        self.val.as_mut().unwrap()
-    }
-}
-
-impl AsMut<Node> for Node {
-    fn as_mut(&mut self) -> &mut Node {
-        self
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Int,
-    Ptr {
-        ptr: Box<Type>,
-    },
-    Array {
-        base: Box<Type>,
-        len: usize,
-        data: Vec<Type>,
-    },
-}
-
-impl Type {
-    pub fn is_ptr(&self) -> bool {
-        match self {
-            Type::Ptr { .. } => true,
-            _ => false,
-        }
-    }
-
-    pub fn ptr(&self) -> &Self {
-        match self {
-            Type::Ptr { ptr } => &ptr,
-            _ => panic!("not a pointer"),
-        }
-    }
-
-    pub fn ptr_mut(&mut self) -> &mut Self {
-        match self {
-            Type::Ptr { ref mut ptr } => ptr,
-            _ => panic!("not a pointer"),
-        }
-    }
-
-    pub fn ptr_of(&self) -> Self {
-        Type::Ptr {
-            ptr: Box::new(self.clone()),
-        }
-    }
-
-    pub fn addr_of(&self, node: &Node) -> Node {
-        Node::Addr {
-            ty: self.ptr_of(),
-            expr: Kind::make(node.clone()),
-        }
-    }
-
-    pub fn size_of(&self) -> i32 {
-        match self {
-            Type::Int => 4,
-            Type::Ptr { .. } => 8,
-            Type::Array { base, len, .. } => ((base.size_of() as usize) * len) as i32,
-        }
-    }
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Type::Int => write!(f, "Int"),
-            Type::Ptr { ptr } => write!(f, "Ptr: {}", ptr),
-            Type::Array { base, len, .. } => write!(f, "Arr of {}, {}", base, len),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Constant {
         val: u32, // XXX: why is this a u32
@@ -325,6 +137,69 @@ impl fmt::Display for Comp {
             Comp::Gt => '>',
         };
         write!(f, "{}", c)
+    }
+}
+
+impl Node {
+    /// instrinsic types
+    pub(crate) fn has_type(&self) -> bool {
+        match self {
+            Node::Constant { .. } | Node::LVal { .. } | Node::Vardef { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn get_type(&self) -> &Type {
+        match self {
+            Node::Add { ty, .. }
+            | Node::Sub { ty, .. }
+            | Node::Mul { ty, .. }
+            | Node::Div { ty, .. } => ty.as_ref().expect("type"),
+
+            Node::Addr { ty, .. } => ty,
+            Node::Deref { expr } => expr.get_type(),
+
+            Node::Constant { ty, .. } | Node::LVal { ty, .. } | Node::Vardef { ty, .. } => ty,
+            _ => fail!("doesn't have a type\n{:#?}", self),
+        }
+    }
+
+    pub(crate) fn set_type(&mut self, newtype: Type) {
+        match self {
+            Node::Add { ty, .. }
+            | Node::Sub { ty, .. }
+            | Node::Mul { ty, .. }
+            | Node::Div { ty, .. } => {
+                ty.get_or_insert(newtype);
+            }
+
+            Node::Assign { lhs, .. } => {
+                lhs.set_type(newtype);
+            }
+
+            // this must panic
+            _ => {
+                panic!("can't set type");
+            }
+        };
+    }
+}
+
+impl AsRef<Node> for Kind {
+    fn as_ref(&self) -> &Node {
+        self.val.as_ref().unwrap()
+    }
+}
+
+impl AsMut<Node> for Kind {
+    fn as_mut(&mut self) -> &mut Node {
+        self.val.as_mut().unwrap()
+    }
+}
+
+impl AsMut<Node> for Node {
+    fn as_mut(&mut self) -> &mut Node {
+        self
     }
 }
 
@@ -473,7 +348,7 @@ impl Node {
 
         let mut param = vec![];
         while consume(tokens, '[') {
-            match Self::term(tokens) {
+            match Self::primary(tokens) {
                 Node::Constant { val, .. } => param.push(val),
                 _ => expect_fail(tokens.input_at(0), tokens.pos(), "number"),
             };
@@ -644,10 +519,10 @@ impl Node {
                 expr: Kind::make(Self::unary(tokens)),
             };
         }
-        Self::term(tokens)
+        Self::postfix(tokens)
     }
 
-    fn term(tokens: &mut Lexer) -> Self {
+    fn primary(tokens: &mut Lexer) -> Self {
         let (pos, next) = tokens.next_token().expect("token for term");
         match next {
             tok if *tok == '(' => {
@@ -687,11 +562,26 @@ impl Node {
         }
     }
 
+    fn postfix(tokens: &mut Lexer) -> Self {
+        let mut lhs = Self::primary(tokens);
+        while consume(tokens, '[') {
+            lhs = Node::Deref {
+                expr: Kind::make(Node::Add {
+                    lhs: Kind::make(lhs),
+                    rhs: Kind::make(Self::primary(tokens)),
+                    ty: None,
+                }),
+            };
+            expect_token(tokens, ']')
+        }
+        lhs
+    }
+
     fn ty(tokens: &mut Lexer) -> Type {
         let (_pos, ty) = expect_type(tokens, "typename");
 
         match ty {
-            lexer::Type::Int => {
+            LexType::Int => {
                 let mut ty = Type::Int;
                 while consume(tokens, '*') {
                     ty = ty.ptr_of(); // TODO: is this right?
@@ -762,7 +652,7 @@ fn expect(tokens: &mut Lexer, tok: impl Into<Token>, msg: impl AsRef<str>) -> (u
 }
 
 #[inline]
-fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, lexer::Type) {
+fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, LexType) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Type(ty) = next {
         return (*pos, ty.clone());
