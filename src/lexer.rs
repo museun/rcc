@@ -14,6 +14,7 @@ pub enum Token {
     LogOr,  // ||
     LogAnd, // &&
     Return, // return
+    Sizeof, // sizeof
 
     EOF,
 }
@@ -104,10 +105,11 @@ impl PartialEq<char> for Token {
 fn scan(s: &str) -> Vec<(usize, Token)> {
     let mut symbols = vec![];
     symbols.push(("int", Token::Type(Type::Int)));
+    symbols.push(("for", Token::For));
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
     symbols.push(("return", Token::Return));
-    symbols.push(("for", Token::For));
+    symbols.push(("sizeof", Token::Sizeof));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
 
@@ -220,6 +222,7 @@ impl fmt::Debug for Token {
             Token::LogOr => write!(f, "Or"),
             Token::LogAnd => write!(f, "And"),
             Token::Return => write!(f, "Return"),
+            Token::Sizeof => write!(f, "Sizeof"),
             Token::EOF => write!(f, "EOF"),
         }
     }

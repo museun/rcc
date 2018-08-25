@@ -100,6 +100,14 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
+            Sizeof { expr} => {
+                w!(depth, "Sizeof (");
+                newline();
+                print(depth + 1, kind!(expr));
+                newline();
+                w!(depth, ")");
+            }
+
             Call { name, args } => {
                 w!(depth, "Call {}(", name);
                 if !args.is_empty() {

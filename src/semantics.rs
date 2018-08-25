@@ -45,6 +45,7 @@ impl Semantics {
         }
     }
 
+    // TODO maybe return a new node instead of mutating the current
     fn walk(&mut self, node: &mut Node) {
         match node {
             Node::Constant { .. } => return,
@@ -166,6 +167,14 @@ impl Semantics {
             }
 
             Node::Return { expr } => self.walk(expr.as_mut()),
+
+            Node::Sizeof { expr } => {
+                self.walk_nodecay(expr.as_mut());
+                *node = Node::Constant {
+                    val: expr.get_type().size_of() as u32,
+                    ty: Type::Int,
+                };
+            }
 
             Node::Call { args, .. } => {
                 for arg in args {

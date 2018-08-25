@@ -192,7 +192,7 @@ impl fmt::Display for Type {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Constant {
-        val: u32,
+        val: u32, // XXX: why is this a u32
         ty: Type,
     },
 
@@ -267,6 +267,10 @@ pub enum Node {
     },
 
     Return {
+        expr: Kind,
+    },
+
+    Sizeof {
         expr: Kind,
     },
 
@@ -633,6 +637,11 @@ impl Node {
             return Node::Addr {
                 expr: Kind::make(Self::mul(tokens)),
                 ty: Type::Int, // ?? what to do here
+            };
+        }
+        if consume(tokens, Token::Sizeof) {
+            return Node::Sizeof {
+                expr: Kind::make(Self::unary(tokens)),
             };
         }
         Self::term(tokens)
