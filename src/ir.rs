@@ -82,14 +82,16 @@ pub struct Function {
 }
 
 #[derive(Debug)]
-pub struct Generate {
+pub struct Generate<'a> {
     inst: Vec<IR>,
-    label: i32,
+    label: &'a mut i32,
 }
 
-impl Generate {
+impl<'a> Generate<'a> {
     pub fn gen_ir(nodes: &[Node]) -> Vec<Function> {
+        let mut label = 0;
         let mut out = vec![];
+
         for node in nodes {
             match node {
                 Node::Func {
@@ -102,7 +104,7 @@ impl Generate {
                     let mut this = Self {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(MAX_INST),
-                        label: 0,
+                        label: &mut label,
                     };
 
                     for (i, arg) in args.iter().enumerate() {
@@ -368,7 +370,6 @@ impl Generate {
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
                 match expr.get_type().ptr() {
-                    // TYPE: is this right?
                     Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
                     Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
                     Type::Ptr { .. } | Type::Array { .. } => {
@@ -419,8 +420,8 @@ impl Generate {
     }
 
     fn next_label(&mut self) -> i32 {
-        let n = self.label;
-        self.label += 1;
+        let n = *self.label;
+        *self.label += 1;
         n
     }
 

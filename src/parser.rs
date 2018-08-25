@@ -184,14 +184,16 @@ impl Node {
                 ty.get_or_insert(newtype);
             }
 
+            Node::Deref { expr, .. } => {
+                expr.set_type(newtype);
+            }
+
             Node::Assign { lhs, .. } => {
                 lhs.set_type(newtype);
             }
 
-            // this must panic
-            _ => {
-                panic!("can't set type");
-            }
+            // this must panic .. WHY?
+            _ => panic!("can't set type"),
         };
     }
 }
@@ -589,7 +591,7 @@ impl Node {
             lhs = Node::Deref {
                 expr: Kind::make(Node::Add {
                     lhs: Kind::make(lhs),
-                    rhs: Kind::make(Self::primary(tokens)),
+                    rhs: Kind::make(Self::assign(tokens)),
                     ty: None,
                 }),
             };
