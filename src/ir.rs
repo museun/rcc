@@ -78,7 +78,7 @@ pub struct Function {
     pub(crate) name: String,
     pub(crate) stacksize: i32,
     pub(crate) ir: Vec<IR>,
-    pub(crate) strings: Vec<(String, String)>, // name, data
+    pub(crate) globals: Vec<Var>,
 }
 
 #[derive(Debug)]
@@ -99,7 +99,7 @@ impl<'a> Generate<'a> {
                     body,
                     args,
                     stacksize,
-                    strings,
+                    globals,
                 } => {
                     let mut this = Self {
                         // TODO be smarter about this
@@ -133,7 +133,7 @@ impl<'a> Generate<'a> {
                         name: name.clone(),
                         stacksize: *stacksize,
                         ir: this.inst,
-                        strings: strings.clone(),
+                        globals: globals.clone(),
                     };
                     out.push(function);
                 }

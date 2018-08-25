@@ -123,7 +123,7 @@ pub enum Node {
         args: Vec<Kind>,
         body: Kind,
         stacksize: i32,
-        strings: Vec<(String, String)>,
+        globals: Vec<Var>,
     },
 
     Statement {
@@ -249,7 +249,7 @@ impl Node {
             args,
             body: Kind::make(Self::compound_stmt(tokens)),
             stacksize: 0,
-            strings: vec![],
+            globals: vec![],
         }
     }
 

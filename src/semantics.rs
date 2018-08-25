@@ -1,18 +1,18 @@
 use super::*;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
-struct Var {
-    ty: Type,
-    offset: i32,
-    global: Option<String>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Var {
+    pub(crate) ty: Type,
+    pub(crate) offset: i32,
+    pub(crate) global: Option<(String, String)>, // None = local
 }
 
 pub struct Semantics<'a> {
     map: HashMap<String, Var>, // variables
-    strings: Vec<(String, String)>,
+    globals: Vec<Var>,         // globals
     stacksize: i32,
-    string_label: &'a mut u32,
+    label: &'a mut u32,
 }
 
 impl<'a> Semantics<'a> {
@@ -21,18 +21,18 @@ impl<'a> Semantics<'a> {
         for mut node in nodes.iter_mut() {
             let mut this = Self {
                 map: HashMap::new(),
-                strings: vec![],
+                globals: vec![],
                 stacksize: 0,
-                string_label: &mut label,
+                label: &mut label,
             };
 
             this.walk(&mut node, true);
             if let Node::Func {
-                stacksize, strings, ..
+                stacksize, globals, ..
             } = &mut node
             {
                 *stacksize = this.stacksize;
-                *strings = this.strings.clone()
+                *globals = this.globals.clone()
             }
         }
         nodes
@@ -44,8 +44,14 @@ impl<'a> Semantics<'a> {
             Node::Constant { .. } => return,
 
             Node::Str { str, ty } => {
-                let label = self.next_string_label();
-                self.strings.push((label.clone(), str.clone()));
+                let label = self.next_label();
+                let var = Var {
+                    ty: ty.clone(),
+                    offset: 0,
+                    global: Some((label.clone(), str.clone())),
+                };
+
+                self.globals.push(var);
                 *node = Node::GVar {
                     name: label,
                     ty: ty.clone(),
@@ -216,9 +222,9 @@ impl<'a> Semantics<'a> {
         }
     }
 
-    fn next_string_label(&mut self) -> String {
-        let label = format!(".L.str{}", self.string_label);
-        *self.string_label += 1;
+    fn next_label(&mut self) -> String {
+        let label = format!(".L.str{}", self.label);
+        *self.label += 1;
         label
     }
 }

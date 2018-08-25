@@ -26,17 +26,17 @@ pub fn print_ast(ast: &[Node]) {
                 args,
                 body,
                 stacksize,
-                strings,
+                globals,
             } => {
                 w!(depth, "Func {} (", name);
                 if *stacksize != 0 {
                     w!(depth, " -- size: {}", stacksize);
                 }
                 newline();
-                w!(depth+1, "Strings (\n");
-                for (i, (label, data)) in strings.iter().enumerate() {
+                w!(depth+1, "globals (\n");
+                for (i, (label, data)) in globals.iter().filter_map(|s| s.global.as_ref()).enumerate() {
                      w!(depth + 2, "{}: '{}'", label, data);
-                    if i < strings.len() - 1 {
+                    if i < globals.len() - 1 {
                         newline();
                     }
                 }

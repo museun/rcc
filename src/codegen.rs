@@ -20,9 +20,11 @@ pub fn generate_x64(abi: &ABI, funcs: &[Function]) {
 
 fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     println!(".data");
-    for (name, data) in &func.strings {
-        println!("{}:", &name);
-        println!("  .asciz \"{}\"", &data);
+    for var in &func.globals {
+        if let Some((name, data)) = &var.global {
+            println!("{}:", &name);
+            println!("  .ascii \"{}\"", escape(&data));
+        }
     }
 
     let ret = format!(".Lend{}", label);
@@ -199,4 +201,16 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     println!("  mov rsp, rbp");
     println!("  pop rbp");
     println!("  ret");
+}
+
+fn escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .chars()
+        .map(|c| {
+            if c.is_control() {
+                format!("\\{:03o}", c as u8) // HACK: utf-8 strings in rust
+            } else {
+                format!("{}", c)
+            }
+        }).collect()
 }
