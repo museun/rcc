@@ -155,6 +155,11 @@ impl Semantics {
                 node.set_type(ty);
             }
 
+            Node::Addr { expr, ty } => {
+                self.walk(expr.as_mut());
+                *ty = expr.get_type().ptr_of()
+            }
+
             Node::Deref { expr } => {
                 self.walk(expr.as_mut());
                 // TYPE: we don't flatten the pointers..

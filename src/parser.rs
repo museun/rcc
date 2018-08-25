@@ -629,6 +629,12 @@ impl Node {
                 expr: Kind::make(Self::mul(tokens)),
             };
         }
+        if consume(tokens, '&') {
+            return Node::Addr {
+                expr: Kind::make(Self::mul(tokens)),
+                ty: Type::Int, // ?? what to do here
+            };
+        }
         Self::term(tokens)
     }
 

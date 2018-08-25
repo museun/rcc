@@ -124,11 +124,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
             continue;
         }
 
-        let token = match c {                    // don't
-            '+' | '-' | '*' | '/' | ';' | '=' |  // format
-            '(' | ')' | '{' | '}' | '[' | ']' |  // this
-            ',' | '<' | '>' => Token::Char(c),   // please
-
+        let token = match c {
             // digits
             c if c.is_ascii_digit() => {
                 let k: u32 = s[i..]
@@ -150,10 +146,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                         out = Some(symbol.1.clone())
                     }
                 }
-                if out.is_none() {
-                    fail!("unknown punctuation: '{}' @ {} --> '{}'", c, i, &s[i..])
-                }
-                out.unwrap()
+                out.or_else(|| Some(Token::Char(c))).unwrap()
             }
 
             // identifiers
@@ -178,6 +171,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                 }
             }
 
+            // TODO make this more readable
             _ => fail!("cannot tokenize: '{}' @ {} --> '{}'", c, i, &s[i..]),
         };
 
@@ -186,6 +180,16 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
 
     data.push((s.len(), Token::EOF));
     data
+}
+
+fn is_char(c: char) -> bool {
+    const CHARS: [char; 16] = [
+        '+', '-', '*', '/', //
+        ';', '=', '(', ')', //
+        '{', '}', '[', ']', //
+        ',', '<', '>', '&', //
+    ];
+    CHARS.contains(&c)
 }
 
 impl Token {
@@ -227,9 +231,8 @@ impl fmt::Debug for Type {
 
 impl From<&'static str> for Token {
     fn from(c: &'static str) -> Token {
-        use lexer::Token::*;
         match c {
-            "else" => Else,
+            "else" => Token::Else,
             _ => panic!("invalid str/token"),
         }
     }
@@ -237,11 +240,11 @@ impl From<&'static str> for Token {
 
 impl From<char> for Token {
     fn from(c: char) -> Token {
-        match c {
-            '+' | '-' | '*' | '/' | '=' | '(' | ')' | '{' | '}' | '[' | ']' | '<' | '>' | ';'
-            | ',' => Token::Char(c),
-            _ => panic!("invalid char/token"),
+        if is_char(c) {
+            return Token::Char(c);
         }
+
+        panic!("invalid char/token")
     }
 }
 
