@@ -9,9 +9,10 @@ pub struct Registers {
 impl Registers {
     pub fn allocate(funcs: &mut [Function]) -> &mut [Function] {
         for func in funcs.iter_mut() {
+            let len = ::std::cmp::max(func.ir.len(), 1);
             let mut this = Self {
                 used: [false; 8],
-                map: vec![-1; func.ir.len()],
+                map: vec![-1; len],
             };
             // first register will be reserved for rbp
             this.map[0] = 0;
