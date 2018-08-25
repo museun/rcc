@@ -146,7 +146,15 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                         out = Some(symbol.1.clone())
                     }
                 }
-                out.or_else(|| Some(Token::Char(c))).unwrap()
+                out.or_else(|| {
+                    if is_valid_char(c) {
+                        Some(Token::Char(c))
+                    } else {
+                        // TODO make this more readable
+
+                        fail!("unknown punctuation '{}' @ {} --> '{}'", c, i, &s[i..]);
+                    }
+                }).unwrap()
             }
 
             // identifiers
@@ -164,11 +172,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     }
                 }
 
-                if out.is_none() {
-                    Token::Ident(name)
-                } else {
-                    out.unwrap()
-                }
+                out.or_else(|| Some(Token::Ident(name))).unwrap()
             }
 
             // TODO make this more readable
@@ -182,7 +186,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     data
 }
 
-fn is_char(c: char) -> bool {
+fn is_valid_char(c: char) -> bool {
     const CHARS: [char; 16] = [
         '+', '-', '*', '/', //
         ';', '=', '(', ')', //
@@ -240,7 +244,7 @@ impl From<&'static str> for Token {
 
 impl From<char> for Token {
     fn from(c: char) -> Token {
-        if is_char(c) {
+        if is_valid_char(c) {
             return Token::Char(c);
         }
 
