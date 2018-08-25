@@ -53,13 +53,15 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     for ir in &func.ir {
         match &ir {
             IR::Imm(RegImm { reg, val }) => {
-                println!("  mov {}, {}", REGS[*reg as usize], val);
+                println!("  mov {}, {}", REGS64[*reg as usize], val);
             }
+
             IR::Mov(RegReg { dst, src }) => {
-                println!("  mov {}, {}", REGS[*dst as usize], REGS[*src as usize]);
+                println!("  mov {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
             }
+
             IR::Return(Reg { src }) => {
-                println!("  mov rax, {}", REGS[*src as usize]);
+                println!("  mov rax, {}", REGS64[*src as usize]);
                 println!("  jmp {}", ret);
             }
 
@@ -69,20 +71,20 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                     match w {
                         Width::W8 => REGS8[*dst as usize],
                         Width::W32 => REGS32[*dst as usize],
-                        Width::W64 => REGS[*dst as usize],
+                        Width::W64 => REGS64[*dst as usize],
                     },
-                    REGS[*src as usize]
+                    REGS64[*src as usize]
                 );
             }
 
             IR::Store(w, RegReg { dst, src }) => {
                 println!(
                     "  mov [{}], {}",
-                    REGS[*dst as usize],
+                    REGS64[*dst as usize],
                     match w {
                         Width::W8 => REGS8[*src as usize],
                         Width::W32 => REGS32[*src as usize],
-                        Width::W64 => REGS[*src as usize],
+                        Width::W64 => REGS64[*src as usize],
                     },
                 );
             }
@@ -100,42 +102,55 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
             }
 
             IR::Label(IRType::Imm { val }) => println!(".L{}:", val),
+
             IR::Unless(RegImm { reg, val }) => {
-                println!("  cmp {}, 0", REGS[*reg as usize]);
+                println!("  cmp {}, 0", REGS64[*reg as usize]);
                 println!("  je .L{}", val)
             }
+
             IR::Jmp(IRType::Imm { val }) => println!("  jmp .L{}", val),
+
             IR::Add(RegReg { dst, src }) => {
-                println!("  add {}, {}", REGS[*dst as usize], REGS[*src as usize]);
+                println!("  add {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
             }
+
             IR::Add(RegImm { reg, val }) => {
-                println!("  mov {}, {}", REGS[*reg as usize], val);
+                println!("  mov {}, {}", REGS64[*reg as usize], val);
             }
+
             IR::Sub(RegReg { dst, src }) => {
-                println!("  sub {}, {}", REGS[*dst as usize], REGS[*src as usize]);
+                println!("  sub {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
             }
+
             IR::Sub(RegImm { reg, val }) => {
-                println!("  sub {}, {}", REGS[*reg as usize], val);
+                println!("  sub {}, {}", REGS64[*reg as usize], val);
             }
+
             IR::Mul(RegReg { dst, src }) => {
-                println!("  mov rax, {}", REGS[*src as usize]);
-                println!("  mul {}", REGS[*dst as usize]);
-                println!("  mov {}, rax", REGS[*dst as usize]);
+                println!("  mov rax, {}", REGS64[*src as usize]);
+                println!("  mul {}", REGS64[*dst as usize]);
+                println!("  mov {}, rax", REGS64[*dst as usize]);
             }
+
             IR::Div(RegReg { dst, src }) => {
-                println!("  mov rax, {}", REGS[*dst as usize]);
+                println!("  mov rax, {}", REGS64[*dst as usize]);
                 println!("  cqo");
-                println!("  div {}", REGS[*src as usize]);
-                println!("  mov {}, rax", REGS[*dst as usize]);
+                println!("  div {}", REGS64[*src as usize]);
+                println!("  mov {}, rax", REGS64[*dst as usize]);
             }
+
             IR::Comparison(RegReg { dst, src }) => {
-                println!("  cmp {}, {}", REGS[*dst as usize], REGS[*src as usize]);
+                println!("  cmp {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
                 println!("  setl {}", REGS8[*dst as usize]);
-                println!("  movzb {}, {}", REGS[*dst as usize], REGS8[*dst as usize]);
+                println!(
+                    "  movzb {}, {}",
+                    REGS64[*dst as usize], REGS8[*dst as usize]
+                );
             }
+
             IR::Call(IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
-                    println!("  mov {}, {}", caller64[i], REGS[*arg as usize]);
+                    println!("  mov {}, {}", caller64[i], REGS64[*arg as usize]);
                 }
 
                 println!("  push r10");
@@ -145,9 +160,11 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  pop r11");
                 println!("  pop r10");
 
-                println!("  mov {}, rax", REGS[*reg as usize]);
+                println!("  mov {}, rax", REGS64[*reg as usize]);
             }
+
             IR::Nop(_) => {}
+
             ty => fail!("unknown operator: {:?}", ty),
         }
     }
