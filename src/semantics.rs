@@ -8,21 +8,22 @@ struct Var {
     global: Option<String>,
 }
 
-pub struct Semantics {
+pub struct Semantics<'a> {
     map: HashMap<String, Var>, // variables
     strings: Vec<(String, String)>,
     stacksize: i32,
-    string_label: u32,
+    string_label: &'a mut u32,
 }
 
-impl Semantics {
+impl<'a> Semantics<'a> {
     pub fn analyze(nodes: &mut [Node]) -> &mut [Node] {
+        let mut label = 0;
         for mut node in nodes.iter_mut() {
             let mut this = Self {
                 map: HashMap::new(),
                 strings: vec![],
                 stacksize: 0,
-                string_label: 0,
+                string_label: &mut label,
             };
 
             this.walk(&mut node, true);
@@ -161,7 +162,6 @@ impl Semantics {
                 }
 
                 // TYPE: make sure its not circular pointers
-
                 let ty = lhs.get_type().clone();
                 node.set_type(ty);
             }
@@ -173,7 +173,12 @@ impl Semantics {
 
             Node::Deref { expr } => {
                 self.walk(expr.as_mut(), true);
-                // TYPE: we don't flatten the pointers..
+                if !expr.get_type().is_ptr() {
+                    fail!("operand must be a pointer");
+                }
+
+                let ptr = expr.get_type().clone();
+                node.set_type(ptr);
             }
 
             Node::Return { expr } => self.walk(expr.as_mut(), true),
@@ -213,7 +218,7 @@ impl Semantics {
 
     fn next_string_label(&mut self) -> String {
         let label = format!(".L.str{}", self.string_label);
-        self.string_label += 1;
+        *self.string_label += 1;
         label
     }
 }
