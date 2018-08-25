@@ -1,7 +1,7 @@
 use super::*;
 
 const REGS8: [&str; 8] = ["bpl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-const REGS32: [&str; 8] = ["ebp", "r10d", "r11d", "ebx", "e12d", "e13d", "r14d", "r15d"];
+const REGS32: [&str; 8] = ["ebp", "r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 const REGS64: [&str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 
 pub enum ABI {
@@ -89,7 +89,7 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
 
                 if let Width::W8 = w {
                     println!(
-                        "  movzb {}, {}",
+                        "  movzx {}, {}",
                         REGS64[*dst as usize], REGS8[*dst as usize]
                     )
                 }
@@ -164,7 +164,7 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  cmp {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
                 println!("  setl {}", REGS8[*dst as usize]);
                 println!(
-                    "  movzb {}, {}",
+                    "  movzx {}, {}",
                     REGS64[*dst as usize], REGS8[*dst as usize]
                 );
             }
