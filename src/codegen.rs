@@ -1,5 +1,9 @@
 use super::*;
 
+pub(crate) const REGS8: [&str; 8] = ["bpl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub(crate) const REGS32: [&str; 8] = ["ebp", "r10d", "r11d", "ebx", "e12d", "e13d", "r14d", "r15d"];
+pub(crate) const REGS64: [&str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+
 pub enum ABI {
     Windows,
     SystemV,
