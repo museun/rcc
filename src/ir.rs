@@ -365,7 +365,7 @@ impl Generate {
             return r;
         }
 
-        fail!("not an lvalue: {:?}", node);
+        unreachable!();
     }
 
     fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {

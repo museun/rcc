@@ -118,6 +118,11 @@ impl Semantics {
 
             Node::Assign { lhs, rhs } => {
                 self.walk_nodecay(lhs.as_mut()); // can't decay this
+                match lhs.get_val() {
+                    Node::LVal { .. } | Node::Deref { .. } => {}
+                    _ => fail!("not an lvalue: {:?}", node),
+                }
+
                 self.walk(rhs.as_mut());
                 let lhs = lhs.get_type().clone();
                 node.set_type(lhs)
