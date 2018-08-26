@@ -11,3 +11,5 @@ tmp/*
 *.c
 *.exe
 *.a
+
+/.vscode

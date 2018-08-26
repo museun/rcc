@@ -12,6 +12,17 @@ pub enum ABI {
 // this should be a trait
 pub fn generate_x64(abi: &ABI, funcs: &[Function]) {
     println!(".intel_syntax noprefix");
+
+    println!(".data");
+    for var in funcs.iter().flat_map(|f| &f.globals) {
+        if let Some((name, data)) = &var.global {
+            println!("{}:", &name);
+            println!("  .ascii \"{}\"", escape(&data));
+        }
+    }
+
+    println!(".text");
+
     let mut label = 0;
     for func in funcs {
         generate(&abi, &func, &mut label)
@@ -19,18 +30,9 @@ pub fn generate_x64(abi: &ABI, funcs: &[Function]) {
 }
 
 fn generate(abi: &ABI, func: &Function, label: &mut u32) {
-    println!(".data");
-    for var in &func.globals {
-        if let Some((name, data)) = &var.global {
-            println!("{}:", &name);
-            println!("  .ascii \"{}\"", escape(&data));
-        }
-    }
-
     let ret = format!(".Lend{}", label);
     *label += 1;
 
-    println!(".text");
     println!(".global {}", func.name);
     println!("{}:", func.name);
 

@@ -9,32 +9,74 @@ pub struct Var {
 }
 
 pub struct Semantics<'a> {
-    globals: Vec<Var>, // globals
     stacksize: i32,
     label: &'a mut u32,
+    globals: Vec<Var>,
 }
 
 impl<'a> Semantics<'a> {
-    pub fn analyze(nodes: &mut [Node]) -> &mut [Node] {
+    pub fn analyze(nodes: &mut [Node]) -> (&mut [Node]) {
         let mut label = 0;
+        let mut env = Environment::new(None);
+
         for mut node in nodes.iter_mut() {
             let mut this = Self {
-                globals: vec![],
                 stacksize: 0,
+                globals: vec![],
                 label: &mut label,
             };
 
-            let mut env = Environment::new(None);
+            if let Node::Vardef { name, ty, data, .. } = &node {
+                let var = Self::new_global(ty, &name, &data.to_string());
+                this.globals.push(var.clone());
+                env.insert(name.clone(), var);
+            }
+
             this.walk(&mut env, &mut node, true);
+
             if let Node::Func {
                 stacksize, globals, ..
             } = &mut node
             {
                 *stacksize = this.stacksize;
-                *globals = this.globals.clone()
+                *globals = this.globals.clone();
             }
         }
+
         nodes
+    }
+
+    fn new_global(ty: &Type, name: &str, data: &str) -> Var {
+        Var {
+            ty: ty.clone(),
+            offset: 0,
+            global: Some((name.into(), data.into())),
+        }
+    }
+
+    fn check_lval(node: &Node) {
+        match node {
+            Node::LVal { .. } | Node::GVar { .. } | Node::Deref { .. } => {
+                return;
+            }
+            _ => fail!("not an lvalue: {:?}", node),
+        }
+    }
+
+    /// DANGER: this should be on a new node
+    fn maybe_decay(&mut self, base: &mut Node, decay: bool) {
+        if !decay {
+            return;
+        }
+
+        if let Type::Array { .. } = base.get_type() {
+            match base {
+                Node::LVal { ref ty, .. } | Node::GVar { ref ty, .. } => {
+                    *base = ty.addr_of(&base);
+                }
+                _ => fail!("must be a lvalue"),
+            }
+        }
     }
 
     // TODO maybe return a new node instead of mutating the current
@@ -44,18 +86,15 @@ impl<'a> Semantics<'a> {
 
             Node::Str { str, ty } => {
                 let label = self.next_label();
-                let var = Var {
-                    ty: ty.clone(),
-                    offset: 0,
-                    global: Some((label.clone(), str.clone())),
-                };
-
+                let var = Self::new_global(ty, &label, &str);
                 self.globals.push(var);
+
+                // this doesn't seem right
                 *node = Node::GVar {
                     name: label,
                     ty: ty.clone(),
                 };
-                self.walk(env, node, decay);
+                self.maybe_decay(node, decay);
             }
 
             Node::Ident { ref name } => {
@@ -65,19 +104,23 @@ impl<'a> Semantics<'a> {
                 }
 
                 let var = var.unwrap();
-                if decay {
-                    if let Type::Array { .. } = var.ty {
-                        *node = var.ty.addr_of(&Node::LVal {
-                            offset: var.offset,
-                            ty: var.ty.clone(),
-                        });
-                        return;
-                    }
+                // local
+                if var.global.is_none() {
+                    *node = Node::LVal {
+                        offset: var.offset,
+                        ty: var.ty.clone(),
+                    };
+                    self.maybe_decay(node, decay);
+                    return;
                 }
-                *node = Node::LVal {
-                    offset: var.offset,
+
+                // globals
+                *node = Node::GVar {
+                    name: name.clone(),
                     ty: var.ty.clone(),
-                }
+                };
+
+                self.maybe_decay(node, decay);
             }
 
             Node::GVar { ref ty, .. } => {
@@ -93,6 +136,7 @@ impl<'a> Semantics<'a> {
                 init,
                 offset,
                 ty,
+                data: _data,
             } => {
                 self.stacksize += ty.size_of();
                 *offset = self.stacksize;
@@ -135,14 +179,11 @@ impl<'a> Semantics<'a> {
 
             Node::Assign { lhs, rhs } => {
                 self.walk(env, lhs.as_mut(), false); // can't decay this
-                match lhs.get_val() {
-                    Node::LVal { .. } | Node::Deref { .. } => {}
-                    _ => fail!("not an lvalue: {:?}", node),
-                }
+                Self::check_lval(lhs.get_val());
 
                 self.walk(env, rhs.as_mut(), true);
                 let lhs = lhs.get_type().clone();
-                node.set_type(lhs)
+                node.set_type(lhs);
             }
 
             Node::LogAnd { lhs, rhs }
@@ -174,6 +215,7 @@ impl<'a> Semantics<'a> {
 
             Node::Addr { expr, ty } => {
                 self.walk(env, expr.as_mut(), true);
+                Self::check_lval(expr.as_ref());
                 *ty = expr.get_type().ptr_of()
             }
 

@@ -86,6 +86,7 @@ pub enum Node {
         init: Kind,
         offset: i32,
         ty: Type,
+        data: i32,
     },
 
     Return {
@@ -123,6 +124,7 @@ pub enum Node {
         args: Vec<Kind>,
         body: Kind,
         stacksize: i32,
+        ty: Type,
         globals: Vec<Var>,
     },
 
@@ -155,7 +157,9 @@ impl Node {
     /// instrinsic types
     pub(crate) fn has_type(&self) -> bool {
         match self {
-            Node::Constant { .. } | Node::LVal { .. } | Node::Vardef { .. } => true,
+            Node::Constant { .. } | Node::GVar { .. } | Node::LVal { .. } | Node::Vardef { .. } => {
+                true
+            }
             _ => false,
         }
     }
@@ -170,7 +174,10 @@ impl Node {
             Node::Addr { ty, .. } => ty,
             Node::Deref { expr } => expr.get_type(),
 
-            Node::Constant { ty, .. } | Node::LVal { ty, .. } | Node::Vardef { ty, .. } => ty,
+            Node::Constant { ty, .. }
+            | Node::GVar { ty, .. }
+            | Node::LVal { ty, .. }
+            | Node::Vardef { ty, .. } => ty,
             _ => fail!("doesn't have a type\n{:#?}", self),
         }
     }
@@ -224,33 +231,47 @@ impl Node {
             if *tok == Token::EOF {
                 break;
             }
-            nodes.push(Self::function(tokens))
+            nodes.push(Self::top_level(tokens))
         }
         nodes
     }
 
-    fn function(tokens: &mut Lexer) -> Self {
-        let (_, _ty) = expect_type(tokens, "function return type");
+    fn top_level(tokens: &mut Lexer) -> Self {
+        let mut ty = Self::ty(tokens);
         let (_, name) = expect_ident(tokens, "function name");
 
-        expect_token(tokens, '(');
-        let mut args = vec![];
-        if !consume(tokens, ')') {
-            args.push(Kind::make(Self::param(tokens)));
-            while consume(tokens, ',') {
+        // functions
+        if consume(tokens, '(') {
+            let mut args = vec![];
+            if !consume(tokens, ')') {
                 args.push(Kind::make(Self::param(tokens)));
+                while consume(tokens, ',') {
+                    args.push(Kind::make(Self::param(tokens)));
+                }
+                expect_token(tokens, ')');
             }
-            expect_token(tokens, ')');
+            expect_token(tokens, '{');
+
+            return Node::Func {
+                ty: ty.clone(),
+                body: Kind::make(Self::compound_stmt(tokens)),
+                name: name.clone(),
+                args: args,
+                stacksize: 0,
+                globals: vec![],
+            };
         }
 
-        expect_token(tokens, '{');
-        Node::Func {
-            name,
-            args,
-            body: Kind::make(Self::compound_stmt(tokens)),
-            stacksize: 0,
-            globals: vec![],
-        }
+        let node = Node::Vardef {
+            name: name.clone(),
+            init: Kind::empty(),
+            offset: 0,
+            ty: Self::read_array(tokens, &mut ty).clone(),
+            data: ty.size_of(),
+        };
+
+        expect_token(tokens, ';');
+        node
     }
 
     fn param(tokens: &mut Lexer) -> Self {
@@ -265,11 +286,13 @@ impl Node {
             Kind::empty()
         };
 
+        let data = ty.size_of();
         Node::Vardef {
             name,
             init,
             offset: 0,
             ty,
+            data,
         }
     }
 
@@ -360,22 +383,7 @@ impl Node {
         let (_, name) = expect_ident(tokens, "variable name as decl");
         let name = name.to_string();
 
-        let mut param = vec![];
-        while consume(tokens, '[') {
-            match Self::primary(tokens) {
-                Node::Constant { val, .. } => param.push(val),
-                _ => expect_fail(tokens.input_at(0), tokens.pos(), "number"),
-            };
-            expect_token(tokens, ']');
-        }
-
-        for el in param.iter().rev() {
-            ty = Type::Array {
-                base: Box::new(ty.clone()),
-                len: *el as usize,
-                data: vec![],
-            }
-        }
+        let array = Self::read_array(tokens, &mut ty);
 
         let init = if consume(tokens, '=') {
             Kind::make(Self::assign(tokens))
@@ -388,7 +396,8 @@ impl Node {
             name,
             init,
             offset: 0,
-            ty,
+            ty: array.clone(),
+            data: ty.size_of(),
         }
     }
 
@@ -598,6 +607,27 @@ impl Node {
             expect_token(tokens, ']')
         }
         lhs
+    }
+
+    fn read_array<'a>(tokens: &mut Lexer, ty: &'a mut Type) -> &'a Type {
+        let mut param = vec![];
+        while consume(tokens, '[') {
+            match Self::primary(tokens) {
+                Node::Constant { val, .. } => param.push(val),
+                _ => expect_fail(tokens.input_at(0), tokens.pos(), "number"),
+            };
+            expect_token(tokens, ']');
+        }
+
+        for el in param.iter().rev() {
+            *ty = Type::Array {
+                base: Box::new(ty.clone()),
+                len: *el as usize,
+                data: vec![],
+            }
+        }
+
+        ty
     }
 
     fn ty(tokens: &mut Lexer) -> Type {

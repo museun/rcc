@@ -94,11 +94,13 @@ impl<'a> Generate<'a> {
 
         for node in nodes {
             match node {
+                Node::Vardef { .. } => {}
                 Node::Func {
                     name,
                     body,
                     args,
                     stacksize,
+                    ty: _ty,
                     globals,
                 } => {
                     let mut this = Self {

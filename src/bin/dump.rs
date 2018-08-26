@@ -34,7 +34,7 @@ fn compile(input: &str) {
 
     let tokens = Lexer::tokenize(&input);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
-    eprintln!("{:#?}", tokens);
+    eprintln!("{}", tokens);
 
     let mut ast = Node::parse(tokens);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));

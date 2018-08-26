@@ -1,7 +1,7 @@
 use super::*;
 use std::ops::{Index, IndexMut};
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Char(char),    // all others
     Num(u32),      // constant
@@ -20,13 +20,13 @@ pub enum Token {
     EOF,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LexType {
     Char,
     Int,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Lexer<'a> {
     data: Vec<(usize, Token)>,
     input: &'a str,
@@ -223,7 +223,7 @@ impl Token {
 }
 
 use std::fmt;
-impl fmt::Debug for Token {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Token::Char(c) => write!(f, "Char({})", c),
@@ -243,7 +243,7 @@ impl fmt::Debug for Token {
     }
 }
 
-impl fmt::Debug for LexType {
+impl fmt::Display for LexType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             LexType::Char => write!(f, "Char"),
@@ -271,7 +271,7 @@ impl From<char> for Token {
     }
 }
 
-impl<'a> fmt::Debug for Lexer<'a> {
+impl<'a> fmt::Display for Lexer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (pos, tok) in &self.data {
             write!(f, "{}", wrap_color!(Color::Cyan {}, "{: >4}>\t", pos));

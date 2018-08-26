@@ -26,9 +26,10 @@ pub fn print_ast(ast: &[Node]) {
                 args,
                 body,
                 stacksize,
+                ty,
                 globals,
             } => {
-                w!(depth, "Func {} (", name);
+                w!(depth, "Func {} ty: {} (", name, ty);
                 if *stacksize != 0 {
                     w!(depth, " -- size: {}", stacksize);
                 }
@@ -40,7 +41,6 @@ pub fn print_ast(ast: &[Node]) {
                         newline();
                     }
                 }
-                newline();
                 w!(depth+1, ")");
                 newline();
 
@@ -66,6 +66,7 @@ pub fn print_ast(ast: &[Node]) {
                 init,
                 offset,
                 ty,
+                ..
             } => {
                 if !init.has_val() {
                     w!(depth, "Var {} {}", name, ty);
