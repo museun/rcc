@@ -190,9 +190,13 @@ impl<'a> Semantics<'a> {
                 step,
                 body,
             } => {
-                self.walk(env, init.as_mut(), true);
+                if init.has_val() {
+                    self.walk(env, init.as_mut(), true);
+                }
                 self.walk(env, cond.as_mut(), true);
-                self.walk(env, step.as_mut(), true);
+                if step.has_val() {
+                    self.walk(env, step.as_mut(), true);
+                }
                 self.walk(env, body.as_mut(), true);
             }
 

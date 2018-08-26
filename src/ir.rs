@@ -247,7 +247,9 @@ impl<'a> Generate<'a> {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                self.gen_stmt(init);
+                if init.has_val() {
+                    self.gen_stmt(init);
+                }
                 self.add(IR::Label(imm(x)));
 
                 let r = self.gen_expr(cond);
@@ -255,8 +257,9 @@ impl<'a> Generate<'a> {
                 self.add(IR::Kill(reg(r)));
                 self.gen_stmt(body);
 
-                let n = self.gen_expr(step);
-                self.add(IR::Kill(reg(n)));
+                if step.has_val() {
+                    self.gen_stmt(step);
+                }
                 self.add(IR::Jmp(imm(x)));
                 self.add(IR::Label(imm(y)));
             }
@@ -446,6 +449,7 @@ impl<'a> Generate<'a> {
                 *self.label += 1;
                 let reg = self.next_reg();
                 self.add(IR::Nop(IRType::Nop));
+
                 *self.ret_reg = reg;
 
                 self.gen_stmt(stmt);

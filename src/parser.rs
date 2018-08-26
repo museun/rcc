@@ -366,7 +366,10 @@ impl Node {
                 let cond = Self::assign(tokens);
                 expect_token(tokens, ';');
 
-                let step = Self::assign(tokens);
+                let step = Node::Expression {
+                    expr: Kind::make(Self::assign(tokens)),
+                };
+
                 expect_token(tokens, ')');
 
                 let body = Self::stmt(tokens);
@@ -377,6 +380,24 @@ impl Node {
                     body: Kind::make(body),
                 }
             }
+
+            Token::While => {
+                tokens.advance();
+
+                expect_token(tokens, '(');
+                let cond = Self::assign(tokens);
+
+                expect_token(tokens, ')');
+                let body = Self::stmt(tokens);
+
+                Node::For {
+                    init: Kind::empty(),
+                    cond: Kind::make(cond),
+                    step: Kind::empty(),
+                    body: Kind::make(body),
+                }
+            }
+
             Token::Do => {
                 tokens.advance();
                 let body = Self::stmt(tokens);
@@ -392,7 +413,6 @@ impl Node {
                     cond: Kind::make(cond),
                 }
             }
-            Token::While => fail!("unexpected while"), //
 
             Token::Return => {
                 tokens.advance();
