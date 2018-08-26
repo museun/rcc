@@ -16,10 +16,11 @@ pub enum Token {
     LogAnd,  // &&
     Equals,  // ==
     NEquals, // !=
-    Do,      //  do
+    Do,      // do
     While,   // while
     Return,  // return
     Sizeof,  // sizeof
+    Extern,  // extern
 
     EOF,
 }
@@ -119,6 +120,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     symbols.push(("while", Token::While));
     symbols.push(("return", Token::Return));
     symbols.push(("sizeof", Token::Sizeof));
+    symbols.push(("extern", Token::Extern));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
     symbols.push(("==", Token::Equals));
@@ -260,6 +262,7 @@ impl fmt::Display for Token {
             Token::LogAnd => write!(f, "And"),
             Token::Equals => write!(f, "Eq"),
             Token::NEquals => write!(f, "NEq"),
+            Token::Extern => write!(f, "Extern"),
             Token::Do => write!(f, "Do"),
             Token::While => write!(f, "While"),
             Token::Return => write!(f, "Return"),

@@ -15,6 +15,9 @@ pub fn generate_x64(abi: &ABI, funcs: &[Function]) {
 
     println!(".data");
     for var in funcs.iter().flat_map(|f| &f.globals) {
+        if var.is_extern {
+            continue;
+        }
         if let Some((name, data)) = &var.global {
             println!("{}:", &name);
             println!("  .ascii \"{}\"", escape(&data));
@@ -221,6 +224,10 @@ fn emit_cmp(ir: &IR) {
 }
 
 fn escape(s: &str) -> String {
+    if s.is_empty() {
+        return escape("\0");
+    }
+
     s.replace('\\', "\\\\")
         .chars()
         .map(|c| {

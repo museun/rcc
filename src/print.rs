@@ -116,6 +116,7 @@ pub fn print_ast(ast: &[Node]) {
                     if *offset != 0 {
                         w!(0, " -- offset: {}", offset);
                     }
+                    newline();
                 } else {
                     w!(depth, "Var {} {} (", name, ty);
                     if *offset != 0 {

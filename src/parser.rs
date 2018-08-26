@@ -92,11 +92,12 @@ pub enum Node {
     },
 
     Vardef {
+        ty: Type,
         name: String,
         init: Kind,
         offset: i32,
-        ty: Type,
         data: i32,
+        is_extern: bool,
     },
 
     Return {
@@ -252,6 +253,8 @@ impl Node {
     }
 
     fn top_level(tokens: &mut Lexer) -> Self {
+        let is_extern = consume(tokens, Token::Extern);
+
         let mut ty = Self::ty(tokens);
         let (_, name) = expect_ident(tokens, "function name");
 
@@ -277,12 +280,15 @@ impl Node {
             };
         }
 
+        let data = if is_extern { 0 } else { ty.size_of() }; // -1 for no data
+
         let node = Node::Vardef {
+            ty: Self::read_array(tokens, &mut ty).clone(),
             name: name.clone(),
             init: Kind::empty(),
             offset: 0,
-            ty: Self::read_array(tokens, &mut ty).clone(),
-            data: ty.size_of(),
+            data,
+            is_extern,
         };
 
         expect_token(tokens, ';');
@@ -308,6 +314,7 @@ impl Node {
             offset: 0,
             ty,
             data,
+            is_extern: false,
         }
     }
 
@@ -430,6 +437,7 @@ impl Node {
             offset: 0,
             ty: array.clone(),
             data: ty.size_of(),
+            is_extern: false,
         }
     }
 

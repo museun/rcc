@@ -6,6 +6,8 @@ pub struct Var {
     pub(crate) ty: Type,
     pub(crate) offset: i32,
     pub(crate) global: Option<(String, String)>, // None = local
+    pub(crate) data: i32,
+    pub(crate) is_extern: bool,
 }
 
 pub struct Semantics<'a> {
@@ -19,6 +21,7 @@ impl<'a> Semantics<'a> {
         let mut label = 0;
         let mut env = Environment::new(None);
 
+        let mut globals = vec![];
         for mut node in nodes.iter_mut() {
             let mut this = Self {
                 stacksize: 0,
@@ -26,31 +29,44 @@ impl<'a> Semantics<'a> {
                 label: &mut label,
             };
 
-            if let Node::Vardef { name, ty, data, .. } = &node {
-                let var = Self::new_global(ty, &name, &data.to_string());
-                this.globals.push(var.clone());
+            if let Node::Vardef {
+                name,
+                ty,
+                data,
+                is_extern,
+                ..
+            } = &node
+            {
+                let var = Self::new_global(ty, &name, "", *data, *is_extern);
+                globals.push(var.clone());
                 env.insert(name.clone(), var);
+                continue;
             }
 
             this.walk(&mut env, &mut node, true);
 
             if let Node::Func {
-                stacksize, globals, ..
+                stacksize,
+                globals: v,
+                ..
             } = &mut node
             {
                 *stacksize = this.stacksize;
-                *globals = this.globals.clone();
+                v.extend(this.globals.clone());
+                v.extend(globals.clone());
             }
         }
 
         nodes
     }
 
-    fn new_global(ty: &Type, name: &str, data: &str) -> Var {
+    fn new_global(ty: &Type, name: &str, s: &str, data: i32, is_extern: bool) -> Var {
         Var {
             ty: ty.clone(),
             offset: 0,
-            global: Some((name.into(), data.into())),
+            global: Some((name.into(), s.into())),
+            is_extern,
+            data,
         }
     }
 
@@ -86,7 +102,7 @@ impl<'a> Semantics<'a> {
 
             Node::Str { str, ty } => {
                 let label = self.next_label();
-                let var = Self::new_global(ty, &label, &str);
+                let var = Self::new_global(ty, &label, str, 0, false);
                 self.globals.push(var);
 
                 // this doesn't seem right
@@ -136,7 +152,8 @@ impl<'a> Semantics<'a> {
                 init,
                 offset,
                 ty,
-                data: _data,
+                is_extern,
+                data,
             } => {
                 self.stacksize += ty.size_of();
                 *offset = self.stacksize;
@@ -147,6 +164,8 @@ impl<'a> Semantics<'a> {
                         ty: ty.clone(),
                         offset: self.stacksize,
                         global: None,
+                        is_extern: *is_extern,
+                        data: *data,
                     },
                 );
 
