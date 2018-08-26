@@ -9,8 +9,7 @@ pub struct Var {
 }
 
 pub struct Semantics<'a> {
-    map: HashMap<String, Var>, // variables
-    globals: Vec<Var>,         // globals
+    globals: Vec<Var>, // globals
     stacksize: i32,
     label: &'a mut u32,
 }
@@ -20,13 +19,13 @@ impl<'a> Semantics<'a> {
         let mut label = 0;
         for mut node in nodes.iter_mut() {
             let mut this = Self {
-                map: HashMap::new(),
                 globals: vec![],
                 stacksize: 0,
                 label: &mut label,
             };
 
-            this.walk(&mut node, true);
+            let mut env = Environment::new(None);
+            this.walk(&mut env, &mut node, true);
             if let Node::Func {
                 stacksize, globals, ..
             } = &mut node
@@ -39,7 +38,7 @@ impl<'a> Semantics<'a> {
     }
 
     // TODO maybe return a new node instead of mutating the current
-    fn walk(&mut self, node: &mut Node, decay: bool) {
+    fn walk(&mut self, env: &mut Environment, node: &mut Node, decay: bool) {
         match node {
             Node::Constant { .. } => return,
 
@@ -56,15 +55,16 @@ impl<'a> Semantics<'a> {
                     name: label,
                     ty: ty.clone(),
                 };
-                self.walk(node, decay);
+                self.walk(env, node, decay);
             }
 
             Node::Ident { ref name } => {
-                if !self.map.contains_key(name) {
+                let var = env.find(name);
+                if var.is_none() {
                     fail!("undefined variable: {}", name)
                 }
 
-                let var = self.map[name].clone();
+                let var = var.unwrap();
                 if decay {
                     if let Type::Array { .. } = var.ty {
                         *node = var.ty.addr_of(&Node::LVal {
@@ -76,7 +76,7 @@ impl<'a> Semantics<'a> {
                 }
                 *node = Node::LVal {
                     offset: var.offset,
-                    ty: var.ty,
+                    ty: var.ty.clone(),
                 }
             }
 
@@ -97,7 +97,7 @@ impl<'a> Semantics<'a> {
                 self.stacksize += ty.size_of();
                 *offset = self.stacksize;
 
-                self.map.insert(
+                env.insert(
                     name.clone(),
                     Var {
                         ty: ty.clone(),
@@ -107,19 +107,19 @@ impl<'a> Semantics<'a> {
                 );
 
                 if init.has_val() {
-                    self.walk(init.as_mut(), true)
+                    self.walk(env, init.as_mut(), true)
                 }
             }
 
             Node::If { cond, body, else_ } => {
-                self.walk(cond.as_mut(), true);
-                self.walk(body.as_mut(), true);
+                self.walk(env, cond.as_mut(), true);
+                self.walk(env, body.as_mut(), true);
                 if else_.has_val() {
-                    self.walk(else_.as_mut(), true);
+                    self.walk(env, else_.as_mut(), true);
                 }
             }
 
-            Node::Else { body } => self.walk(body.as_mut(), true),
+            Node::Else { body } => self.walk(env, body.as_mut(), true),
 
             Node::For {
                 init,
@@ -127,20 +127,20 @@ impl<'a> Semantics<'a> {
                 step,
                 body,
             } => {
-                self.walk(init.as_mut(), true);
-                self.walk(cond.as_mut(), true);
-                self.walk(step.as_mut(), true);
-                self.walk(body.as_mut(), true);
+                self.walk(env, init.as_mut(), true);
+                self.walk(env, cond.as_mut(), true);
+                self.walk(env, step.as_mut(), true);
+                self.walk(env, body.as_mut(), true);
             }
 
             Node::Assign { lhs, rhs } => {
-                self.walk(lhs.as_mut(), false); // can't decay this
+                self.walk(env, lhs.as_mut(), false); // can't decay this
                 match lhs.get_val() {
                     Node::LVal { .. } | Node::Deref { .. } => {}
                     _ => fail!("not an lvalue: {:?}", node),
                 }
 
-                self.walk(rhs.as_mut(), true);
+                self.walk(env, rhs.as_mut(), true);
                 let lhs = lhs.get_type().clone();
                 node.set_type(lhs)
             }
@@ -148,16 +148,16 @@ impl<'a> Semantics<'a> {
             Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs }
             | Node::Comparison { lhs, rhs, .. } => {
-                self.walk(lhs.as_mut(), true);
-                self.walk(rhs.as_mut(), true);
+                self.walk(env, lhs.as_mut(), true);
+                self.walk(env, rhs.as_mut(), true);
             }
 
             Node::Mul { lhs, rhs, .. }
             | Node::Div { lhs, rhs, .. }
             | Node::Add { lhs, rhs, .. }
             | Node::Sub { lhs, rhs, .. } => {
-                self.walk(lhs.as_mut(), true);
-                self.walk(rhs.as_mut(), true);
+                self.walk(env, lhs.as_mut(), true);
+                self.walk(env, rhs.as_mut(), true);
 
                 if let Type::Ptr { ptr: r } = rhs.get_type() {
                     if let Type::Ptr { ptr: l } = lhs.get_type() {
@@ -173,12 +173,12 @@ impl<'a> Semantics<'a> {
             }
 
             Node::Addr { expr, ty } => {
-                self.walk(expr.as_mut(), true);
+                self.walk(env, expr.as_mut(), true);
                 *ty = expr.get_type().ptr_of()
             }
 
             Node::Deref { expr } => {
-                self.walk(expr.as_mut(), true);
+                self.walk(env, expr.as_mut(), true);
                 if !expr.get_type().is_ptr() {
                     fail!("operand must be a pointer");
                 }
@@ -187,10 +187,10 @@ impl<'a> Semantics<'a> {
                 node.set_type(ptr);
             }
 
-            Node::Return { expr } => self.walk(expr.as_mut(), true),
+            Node::Return { expr } => self.walk(env, expr.as_mut(), true),
 
             Node::Sizeof { expr } => {
-                self.walk(expr.as_mut(), false);
+                self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
                     val: expr.get_type().size_of() as u32,
                     ty: Type::Int,
@@ -199,25 +199,27 @@ impl<'a> Semantics<'a> {
 
             Node::Call { args, .. } => {
                 for arg in args {
-                    self.walk(arg.as_mut(), true)
+                    self.walk(env, arg.as_mut(), true)
                 }
                 // TYPE: maybe set default type to int
             }
 
             Node::Func { args, body, .. } => {
                 for arg in args {
-                    self.walk(arg.as_mut(), true)
+                    self.walk(env, arg.as_mut(), true)
                 }
-                self.walk(body.as_mut(), true)
+                self.walk(env, body.as_mut(), true)
             }
 
             Node::Compound { stmts } => {
+                let mut newenv = Environment::new(Some(env));
+
                 for stmt in stmts {
-                    self.walk(stmt.as_mut(), true)
+                    self.walk(&mut newenv, stmt.as_mut(), true)
                 }
             }
 
-            Node::Statement { expr } => self.walk(expr.as_mut(), true),
+            Node::Statement { expr } => self.walk(env, expr.as_mut(), true),
             _ => fail!("unexpected node: {:?}", node),
         }
     }
@@ -226,5 +228,33 @@ impl<'a> Semantics<'a> {
         let label = format!(".L.str{}", self.label);
         *self.label += 1;
         label
+    }
+}
+
+pub struct Environment<'a> {
+    vars: HashMap<String, Var>,
+    prev: Option<&'a Environment<'a>>,
+}
+
+impl<'a> Environment<'a> {
+    pub fn new(prev: Option<&'a Environment>) -> Self {
+        Self {
+            vars: HashMap::new(),
+            prev,
+        }
+    }
+
+    pub fn insert(&mut self, name: String, var: Var) {
+        self.vars.insert(name, var);
+    }
+
+    pub fn find(&self, name: &str) -> Option<&Var> {
+        if self.vars.contains_key(name) {
+            Some(&self.vars[name])
+        } else if let Some(prev) = self.prev {
+            prev.find(name)
+        } else {
+            None
+        }
     }
 }
