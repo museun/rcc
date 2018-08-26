@@ -289,7 +289,11 @@ impl<'a> Semantics<'a> {
                 }
             }
 
-            Node::Statement { expr } => self.walk(env, expr.as_mut(), true),
+            Node::Expression { expr } => self.walk(env, expr.as_mut(), true),
+            Node::Statement { stmt, .. } => {
+                self.walk(env, stmt.as_mut(), true);
+                //node.set_type(Type::Int); TYPE: need to set a type here
+            }
             _ => fail!("unexpected node: {:?}", node),
         }
     }

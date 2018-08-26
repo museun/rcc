@@ -114,11 +114,13 @@ pub struct Function {
 pub struct Generate<'a> {
     inst: Vec<IR>,
     label: &'a mut i32,
+    ret_label: &'a mut i32,
+    ret_reg: &'a mut i32,
 }
 
 impl<'a> Generate<'a> {
     pub fn gen_ir(nodes: &[Node]) -> Vec<Function> {
-        let mut label = 0;
+        let mut label = 1;
         let mut out = vec![];
 
         for node in nodes {
@@ -136,6 +138,8 @@ impl<'a> Generate<'a> {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(MAX_INST),
                         label: &mut label,
+                        ret_label: &mut 0,
+                        ret_reg: &mut 0,
                     };
 
                     for (i, arg) in args.iter().enumerate() {
@@ -259,11 +263,17 @@ impl<'a> Generate<'a> {
 
             Node::Return { expr } => {
                 let r = self.gen_expr(expr);
+                if *self.ret_label != 0 {
+                    self.add(IR::Mov(reg_reg(*self.ret_reg, r)));
+                    self.add(IR::Kill(reg(r)));
+                    self.add(IR::Jmp(imm(*self.ret_label)));
+                    return;
+                }
                 self.add(IR::Return(reg(r)));
                 self.add(IR::Kill(reg(r)));
             }
 
-            Node::Statement { expr } => {
+            Node::Expression { expr } => {
                 let r = self.gen_expr(expr);
                 self.add(IR::Kill(reg(r)));
             }
@@ -427,6 +437,23 @@ impl<'a> Generate<'a> {
                     }
                 }
                 r
+            }
+
+            Node::Statement { stmt, ty: _ty } => {
+                let l = *self.ret_label;
+                let r = *self.ret_reg;
+                *self.ret_label = *self.label;
+                *self.label += 1;
+                let reg = self.next_reg();
+                self.add(IR::Nop(IRType::Nop));
+                *self.ret_reg = reg;
+
+                self.gen_stmt(stmt);
+                self.add(IR::Label(imm(*self.ret_label)));
+
+                *self.ret_label = l;
+                *self.ret_reg = r;
+                reg
             }
 
             // TODO make this return a Result so we can print out an instruction trace

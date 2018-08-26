@@ -270,8 +270,16 @@ pub fn print_ast(ast: &[Node]) {
                 w!(depth, ")");
             }
 
-            Statement { expr } => {
-                w!(depth, "Statement (");
+            Statement { stmt, ty } => {
+                w!(depth, "Statement {} (", ty);
+                newline();
+                print(depth + 1, kind!(stmt));
+                newline();
+                w!(depth, ")");
+            }
+            
+            Expression { expr } => {
+                w!(depth, "Expression (");
                 newline();
                 print(depth + 1, kind!(expr));
                 newline();

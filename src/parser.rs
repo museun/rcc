@@ -145,6 +145,11 @@ pub enum Node {
     },
 
     Statement {
+        stmt: Kind,
+        ty: Type,
+    },
+
+    Expression {
         expr: Kind,
     },
 
@@ -190,7 +195,9 @@ impl Node {
             Node::Addr { ty, .. } => ty,
             Node::Deref { expr } => expr.get_type(),
 
+            // Node::Return { expr } => expr.get_type(),
             Node::Constant { ty, .. }
+            | Node::Statement { ty, .. }
             | Node::GVar { ty, .. }
             | Node::LVal { ty, .. }
             | Node::Vardef { ty, .. } => ty,
@@ -409,7 +416,7 @@ impl Node {
     }
 
     fn expr_stmt(tokens: &mut Lexer) -> Self {
-        let node = Node::Statement {
+        let node = Node::Expression {
             expr: Kind::make(Self::assign(tokens)),
         };
         expect_token(tokens, ';');
@@ -614,6 +621,14 @@ impl Node {
         let (pos, next) = tokens.next_token().expect("token for term");
         match next {
             tok if *tok == '(' => {
+                if consume(tokens, '{') {
+                    let stmt = Self::compound_stmt(tokens);
+                    expect_token(tokens, ')');
+                    return Node::Statement {
+                        stmt: Kind::make(stmt),
+                        ty: Type::Int,
+                    };
+                }
                 let node = Node::assign(tokens);
                 expect_token(tokens, ')');
                 node
