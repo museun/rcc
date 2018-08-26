@@ -16,6 +16,8 @@ pub enum Token {
     LogAnd,  // &&
     Equals,  // ==
     NEquals, // !=
+    Do,      //  do
+    While,   // while
     Return,  // return
     Sizeof,  // sizeof
 
@@ -113,6 +115,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     symbols.push(("for", Token::For));
     symbols.push(("if", Token::If));
     symbols.push(("else", Token::Else));
+    symbols.push(("do", Token::Do));
+    symbols.push(("while", Token::While));
     symbols.push(("return", Token::Return));
     symbols.push(("sizeof", Token::Sizeof));
     symbols.push(("&&", Token::LogAnd));
@@ -244,11 +248,11 @@ use std::fmt;
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Token::Char(c) => write!(f, "Char({})", c),
-            Token::Num(n) => write!(f, "Num({})", n),
-            Token::Ident(name) => write!(f, "Ident({})", name),
-            Token::Type(ty) => write!(f, "Type({:?})", ty),
-            Token::Str(s) => write!(f, "String(\"{}\")", s),
+            Token::Char(c) => write!(f, "{} : Char", c),
+            Token::Num(n) => write!(f, "{} : Num", n),
+            Token::Ident(name) => write!(f, "{} : Ident", name),
+            Token::Type(ty) => write!(f, "{:?} : Type", ty),
+            Token::Str(s) => write!(f, "\"{}\" : String", s),
             Token::If => write!(f, "If"),
             Token::Else => write!(f, "Else"),
             Token::For => write!(f, "For"),
@@ -256,6 +260,8 @@ impl fmt::Display for Token {
             Token::LogAnd => write!(f, "And"),
             Token::Equals => write!(f, "Eq"),
             Token::NEquals => write!(f, "NEq"),
+            Token::Do => write!(f, "Do"),
+            Token::While => write!(f, "While"),
             Token::Return => write!(f, "Return"),
             Token::Sizeof => write!(f, "Sizeof"),
             Token::EOF => write!(f, "EOF"),
@@ -297,10 +303,7 @@ impl<'a> fmt::Display for Lexer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (pos, tok) in &self.data {
             write!(f, "{}", wrap_color!(Color::Cyan {}, "{: >4}>\t", pos));
-            match tok {
-                Token::Char(c) => writeln!(f, "{}", c)?,
-                tok => writeln!(f, "{}", tok)?,
-            }
+            writeln!(f, "{}", tok)?
         }
         Ok(())
     }

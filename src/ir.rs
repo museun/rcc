@@ -88,10 +88,12 @@ pub enum IR {
     Unless(IRType), // reg->imm
     Label(IRType),  // imm OR reg_label
     Jmp(IRType),    // imm
-    Add(IRType),    // reg->reg
-    Sub(IRType),    // reg->reg
-    Mul(IRType),    // reg->reg
-    Div(IRType),    // reg->reg
+    If(IRType),     // reg->imm
+
+    Add(IRType), // reg->reg
+    Sub(IRType), // reg->reg
+    Mul(IRType), // reg->reg
+    Div(IRType), // reg->reg
 
     Comparison(IRType), // cmp, reg->reg
 
@@ -220,6 +222,16 @@ impl<'a> Generate<'a> {
 
                 self.gen_stmt(else_);
                 self.add(IR::Label(imm(y)));
+            }
+
+            Node::DoWhile { cond, body } => {
+                let x = self.next_label();
+                self.add(IR::Label(imm(x)));
+                self.gen_stmt(body);
+
+                let r = self.gen_expr(cond);
+                self.add(IR::If(reg_imm(r, x)));
+                self.add(IR::Kill(reg(r)));
             }
 
             Node::For {
@@ -523,6 +535,7 @@ impl Deref for IR {
             | Unless(ty)
             | Label(ty)
             | Jmp(ty)
+            | If(ty)
             | Add(ty)
             | Sub(ty)
             | Mul(ty)
@@ -547,6 +560,7 @@ impl DerefMut for IR {
             | StoreArg(_, ty)
             | Unless(ty)
             | Label(ty)
+            | If(ty)
             | Jmp(ty)
             | Add(ty)
             | Sub(ty)
@@ -592,6 +606,7 @@ impl fmt::Debug for IR {
             Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
             Label(ty) => write!(f, "Label {{ {:?} }}", ty),
             Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
+            If(ty) => write!(f, "If {{ {:?} }}", ty),
             Add(ty) => write!(f, "Add {{ {:?} }}", ty),
             Sub(ty) => write!(f, "Sub {{ {:?} }}", ty),
             Mul(ty) => write!(f, "Mul {{ {:?} }}", ty),

@@ -135,6 +135,11 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
 
             IR::Jmp(IRType::Imm { val }) => println!("  jmp .L{}", val),
 
+            IR::If(IRType::RegImm { reg, val }) => {
+                println!("  cmp {}, 0", REGS64[*reg as usize]);
+                println!("  jne .L{}", val);
+            }
+
             IR::Add(RegReg { dst, src }) => {
                 println!("  add {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
             }

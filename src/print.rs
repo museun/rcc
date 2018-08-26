@@ -21,6 +21,33 @@ pub fn print_ast(ast: &[Node]) {
 
         use Node::*;
         match node {
+            DoWhile{body, cond} => {
+                w!(depth, "Do (");
+                newline();
+                if cond.has_val() {
+                    newline();
+                    w!(depth + 1, "Body (");
+                    newline();
+                    print(depth + 2, kind!(body));
+                    newline();
+                    w!(depth + 1, ")");
+                }
+                newline();
+                w!(depth, ")");
+                newline();
+                w!(depth, "While (");
+
+                if cond.has_val() {
+                    newline();
+                    w!(depth + 1, "Cond (");
+                    newline();
+                    print(depth + 2, kind!(cond));
+                    newline();
+                    w!(depth + 1, ")");
+                }
+                w!(depth, ")");
+                newline();
+            }
             Equals {lhs,rhs} =>{
                 w!(depth, "Cmp {:?} (\n", "==");
                 print(depth + 1, kind!(lhs));

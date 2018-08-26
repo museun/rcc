@@ -113,6 +113,11 @@ pub enum Node {
         else_: Kind,
     },
 
+    DoWhile {
+        body: Kind,
+        cond: Kind,
+    },
+
     Else {
         body: Kind,
     },
@@ -358,6 +363,23 @@ impl Node {
                     body: Kind::make(body),
                 }
             }
+            Token::Do => {
+                tokens.advance();
+                let body = Self::stmt(tokens);
+
+                expect_token(tokens, Token::While);
+                expect_token(tokens, '(');
+                let cond = Self::assign(tokens);
+                expect_token(tokens, ')');
+                expect_token(tokens, ';');
+
+                Node::DoWhile {
+                    body: Kind::make(body),
+                    cond: Kind::make(cond),
+                }
+            }
+            Token::While => fail!("unexpected while"), //
+
             Token::Return => {
                 tokens.advance();
                 let node = Node::Return {
@@ -459,18 +481,18 @@ impl Node {
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
-                tok if *tok == Token::Equals => {
+                Token::Equals => {
                     tokens.advance();
                     lhs = Node::Equals {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::rel(tokens)),
                     };
                 }
-                tok if *tok == Token::NEquals => {
+                Token::NEquals => {
                     tokens.advance();
                     lhs = Node::NEquals {
-                        lhs: Kind::make(Self::rel(tokens)),
-                        rhs: Kind::make(lhs),
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::rel(tokens)),
                     };
                 }
                 _ => break 'expr,

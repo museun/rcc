@@ -197,6 +197,11 @@ impl<'a> Semantics<'a> {
                 // TYPE: implement types for this
             }
 
+            Node::DoWhile { body, cond, .. } => {
+                self.walk(env, cond.as_mut(), true);
+                self.walk(env, body.as_mut(), true);
+            }
+
             Node::Mul { lhs, rhs, .. }
             | Node::Div { lhs, rhs, .. }
             | Node::Add { lhs, rhs, .. }
