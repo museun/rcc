@@ -142,15 +142,29 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                 Token::Num(k)
             }
 
+            // string literals
             '"' => {
-                let s: String = s[i + 1..]
-                    .chars()
-                    .take_while(|c| *c != '"')
-                    .inspect(|_| skip += 1)
-                    .collect();
-                skip += 1;
-                // need to skip the last "
-                Token::Str(s)
+                let mut buf = String::new();
+                let mut escape = 0;
+                for c in s[i + 1..].chars() {
+                    skip += 1;
+                    if c == '\\' {
+                        escape += 1;
+                        continue;
+                    }
+                    if escape & 1 == 1 {
+                        buf.push_str("\\");
+                        buf.push(c);
+                        escape = 0;
+                        continue;
+                    }
+                    if escape == 0 && c == '"' {
+                        break;
+                    }
+                    buf.push(c);
+                }
+
+                Token::Str(buf)
             }
 
             // multi-character token
@@ -167,7 +181,7 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                         Some(Token::Char(c))
                     } else {
                         // TODO make this more readable
-
+                        eprintln!("{:?}", data);
                         fail!("unknown punctuation '{}' @ {} --> '{}'", c, i, &s[i..]);
                     }
                 }).unwrap()
@@ -277,7 +291,7 @@ impl<'a> fmt::Display for Lexer<'a> {
             write!(f, "{}", wrap_color!(Color::Cyan {}, "{: >4}>\t", pos));
             match tok {
                 Token::Char(c) => writeln!(f, "{}", c)?,
-                tok => writeln!(f, "{:?}", tok)?,
+                tok => writeln!(f, "{}", tok)?,
             }
         }
         Ok(())
