@@ -56,6 +56,16 @@ pub enum Node {
         rhs: Kind,
     },
 
+    Equals {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    NEquals {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     Assign {
         lhs: Kind,
         rhs: Kind,
@@ -169,7 +179,7 @@ impl Node {
             Node::Add { ty, .. }
             | Node::Sub { ty, .. }
             | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => ty.as_ref().expect("type"),
+            | Node::Div { ty, .. } => ty.as_ref().expect("get type"),
 
             Node::Addr { ty, .. } => ty,
             Node::Deref { expr } => expr.get_type(),
@@ -256,7 +266,7 @@ impl Node {
                 ty: ty.clone(),
                 body: Kind::make(Self::compound_stmt(tokens)),
                 name: name.clone(),
-                args: args,
+                args,
                 stacksize: 0,
                 globals: vec![],
             };
@@ -429,16 +439,41 @@ impl Node {
     }
 
     fn logand(tokens: &mut Lexer) -> Self {
-        let mut lhs = Self::rel(tokens);
+        let mut lhs = Self::equality(tokens);
         'expr: loop {
             if let Some((_, Token::LogAnd)) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
                     lhs: Kind::make(lhs),
-                    rhs: Kind::make(Self::rel(tokens)),
+                    rhs: Kind::make(Self::equality(tokens)),
                 };
             } else {
                 break 'expr;
+            }
+        }
+        lhs
+    }
+
+    fn equality(tokens: &mut Lexer) -> Self {
+        let mut lhs = Self::rel(tokens);
+        'expr: loop {
+            let (_, next) = tokens.peek().expect("token for rel");
+            match next {
+                tok if *tok == Token::Equals => {
+                    tokens.advance();
+                    lhs = Node::Equals {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(Self::rel(tokens)),
+                    };
+                }
+                tok if *tok == Token::NEquals => {
+                    tokens.advance();
+                    lhs = Node::NEquals {
+                        lhs: Kind::make(Self::rel(tokens)),
+                        rhs: Kind::make(lhs),
+                    };
+                }
+                _ => break 'expr,
             }
         }
         lhs

@@ -45,7 +45,7 @@ impl Registers {
             };
 
             match ir.deref_mut() {
-                RegReg { dst, src } => {
+                Cmp { dst, src, .. } | RegReg { dst, src } => {
                     *dst = self.alloc(*dst);
                     *src = self.alloc(*src);
                 }

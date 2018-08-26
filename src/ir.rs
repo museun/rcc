@@ -29,7 +29,32 @@ pub enum IRType {
         name: String,
         args: Vec<i32>,
     },
+    Cmp {
+        cmp: Cmp,
+        dst: i32,
+        src: i32,
+    },
     Nop,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Cmp {
+    Gt, // same as lt assembly-wise
+    Lt,
+    Eq,
+    NEq,
+}
+
+impl fmt::Debug for Cmp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let w = match self {
+            Cmp::Gt => ">",
+            Cmp::Lt => "<",
+            Cmp::Eq => "==",
+            Cmp::NEq => "!=",
+        };
+        write!(f, "{}", w)
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -60,17 +85,19 @@ pub enum IR {
     Store(Width, IRType),    // reg->reg
     StoreArg(Width, IRType), // reg->reg
 
-    Unless(IRType),     // reg->imm
-    Label(IRType),      // imm OR reg_label
-    Jmp(IRType),        // imm
-    Add(IRType),        // reg->reg
-    Sub(IRType),        // reg->reg
-    Mul(IRType),        // reg->reg
-    Div(IRType),        // reg->reg
-    Comparison(IRType), // reg->reg
-    Kill(IRType),       // reg
-    Nop(IRType),        // nothing
-    Call(IRType),       // call name, [args]
+    Unless(IRType), // reg->imm
+    Label(IRType),  // imm OR reg_label
+    Jmp(IRType),    // imm
+    Add(IRType),    // reg->reg
+    Sub(IRType),    // reg->reg
+    Mul(IRType),    // reg->reg
+    Div(IRType),    // reg->reg
+
+    Comparison(IRType), // cmp, reg->reg
+
+    Kill(IRType), // reg
+    Nop(IRType),  // nothing
+    Call(IRType), // call name, [args]
 }
 
 #[derive(Debug)]
@@ -283,6 +310,19 @@ impl<'a> Generate<'a> {
                 r1
             }
 
+            Node::Equals { lhs, rhs } => self.gen_cmp(Cmp::Eq, lhs, rhs),
+
+            Node::NEquals { lhs, rhs } => self.gen_cmp(Cmp::NEq, lhs, rhs),
+
+            Node::Comparison { lhs, rhs, comp } => self.gen_cmp(
+                match comp {
+                    Comp::Lt => Cmp::Lt,
+                    Comp::Gt => Cmp::Gt,
+                },
+                lhs,
+                rhs,
+            ),
+
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
                 let r = self.gen_lval(&node);
                 match ty {
@@ -330,10 +370,6 @@ impl<'a> Generate<'a> {
 
                 self.add(IR::Kill(reg(rhs)));
                 lhs
-            }
-
-            Node::Comparison { lhs, rhs, .. } => {
-                self.gen_binops(IR::Comparison(IRType::Nop), lhs, rhs)
             }
 
             Node::Add { lhs, rhs, ty: _ty } | Node::Sub { lhs, rhs, ty: _ty } => {
@@ -406,6 +442,19 @@ impl<'a> Generate<'a> {
         }
 
         unreachable!();
+    }
+
+    fn gen_cmp(&mut self, cmp: Cmp, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
+        let r1 = self.gen_expr(lhs);
+        let r2 = self.gen_expr(rhs);
+
+        self.add(IR::Comparison(IRType::Cmp {
+            cmp,
+            dst: r1,
+            src: r2,
+        }));
+        self.add(IR::Kill(reg(r2)));
+        r1
     }
 
     fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
@@ -520,6 +569,9 @@ impl fmt::Debug for IRType {
             RegLabel { reg, label } => write!(f, "RegLabel {{ reg: {:?}, label: {} }}", reg, label),
             Reg { src } => write!(f, "Reg {{ src: {:?} }}", src),
             Imm { val } => write!(f, "Imm {{ val: {:?} }}", val),
+            Cmp { cmp, dst, src } => {
+                write!(f, "Cmp {:?} {{ dst: {:?}, src: {:?} }}", cmp, dst, src)
+            }
             Call { reg, name, args } => write!(f, "Call {{ {} @ {}({:?}) }}", reg, name, args),
             Nop => write!(f, "Nop {{ }}"),
         }

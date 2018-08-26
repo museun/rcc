@@ -9,13 +9,15 @@ pub enum Token {
     Type(LexType), // types
     Str(String),   // string
 
-    If,     // if
-    Else,   // else
-    For,    // for
-    LogOr,  // ||
-    LogAnd, // &&
-    Return, // return
-    Sizeof, // sizeof
+    If,      // if
+    Else,    // else
+    For,     // for
+    LogOr,   // ||
+    LogAnd,  // &&
+    Equals,  // ==
+    NEquals, // !=
+    Return,  // return
+    Sizeof,  // sizeof
 
     EOF,
 }
@@ -115,6 +117,8 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
     symbols.push(("sizeof", Token::Sizeof));
     symbols.push(("&&", Token::LogAnd));
     symbols.push(("||", Token::LogOr));
+    symbols.push(("==", Token::Equals));
+    symbols.push(("!=", Token::NEquals));
 
     let mut data = vec![];
     let mut skip = 0;
@@ -250,6 +254,8 @@ impl fmt::Display for Token {
             Token::For => write!(f, "For"),
             Token::LogOr => write!(f, "Or"),
             Token::LogAnd => write!(f, "And"),
+            Token::Equals => write!(f, "Eq"),
+            Token::NEquals => write!(f, "NEq"),
             Token::Return => write!(f, "Return"),
             Token::Sizeof => write!(f, "Sizeof"),
             Token::EOF => write!(f, "EOF"),
@@ -270,6 +276,8 @@ impl From<&'static str> for Token {
     fn from(c: &'static str) -> Token {
         match c {
             "else" => Token::Else,
+            "==" => Token::Equals,
+            "!=" => Token::NEquals,
             _ => panic!("invalid str/token"),
         }
     }

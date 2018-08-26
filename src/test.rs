@@ -147,6 +147,10 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 63 */    (5, "int x; int main() { x = 5; return x; }"),
 /* 64 */    (20, "int x[5]; int main() { return sizeof(x); }"),
 /* 65 */    (15, "int x[5]; int main() { x[0] = 5; x[4] = 10; return x[0] + x[4]; }"),
+/* 66 */    (0, "int main() { return 4 == 5; }"),
+/* 67 */    (1, "int main() { return 5 == 5; }"),
+/* 68 */    (1, "int main() { return 4 != 5; }"),
+/* 69 */    (0, "int main() { return 5 != 5; }"),
 ];
 
 #[test]

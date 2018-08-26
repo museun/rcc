@@ -164,14 +164,7 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
                 println!("  mov {}, rax", REGS64[*dst as usize]);
             }
 
-            IR::Comparison(RegReg { dst, src }) => {
-                println!("  cmp {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
-                println!("  setl {}", REGS8[*dst as usize]);
-                println!(
-                    "  movzx {}, {}",
-                    REGS64[*dst as usize], REGS8[*dst as usize]
-                );
-            }
+            IR::Comparison(Cmp { .. }) => emit_cmp(ir),
 
             IR::Call(IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
@@ -203,6 +196,23 @@ fn generate(abi: &ABI, func: &Function, label: &mut u32) {
     println!("  mov rsp, rbp");
     println!("  pop rbp");
     println!("  ret");
+}
+
+fn emit_cmp(ir: &IR) {
+    if let IR::Comparison(IRType::Cmp { cmp, dst, src }) = ir {
+        println!("  cmp {}, {}", REGS64[*dst as usize], REGS64[*src as usize]);
+        match cmp {
+            Cmp::Lt | Cmp::Gt => println!("  setl {}", REGS8[*dst as usize]),
+            Cmp::Eq => println!("  sete {}", REGS8[*dst as usize]),
+            Cmp::NEq => println!("  setne {}", REGS8[*dst as usize]),
+        }
+        println!(
+            "  movzx {}, {}",
+            REGS64[*dst as usize], REGS8[*dst as usize]
+        )
+    } else {
+        unreachable!();
+    }
 }
 
 fn escape(s: &str) -> String {

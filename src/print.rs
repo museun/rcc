@@ -21,6 +21,22 @@ pub fn print_ast(ast: &[Node]) {
 
         use Node::*;
         match node {
+            Equals {lhs,rhs} =>{
+                w!(depth, "Cmp {:?} (\n", "==");
+                print(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                print(depth + 1, kind!(rhs));
+                newline();
+                w!(depth, ")");
+            }
+            NEquals {lhs, rhs} =>{
+                w!(depth, "Cmp {:?} (\n", "!=");
+                print(depth + 1, kind!(lhs));
+                w!(0, ",\n");
+                print(depth + 1, kind!(rhs));
+                newline();
+                w!(depth, ")");
+            }
             Func {
                 name,
                 args,
