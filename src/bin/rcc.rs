@@ -21,7 +21,7 @@ fn main() {
         args.skip(1).collect::<String>()
     };
 
-    let tokens = Lexer::tokenize(&input);
+    let tokens = Tokens::tokenize(&input);
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }

@@ -249,7 +249,7 @@ impl AsMut<Node> for Node {
 }
 
 impl Node {
-    pub fn parse(mut tokens: Lexer) -> Vec<Self> {
+    pub fn parse(mut tokens: Tokens) -> Vec<Self> {
         let tokens = &mut tokens;
 
         let mut nodes = vec![];
@@ -262,7 +262,7 @@ impl Node {
         nodes
     }
 
-    fn top_level(tokens: &mut Lexer) -> Self {
+    fn top_level(tokens: &mut Tokens) -> Self {
         let is_extern = consume(tokens, Token::Extern);
 
         let mut ty = Self::ty(tokens);
@@ -305,7 +305,7 @@ impl Node {
         node
     }
 
-    fn param(tokens: &mut Lexer) -> Self {
+    fn param(tokens: &mut Tokens) -> Self {
         let ty = Self::ty(tokens);
 
         let (_, name) = expect_ident(tokens, "variable name as param");
@@ -328,7 +328,7 @@ impl Node {
         }
     }
 
-    fn compound_stmt(tokens: &mut Lexer) -> Self {
+    fn compound_stmt(tokens: &mut Tokens) -> Self {
         let mut stmts = vec![];
         while !consume(tokens, '}') {
             stmts.push(Kind::make(Self::stmt(tokens)))
@@ -336,7 +336,7 @@ impl Node {
         Node::Compound { stmts }
     }
 
-    fn stmt(tokens: &mut Lexer) -> Self {
+    fn stmt(tokens: &mut Tokens) -> Self {
         let (pos, next) = tokens.peek().expect("token for statement");
 
         match next {
@@ -445,7 +445,7 @@ impl Node {
         }
     }
 
-    fn expr_stmt(tokens: &mut Lexer) -> Self {
+    fn expr_stmt(tokens: &mut Tokens) -> Self {
         let node = Node::Expression {
             expr: Kind::make(Self::assign(tokens)),
         };
@@ -453,7 +453,7 @@ impl Node {
         node
     }
 
-    fn decl(tokens: &mut Lexer) -> Self {
+    fn decl(tokens: &mut Tokens) -> Self {
         let mut ty = Self::ty(tokens);
 
         let (_, name) = expect_ident(tokens, "variable name as decl");
@@ -478,7 +478,7 @@ impl Node {
         }
     }
 
-    fn assign(tokens: &mut Lexer) -> Self {
+    fn assign(tokens: &mut Tokens) -> Self {
         let lhs = Self::logor(tokens);
         if consume(tokens, '=') {
             return Node::Assign {
@@ -489,10 +489,10 @@ impl Node {
         lhs
     }
 
-    fn logor(tokens: &mut Lexer) -> Self {
+    fn logor(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::logand(tokens);
         'expr: loop {
-            if let Some((_, Token::LogOr)) = tokens.peek() {
+            if let Some((_, Token::MChar('|', '|'))) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogOr {
                     lhs: Kind::make(lhs),
@@ -505,10 +505,10 @@ impl Node {
         lhs
     }
 
-    fn logand(tokens: &mut Lexer) -> Self {
+    fn logand(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::equality(tokens);
         'expr: loop {
-            if let Some((_, Token::LogAnd)) = tokens.peek() {
+            if let Some((_, Token::MChar('&', '&'))) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
                     lhs: Kind::make(lhs),
@@ -521,19 +521,19 @@ impl Node {
         lhs
     }
 
-    fn equality(tokens: &mut Lexer) -> Self {
+    fn equality(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::rel(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
-                Token::Equals => {
+                Token::MChar('=', '=') => {
                     tokens.advance();
                     lhs = Node::Equals {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(Self::rel(tokens)),
                     };
                 }
-                Token::NEquals => {
+                Token::MChar('!', '=') => {
                     tokens.advance();
                     lhs = Node::NEquals {
                         lhs: Kind::make(lhs),
@@ -546,7 +546,7 @@ impl Node {
         lhs
     }
 
-    fn rel(tokens: &mut Lexer) -> Self {
+    fn rel(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::add(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
@@ -573,7 +573,7 @@ impl Node {
         lhs
     }
 
-    fn add(tokens: &mut Lexer) -> Self {
+    fn add(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::mul(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for add");
@@ -600,7 +600,7 @@ impl Node {
         lhs
     }
 
-    fn mul(tokens: &mut Lexer) -> Self {
+    fn mul(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::unary(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for mul");
@@ -627,7 +627,7 @@ impl Node {
         lhs
     }
 
-    fn unary(tokens: &mut Lexer) -> Self {
+    fn unary(tokens: &mut Tokens) -> Self {
         if consume(tokens, '*') {
             return Node::Deref {
                 expr: Kind::make(Self::mul(tokens)),
@@ -647,7 +647,7 @@ impl Node {
         Self::postfix(tokens)
     }
 
-    fn primary(tokens: &mut Lexer) -> Self {
+    fn primary(tokens: &mut Tokens) -> Self {
         let (pos, next) = tokens.next_token().expect("token for term");
         match next {
             tok if *tok == '(' => {
@@ -704,7 +704,7 @@ impl Node {
         }
     }
 
-    fn postfix(tokens: &mut Lexer) -> Self {
+    fn postfix(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::primary(tokens);
         while consume(tokens, '[') {
             lhs = Node::Deref {
@@ -719,7 +719,7 @@ impl Node {
         lhs
     }
 
-    fn read_array<'a>(tokens: &mut Lexer, ty: &'a mut Type) -> &'a Type {
+    fn read_array<'a>(tokens: &mut Tokens, ty: &'a mut Type) -> &'a Type {
         let mut param = vec![];
         while consume(tokens, '[') {
             match Self::primary(tokens) {
@@ -740,7 +740,7 @@ impl Node {
         ty
     }
 
-    fn ty(tokens: &mut Lexer) -> Type {
+    fn ty(tokens: &mut Tokens) -> Type {
         let (_pos, ty) = expect_type(tokens, "typename");
 
         let mut ty = match ty {
@@ -756,7 +756,7 @@ impl Node {
 }
 
 #[inline]
-fn is_typename(tokens: &mut Lexer) -> bool {
+fn is_typename(tokens: &mut Tokens) -> bool {
     match tokens.peek() {
         Some((_, Token::Type(_))) => true,
         _ => false,
@@ -764,7 +764,7 @@ fn is_typename(tokens: &mut Lexer) -> bool {
 }
 
 #[inline]
-fn consume(tokens: &mut Lexer, tok: impl Into<Token>) -> bool {
+fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
     let tok = tok.into();
     match tokens.peek() {
         Some((_, t)) if *t == tok => {
@@ -777,7 +777,7 @@ fn consume(tokens: &mut Lexer, tok: impl Into<Token>) -> bool {
 
 // TODO track col:row + filename
 #[inline]
-fn expect_token(tokens: &mut Lexer, tok: impl Into<Token>) {
+fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();
 
     let (pos, next) = tokens.next_token().expect("get next token");
@@ -804,7 +804,7 @@ fn expect_token(tokens: &mut Lexer, tok: impl Into<Token>) {
 /// this uses a discriminant comparison
 #[inline]
 #[allow(dead_code)]
-fn expect(tokens: &mut Lexer, tok: impl Into<Token>, msg: impl AsRef<str>) -> (usize, Token) {
+fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: impl AsRef<str>) -> (usize, Token) {
     use std::mem::discriminant;
     let (pos, next) = tokens.next_token().expect("get next token");
     if discriminant(next) == discriminant(&tok.into()) {
@@ -815,7 +815,7 @@ fn expect(tokens: &mut Lexer, tok: impl Into<Token>, msg: impl AsRef<str>) -> (u
 }
 
 #[inline]
-fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, LexType) {
+fn expect_type(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, LexType) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Type(ty) = next {
         return (*pos, ty.clone());
@@ -825,7 +825,7 @@ fn expect_type(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, LexType) {
 }
 
 #[inline]
-fn expect_ident(tokens: &mut Lexer, msg: impl AsRef<str>) -> (usize, String) {
+fn expect_ident(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, String) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Ident(name) = next {
         return (*pos, name.to_string());

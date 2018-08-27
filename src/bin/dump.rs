@@ -37,7 +37,7 @@ fn get_source_for(n: usize) -> Option<String> {
 fn compile(input: &str) {
     eprintln!("{} {}", wrap_color!(Color::Yellow {}, "input:"), input);
 
-    let tokens = Lexer::tokenize(&input);
+    let tokens = Tokens::tokenize(&input);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
     eprintln!("{}", tokens);
 
