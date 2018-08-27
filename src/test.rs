@@ -154,7 +154,33 @@ pub const TESTS: &[(usize, &str)] = &[
 /* 70 */    (45, "int main() { int x = 0; int y = 0; do { y = y + x; x = x + 1; } while (x < 10); return y; }"),
 /* 71 */    (5, "extern int garr[1]; int main() { return garr[0]; }"),
 /* 72 */    (42, "int main() { return 37 + ({ return 5; }); }"),
-/* 73 */    (45, "int main() { int i = 0; int j = 0; while (i < 10) { j = j + i; i = i + 1; } return j; }")
+/* 73 */    (45, "int main() { int i = 0; int j = 0; while (i < 10) { j = j + i; i = i + 1; } return j; }"),
+/* 74 */    (42,  r#"
+// this is a comment
+
+int main() {
+int x = 21; /* comment
+                here */
+
+            /* and
+int x = 43; * this
+            * style
+            */
+
+// int x = 44;
+
+int y = /* 22 */ 21;
+
+// int /* x */ y = 22 /* ?? */;
+
+    // this should return 42
+    return x + y; // this shouldn't be an error
+}
+
+// or this
+
+///* what happens here?
+"#),
 ];
 
 #[test]

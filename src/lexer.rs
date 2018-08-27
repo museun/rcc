@@ -22,6 +22,8 @@ pub enum Token {
     Sizeof,  // sizeof
     Extern,  // extern
 
+    Comment(usize, usize), // comment. start, end
+
     EOF,
 }
 
@@ -60,15 +62,27 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next_token(&mut self) -> Option<&(usize, Token)> {
-        let tok = self.data.get(self.pos);
-        if tok.is_some() {
-            self.pos += 1; // why isn't this working
+        loop {
+            match self.data.get(self.pos) {
+                Some((_, Token::Comment(_, _))) => self.pos += 1,
+                Some(tok) => {
+                    self.pos += 1;
+                    return Some(tok);
+                }
+                tok => return tok,
+            }
         }
-        tok
     }
 
-    pub fn peek(&self) -> Option<&(usize, Token)> {
-        self.data.get(self.pos)
+    /// this also eats comments
+    pub fn peek(&mut self) -> Option<&(usize, Token)> {
+        loop {
+            match self.data.get(self.pos) {
+                Some((_, Token::Comment(_, _))) => self.pos += 1,
+                Some(tok) => return Some(tok),
+                tok => return tok,
+            }
+        }
     }
 
     pub fn advance(&mut self) {
@@ -173,7 +187,6 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     }
                     buf.push(c);
                 }
-
                 Token::Str(buf)
             }
 
@@ -187,11 +200,57 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     }
                 }
                 out.or_else(|| {
-                    if is_valid_char(c) {
+                    let next = i + 1;
+
+                    // comments
+                    let mut comment = None;
+                    if &s[i..next] == "/" && next + 1 < s.len() {
+                        comment = match &s[next..next + 1] {
+                            "/" => {
+                                if s.len() < next + 1 {
+                                    // TODO better error reporting
+                                    fail!("eof found, expected symbol");
+                                }
+                                skip += s[next + 1..]
+                                    .chars()
+                                    .take_while(|c| *c != '\n')
+                                    .fold(1, |j, _| j + 1)
+                                    + 1;
+                                Some(Token::Comment(i, skip))
+                            }
+                            "*" => {
+                                let next = next + 2;
+                                if s.len() < next {
+                                    // TODO better error reporting
+                                    fail!("unmatched comment");
+                                }
+
+                                for (n, c) in s[next..].chars().enumerate() {
+                                    let next = next + n + 1;
+                                    if s.len() < next + 1 {
+                                        // TODO better error reporting
+                                        fail!("unmatched comment");
+                                    }
+                                    if c == '*' && &s[next..next + 1] == "/" {
+                                        skip += 4;
+                                        break;
+                                    }
+                                    skip += 1;
+                                }
+                                skip += 1;
+                                Some(Token::Comment(i, skip))
+                            }
+                            _ => None,
+                        }
+                    }
+
+                    if comment.is_some() {
+                        comment
+                    } else if is_valid_char(c) {
+                        // character tokens
                         Some(Token::Char(c))
                     } else {
                         // TODO make this more readable
-                        eprintln!("{:?}", data);
                         fail!("unknown punctuation '{}' @ {} --> '{}'", c, i, &s[i..]);
                     }
                 }).unwrap()
@@ -267,6 +326,7 @@ impl fmt::Display for Token {
             Token::While => write!(f, "While"),
             Token::Return => write!(f, "Return"),
             Token::Sizeof => write!(f, "Sizeof"),
+            Token::Comment(start, end) => write!(f, "Comment({}, {})", start, end),
             Token::EOF => write!(f, "EOF"),
         }
     }
@@ -304,8 +364,14 @@ impl From<char> for Token {
 
 impl<'a> fmt::Display for Lexer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (pos, tok) in &self.data {
-            write!(f, "{}", wrap_color!(Color::Cyan {}, "{: >4}>\t", pos));
+        for (i, (pos, tok)) in self.data.iter().enumerate() {
+            write!(
+                f,
+                "{},{}{: >2}",
+                wrap_color!(Color::Magenta {}, "{: >4}", i),
+                wrap_color!(Color::Cyan {}, "{: <4}", pos),
+                "",
+            )?;
             writeln!(f, "{}", tok)?
         }
         Ok(())

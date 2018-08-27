@@ -249,6 +249,7 @@ impl AsMut<Node> for Node {
 impl Node {
     pub fn parse(mut tokens: Lexer) -> Vec<Self> {
         let tokens = &mut tokens;
+
         let mut nodes = vec![];
         while let Some((_, tok)) = tokens.peek() {
             if *tok == Token::EOF {
@@ -431,7 +432,10 @@ impl Node {
                 Node::Compound { stmts }
             }
             tok if *tok != Token::EOF => Self::expr_stmt(tokens),
-            _ => expect_fail(tokens.input_at(0), *pos, "token wasn't"), // expected
+            _ => {
+                let pos = *pos;
+                expect_fail(tokens.input_at(0), pos, "token wasn't") // expected
+            }
         }
     }
 
