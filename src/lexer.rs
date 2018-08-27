@@ -207,10 +207,6 @@ fn scan(s: &str) -> Vec<(usize, Token)> {
                     if &s[i..next] == "/" && next + 1 < s.len() {
                         comment = match &s[next..next + 1] {
                             "/" => {
-                                if s.len() < next + 1 {
-                                    // TODO better error reporting
-                                    fail!("eof found, expected symbol");
-                                }
                                 skip += s[next + 1..]
                                     .chars()
                                     .take_while(|c| *c != '\n')

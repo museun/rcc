@@ -29,5 +29,5 @@ fn main() {
     let ast = Semantics::analyze(&mut ast);
     let mut ir = Generate::gen_ir(&ast);
     let ir = Registers::allocate(&mut ir);
-    generate_x64(&ABI::SystemV, ir);
+    println!("{}", generate_x64(&ABI::SystemV, ir));
 }

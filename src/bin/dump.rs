@@ -1,5 +1,6 @@
 use std::{
     env::args,
+    fs,
     io::{self, prelude::*},
 };
 
@@ -22,11 +23,15 @@ fn main() {
     match &args.next().unwrap()[..] {
         "test" => {
             let input = args.next().unwrap().parse::<usize>().expect("a number");
-            let (_, input) = test::TESTS[input];
+            let input = get_source_for(input).expect("to read a file");
             compile(&input);
         }
         input => compile(&input),
     }
+}
+
+fn get_source_for(n: usize) -> Option<String> {
+    fs::read_to_string(&format!("tests/test_{:04}.c", n)).ok()
 }
 
 fn compile(input: &str) {
@@ -52,6 +57,7 @@ fn compile(input: &str) {
     eprintln!("{}", wrap_color!(Color::Yellow {}, "reg:"));
     eprintln!("{:#?}", ir);
 
+    let asm = generate_x64(&ABI::SystemV, ir);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "asm:"));
-    generate_x64(&ABI::SystemV, ir);
+    eprintln!("{}", asm);
 }

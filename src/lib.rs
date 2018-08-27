@@ -34,4 +34,6 @@ pub use semantics::*;
 mod print;
 pub use print::*;
 
+pub mod frontend;
+
 pub mod test;
