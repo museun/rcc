@@ -21,6 +21,7 @@ pub fn print_ast(ast: &[Node]) {
 
         use Node::*;
         match node {
+            Noop{}=>{},
             DoWhile{body, cond} => {
                 w!(depth, "Do (");
                 newline();

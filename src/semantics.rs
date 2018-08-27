@@ -298,6 +298,7 @@ impl<'a> Semantics<'a> {
                 self.walk(env, stmt.as_mut(), true);
                 //node.set_type(Type::Int); TYPE: need to set a type here
             }
+            Node::Noop {} => {}
             _ => fail!("unexpected node: {:?}", node),
         }
     }

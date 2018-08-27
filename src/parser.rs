@@ -156,6 +156,8 @@ pub enum Node {
     Compound {
         stmts: Vec<Kind>,
     },
+
+    Noop {},
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -430,6 +432,10 @@ impl Node {
                     stmts.push(Kind::make(Self::stmt(tokens)));
                 }
                 Node::Compound { stmts }
+            }
+            tok if *tok == ';' => {
+                tokens.advance();
+                Node::Noop {}
             }
             tok if *tok != Token::EOF => Self::expr_stmt(tokens),
             _ => {

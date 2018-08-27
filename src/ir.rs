@@ -286,6 +286,7 @@ impl<'a> Generate<'a> {
                     self.gen_stmt(stmt)
                 }
             }
+            Node::Noop {} => {}
             // TODO make this return a Result so we can print out an instruction trace
             _ => fail!("unknown node in stmt: {:?}", node.as_ref()),
         }
