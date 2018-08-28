@@ -391,7 +391,7 @@ impl<'a> Generate<'a> {
                 lhs
             }
 
-            Node::Add { lhs, rhs, ty: _ty } | Node::Sub { lhs, rhs, ty: _ty } => {
+            Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
                 if let Type::Ptr { .. } = lhs.get_type() {
                     let rhs = self.gen_expr(rhs);
                     let r = self.next_reg();
@@ -424,9 +424,9 @@ impl<'a> Generate<'a> {
                 self.gen_binops(ir, lhs, rhs)
             }
 
-            Node::Mul { lhs, rhs, ty: _ty } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
+            Node::Mul { lhs, rhs } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
 
-            Node::Div { lhs, rhs, ty: _ty } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
+            Node::Div { lhs, rhs } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
 
             Node::Addr { expr, .. } => self.gen_lval(expr),
 

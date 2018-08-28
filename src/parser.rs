@@ -26,25 +26,21 @@ pub enum Node {
     Add {
         lhs: Kind,
         rhs: Kind,
-        ty: Option<Type>,
     },
 
     Sub {
         lhs: Kind,
         rhs: Kind,
-        ty: Option<Type>,
     },
 
     Mul {
         lhs: Kind,
         rhs: Kind,
-        ty: Option<Type>,
     },
 
     Div {
         lhs: Kind,
         rhs: Kind,
-        ty: Option<Type>,
     },
 
     LogAnd {
@@ -205,15 +201,14 @@ impl Node {
 
     pub(crate) fn get_type(&self) -> &Type {
         match self {
-            Node::Add { ty, .. }
-            | Node::Sub { ty, .. }
-            | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => ty.as_ref().expect("get type"),
+            Node::Add { lhs, .. }
+            | Node::Sub { lhs, .. }
+            | Node::Mul { lhs, .. }
+            | Node::Div { lhs, .. } => lhs.get_type(),
 
             Node::Addr { ty, .. } => ty,
             Node::Deref { expr } | Node::Dot { expr, .. } => expr.get_type(),
 
-            // Node::Return { expr } => expr.get_type(),
             Node::Constant { ty, .. }
             | Node::Statement { ty, .. }
             | Node::GVar { ty, .. }
@@ -225,19 +220,16 @@ impl Node {
 
     pub(crate) fn set_type(&mut self, newtype: Type) {
         match self {
-            Node::Add { ty, .. }
-            | Node::Sub { ty, .. }
-            | Node::Mul { ty, .. }
-            | Node::Div { ty, .. } => {
-                ty.get_or_insert(newtype);
+            Node::Add { lhs, rhs }
+            | Node::Sub { lhs, rhs }
+            | Node::Mul { lhs, rhs }
+            | Node::Div { lhs, rhs } => {
+                lhs.set_type(newtype.clone());
+                rhs.set_type(newtype);
             }
-
             Node::Deref { expr, .. } | Node::Dot { expr, .. } => expr.set_type(newtype),
-
             Node::Assign { lhs, .. } => lhs.set_type(newtype),
-
-            // this must panic .. WHY?
-            _ => panic!("can't set type"),
+            _ => unreachable!(),
         };
     }
 }
@@ -578,7 +570,6 @@ impl Parser {
                     lhs = Node::Add {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.mul(tokens)),
-                        ty: None,
                     };
                 }
                 tok if *tok == '-' => {
@@ -586,7 +577,6 @@ impl Parser {
                     lhs = Node::Sub {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.mul(tokens)),
-                        ty: None,
                     };
                 }
                 _ => break 'expr,
@@ -605,7 +595,6 @@ impl Parser {
                     lhs = Node::Mul {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.unary(tokens)),
-                        ty: None,
                     };
                 }
                 tok if *tok == '/' => {
@@ -613,7 +602,6 @@ impl Parser {
                     lhs = Node::Div {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.unary(tokens)),
-                        ty: None,
                     };
                 }
                 _ => break 'expr,
@@ -729,7 +717,6 @@ impl Parser {
                 expr: Kind::make(Node::Add {
                     lhs: Kind::make(lhs),
                     rhs: Kind::make(self.assign(tokens)),
-                    ty: None,
                 }),
             };
             expect_token(tokens, ']')
