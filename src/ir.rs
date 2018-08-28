@@ -115,9 +115,13 @@ pub struct Function {
 #[derive(Debug)]
 pub struct Generate<'a> {
     inst: Vec<IR>,
+
     label: &'a mut i32,
-    ret_label: &'a mut i32,
-    ret_reg: &'a mut i32,
+
+    // why are these mutable references
+    reg: i32,
+    ret_label: i32,
+    ret_reg: i32,
 }
 
 impl<'a> Generate<'a> {
@@ -140,8 +144,9 @@ impl<'a> Generate<'a> {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(MAX_INST),
                         label: &mut label,
-                        ret_label: &mut 0,
-                        ret_reg: &mut 0,
+                        ret_label: 0,
+                        ret_reg: 0,
+                        reg: 0,
                     };
 
                     for (i, arg) in args.iter().enumerate() {
@@ -268,10 +273,10 @@ impl<'a> Generate<'a> {
 
             Node::Return { expr } => {
                 let r = self.gen_expr(expr);
-                if *self.ret_label != 0 {
-                    self.add(IR::Mov(reg_reg(*self.ret_reg, r)));
+                if self.ret_label != 0 {
+                    self.add(IR::Mov(reg_reg(self.ret_reg, r)));
                     self.add(IR::Kill(reg(r)));
-                    self.add(IR::Jmp(imm(*self.ret_label)));
+                    self.add(IR::Jmp(imm(self.ret_label)));
                     return;
                 }
                 self.add(IR::Return(reg(r)));
@@ -446,20 +451,20 @@ impl<'a> Generate<'a> {
             }
 
             Node::Statement { stmt, ty: _ty } => {
-                let l = *self.ret_label;
-                let r = *self.ret_reg;
-                *self.ret_label = *self.label;
+                let l = self.ret_label;
+                let r = self.ret_reg;
+                self.ret_label = *self.label;
                 *self.label += 1;
                 let reg = self.next_reg();
                 self.add(IR::Nop(IRType::Nop));
 
-                *self.ret_reg = reg;
+                self.ret_reg = reg;
 
                 self.gen_stmt(stmt);
-                self.add(IR::Label(imm(*self.ret_label)));
+                self.add(IR::Label(imm(self.ret_label)));
 
-                *self.ret_label = l;
-                *self.ret_reg = r;
+                self.ret_label = l;
+                self.ret_reg = r;
                 reg
             }
 
@@ -512,8 +517,10 @@ impl<'a> Generate<'a> {
         r1
     }
 
-    fn next_reg(&self) -> i32 {
-        (self.inst.len() + 1) as i32
+    fn next_reg(&mut self) -> i32 {
+        let n = self.reg;
+        self.reg += 1;
+        n
     }
 
     fn next_label(&mut self) -> i32 {

@@ -14,10 +14,6 @@ impl Registers {
                 used: [false; 8],
                 map: vec![-1; len],
             };
-            // first register will be reserved for rbp
-            this.map[0] = 0;
-            this.used[0] = true;
-
             this.visit(&mut func.ir);
         }
 
