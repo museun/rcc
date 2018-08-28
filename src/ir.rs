@@ -172,7 +172,7 @@ impl<'a> Generate<'a> {
                     this.gen_stmt(body);
 
                     let function = Function {
-                        name: name.clone(),
+                        name: name.to_string(),
                         stacksize: *stacksize,
                         ir: this.inst,
                         globals: globals.clone(),
@@ -363,7 +363,7 @@ impl<'a> Generate<'a> {
                 let r = self.next_reg();
                 self.add(IR::Call(IRType::Call {
                     reg: r,
-                    name: name.clone(),
+                    name: name.to_string(),
                     args: exprs.clone(),
                 }));
 
@@ -494,7 +494,7 @@ impl<'a> Generate<'a> {
 
         if let Node::GVar { name, ty: _ty } = &node {
             let r = self.next_reg();
-            self.add(IR::Label(reg_label(r, name.clone())));
+            self.add(IR::Label(reg_label(r, name.to_string())));
             return r;
         }
 

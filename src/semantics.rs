@@ -52,7 +52,7 @@ impl<'a> Semantics<'a> {
             } = &mut node
             {
                 *stacksize = this.stacksize;
-                v.extend(this.globals.clone());
+                v.extend(this.globals);
                 v.extend(globals.clone());
             }
         }
@@ -132,7 +132,7 @@ impl<'a> Semantics<'a> {
 
                 // globals
                 *node = Node::GVar {
-                    name: name.clone(),
+                    name: name.to_string(),
                     ty: var.ty.clone(),
                 };
 
@@ -160,7 +160,7 @@ impl<'a> Semantics<'a> {
                 *offset = self.stacksize;
 
                 env.insert(
-                    name.clone(),
+                    name.to_string(),
                     Var {
                         ty: ty.clone(),
                         offset: self.stacksize,
@@ -253,7 +253,8 @@ impl<'a> Semantics<'a> {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);
 
-                // TYPE: implement types for this
+                // let ty = lhs.get_type().clone();
+                // node.set_type(ty);
             }
 
             Node::Mul { lhs, rhs, .. }
@@ -328,16 +329,15 @@ impl<'a> Semantics<'a> {
 
             Node::Compound { stmts } => {
                 let mut newenv = Environment::new(Some(env));
-
                 for stmt in stmts {
                     self.walk(&mut newenv, stmt.as_mut(), true)
                 }
             }
 
             Node::Expression { expr } => self.walk(env, expr.as_mut(), true),
-            Node::Statement { stmt, .. } => {
+            Node::Statement { stmt, ty } => {
                 self.walk(env, stmt.as_mut(), true);
-                //node.set_type(Type::Int); TYPE: need to set a type here
+                *ty = Type::Int
             }
             Node::Noop {} => {}
             _ => fail!("unexpected node: {:?}", node),

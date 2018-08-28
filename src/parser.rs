@@ -173,22 +173,6 @@ pub enum Node {
     Noop {},
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Comp {
-    Lt,
-    Gt,
-}
-
-impl fmt::Display for Comp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let c = match self {
-            Comp::Lt => '<',
-            Comp::Gt => '>',
-        };
-        write!(f, "{}", c)
-    }
-}
-
 impl Node {
     /// instrinsic types
     pub(crate) fn has_type(&self) -> bool {
@@ -275,7 +259,7 @@ impl Parser {
             expect_token(tokens, '{');
 
             return Node::Func {
-                ty: ty.clone(),
+                ty,
                 body: Kind::make(self.compound_stmt(tokens)),
                 name,
                 args,
@@ -660,12 +644,12 @@ impl Parser {
             },
 
             Token::Str(s) => Node::Str {
-                str: s.clone(),
+                str: s.to_string(),
                 ty: Type::array_of(&Type::Char, s.len()),
             },
 
             Token::Ident(ref name) => {
-                let name = name.clone();
+                let name = name.to_string();
                 if !consume(tokens, '(') {
                     return Node::Ident { name };
                 }
@@ -773,6 +757,22 @@ impl Parser {
             ty = ty.ptr_of();
         }
         ty
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Comp {
+    Lt,
+    Gt,
+}
+
+impl fmt::Display for Comp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let c = match self {
+            Comp::Lt => '<',
+            Comp::Gt => '>',
+        };
+        write!(f, "{}", c)
     }
 }
 
