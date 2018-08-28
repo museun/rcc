@@ -1,231 +1,76 @@
 #![allow(dead_code, unused_variables)] //go away clippy
 use super::*;
-use std::ops::{Index, IndexMut};
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token {
-    MChar(char, char), // double-width chars
-    Char(char),        // single-width others
-    Num(u32),          // constant
-    Ident(String),     // name
-    Type(LexType),     // types
-    Str(String),       // string
+pub fn scan(input: &str, lexers: &[&'static dyn Lexical<'static>]) -> Vec<(usize, Token)> {
+    let mut data = vec![];
+    let mut skip = 0;
 
-    If,   // if
-    Else, // else
-    For,  // for
-    // LogOr,   // ||
-    // LogAnd,  // &&
-    // Equals,  // ==
-    // NEquals, // !=
-    Do,     // do
-    While,  // while
-    Return, // return
-    Sizeof, // sizeof
-    Extern, // extern
-
-    Unknown, // for errors
-
-    Comment(usize, usize), // comment. start, end
-
-    EOF,
-}
-
-impl Token {
-    /// this panics if its not a Token::Char
-    pub(crate) fn get_char(&self) -> &char {
-        match self {
-            Token::Char(c) => c,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl PartialEq<char> for Token {
-    fn eq(&self, other: &char) -> bool {
-        if let Token::Char(c) = self {
-            return c == other;
-        }
-        false
-    }
-}
-
-impl From<&'static str> for Token {
-    fn from(c: &'static str) -> Token {
-        match c {
-            "else" => Token::Else,
-            "==" => Token::MChar('=', '='),
-            "!=" => Token::MChar('!', '='),
-            _ => panic!("invalid str/token"),
-        }
-    }
-}
-
-impl From<char> for Token {
-    fn from(c: char) -> Token {
-        if is_left_char(c) {
-            return Token::Char(c);
+    for (i, c) in input.char_indices() {
+        if skip > 0 {
+            skip -= 1;
+            continue;
         }
 
-        panic!("invalid char/token")
-    }
-}
+        let mut error = None;
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum LexType {
-    Char,
-    Int,
-}
-
-#[derive(Debug, Clone)]
-pub struct Tokens<'a> {
-    data: Vec<(usize, Token)>,
-    input: &'a str,
-    pos: usize,
-}
-
-impl<'a> Tokens<'a> {
-    pub fn tokenize(input: &'a str) -> Self {
-        let mut lexer = Lexer::new(input);
-        let data = lexer.scan(&[
-            &WhitespaceLexer,
-            &CommentLexer,
-            &CharLexer,
-            &StringLexer,
-            &SymbolLexer,
-            &DigitLexer,
-            &UnknownLexer,
-        ]);
-
-        Tokens {
-            data,
-            input,
-            pos: 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn pos(&self) -> usize {
-        self.pos
-    }
-
-    pub fn next_token(&mut self) -> Option<&(usize, Token)> {
-        loop {
-            match self.data.get(self.pos) {
-                Some((_, Token::Comment(_, _))) => self.pos += 1,
-                Some(tok) => {
-                    self.pos += 1;
-                    return Some(tok);
+        'inner: for lexer in lexers {
+            let mut iter = input.chars().skip(i);
+            match lexer.lex(&mut iter) {
+                State::Yield => {}
+                State::Error => {
+                    error = Some("error");
+                    break 'inner;
                 }
-                tok => return tok,
-            }
-        }
-    }
-
-    /// this also eats comments
-    pub fn peek(&mut self) -> Option<&(usize, Token)> {
-        loop {
-            match self.data.get(self.pos) {
-                Some((_, Token::Comment(_, _))) => self.pos += 1,
-                Some(tok) => return Some(tok),
-                tok => return tok,
-            }
-        }
-    }
-
-    pub fn advance(&mut self) {
-        self.pos += 1;
-    }
-
-    pub fn input_at(&self, pos: usize) -> &'a str {
-        &self.input[pos..]
-    }
-
-    pub fn tokens_at(&self, pos: usize) -> impl Iterator<Item = &(usize, Token)> {
-        self.data.iter().skip(pos)
-    }
-}
-
-// TODO impl range
-
-impl<'a> Index<usize> for Tokens<'a> {
-    type Output = Token;
-
-    fn index(&self, p: usize) -> &Self::Output {
-        &self.data[p].1
-    }
-}
-
-impl<'a> IndexMut<usize> for Tokens<'a> {
-    fn index_mut(&mut self, p: usize) -> &mut Token {
-        &mut self.data[p].1
-    }
-}
-
-pub struct Lexer<'a> {
-    input: &'a str,
-    pos: usize,
-}
-
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
-        Self { input, pos: 0 }
-    }
-
-    pub fn scan(&mut self, lexers: &[&'a dyn Lexical<'a>]) -> Vec<(usize, Token)> {
-        let mut data = vec![];
-        let mut skip = 0;
-        for (i, c) in self.input.char_indices() {
-            if skip > 0 {
-                skip -= 1;
-                continue;
-            }
-
-            let mut error = None;;
-
-            'inner: for lexer in lexers {
-                let mut iter = self.input.chars().skip(i);
-                match lexer.lex(&mut iter) {
-                    State::Yield => {}
-                    State::Error => {
-                        error = Some("error");
-                        break 'inner;
-                    }
-                    State::Consume(n) => {
-                        skip += n;
-                        break 'inner;
-                    }
-                    State::Produce(n, token) => {
-                        let token = match token {
-                            Token::Comment(_, b) => Token::Comment(i, b),
-                            tok => tok,
-                        };
-                        skip += n;
-                        data.push((i, token));
-                        break 'inner;
-                    }
+                State::Consume(n) => {
+                    skip += n;
+                    break 'inner;
+                }
+                State::Produce(n, token) => {
+                    let token = match token {
+                        Token::Comment(_, b) => Token::Comment(i, b),
+                        tok => tok,
+                    };
+                    skip += n;
+                    data.push((i, token));
+                    break 'inner;
                 }
             }
-
-            if let Some(err) = error {
-                fail!(
-                    "error at {}. {:#?}",
-                    i,
-                    data.iter().map(|(_, d)| d).collect::<Vec<_>>()
-                );
-            }
         }
 
-        data
+        if let Some(err) = error {
+            fail!(
+                "error at {}. {:#?}",
+                i,
+                data.iter().map(|(_, d)| d).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    data
+}
+
+pub trait Lexical<'a> {
+    fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
+        State::Yield
     }
 }
+
+pub enum State {
+    Yield,
+    Consume(usize),
+    Produce(usize, Token),
+    Error,
+}
+
+pub const LEXERS: [&'static dyn Lexical; 7] = [
+    &WhitespaceLexer,
+    &CommentLexer,
+    &CharLexer,
+    &StringLexer,
+    &SymbolLexer,
+    &DigitLexer,
+    &UnknownLexer,
+];
 
 struct WhitespaceLexer;
 impl<'a> Lexical<'a> for WhitespaceLexer {
@@ -408,8 +253,8 @@ impl<'a> Lexical<'a> for SymbolLexer {
 }
 
 const SYMBOLS: [(&str, Token); 10] = [
-    ("int", Token::Type(LexType::Int)),
-    ("char", Token::Type(LexType::Char)),
+    ("int", Token::Type(TokType::Int)),
+    ("char", Token::Type(TokType::Char)),
     ("for", Token::For),
     ("if", Token::If),
     ("else", Token::Else),
@@ -443,9 +288,10 @@ const CHARACTERS: [(char, Option<char>); 20] = [
     ('&', None),
 ];
 
-fn is_left_char(l: char) -> bool {
-    for (a, _) in &CHARACTERS {
-        if l == *a {
+// TODO: this shouldn't be public
+pub(crate) fn is_left_char(left: char) -> bool {
+    for (ch, _) in &CHARACTERS {
+        if left == *ch {
             return true;
         }
     }
@@ -490,67 +336,4 @@ fn is_octal_escape(c: char) -> Option<char> {
 fn is_hex_escape(c: char) -> Option<char> {
     // TODO implement
     None
-}
-
-pub trait Lexical<'a> {
-    fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
-        State::Yield
-    }
-}
-
-pub enum State {
-    Yield,
-    Consume(usize),
-    Produce(usize, Token),
-    Error,
-}
-
-use std::fmt;
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Token::Char(c) => write!(f, "{} : Char", c),
-            Token::MChar(l, r) => write!(f, "{}{} : MChar", l, r),
-            Token::Num(n) => write!(f, "{} : Num", n),
-            Token::Ident(name) => write!(f, "{} : Ident", name),
-            Token::Type(ty) => write!(f, "{:?} : Type", ty),
-            Token::Str(s) => write!(f, "\"{}\" : String", s),
-            Token::If => write!(f, "If"),
-            Token::Else => write!(f, "Else"),
-            Token::For => write!(f, "For"),
-            Token::Extern => write!(f, "Extern"),
-            Token::Do => write!(f, "Do"),
-            Token::While => write!(f, "While"),
-            Token::Return => write!(f, "Return"),
-            Token::Sizeof => write!(f, "Sizeof"),
-            Token::Comment(start, end) => write!(f, "Comment({}, {})", start, end),
-            Token::EOF => write!(f, "EOF"),
-            _ => Ok(()), // don't print unknowns?
-        }
-    }
-}
-
-impl fmt::Display for LexType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LexType::Char => write!(f, "Char"),
-            LexType::Int => write!(f, "Int"),
-        }
-    }
-}
-
-impl<'a> fmt::Display for Tokens<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (i, (pos, tok)) in self.data.iter().enumerate() {
-            write!(
-                f,
-                "{},{}{: >2}",
-                wrap_color!(Color::Magenta {}, "{: >4}", i),
-                wrap_color!(Color::Cyan {}, "{: <4}", pos),
-                "",
-            )?;
-            writeln!(f, "{}", tok)?
-        }
-        Ok(())
-    }
 }

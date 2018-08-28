@@ -1,17 +1,21 @@
 #![feature(nll)]
 #![recursion_limit = "1024"]
 
+// TODO remove this
 pub(crate) const MAX_INST: usize = 1000;
 
 #[macro_use]
 mod util;
 pub use util::*;
 
-mod lexer;
-pub use lexer::*;
-
 mod types;
 pub use types::*;
+
+mod tokens;
+pub use tokens::{Type as TokType, *};
+
+mod lexer;
+pub use lexer::*;
 
 mod kind;
 pub use kind::*;

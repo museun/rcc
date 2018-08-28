@@ -57,3 +57,15 @@ impl Kind {
         let _ = self.ty.get_or_insert(ty);
     }
 }
+
+impl AsRef<Node> for Kind {
+    fn as_ref(&self) -> &Node {
+        self.val.as_ref().unwrap()
+    }
+}
+
+impl AsMut<Node> for Kind {
+    fn as_mut(&mut self) -> &mut Node {
+        self.val.as_mut().unwrap()
+    }
+}

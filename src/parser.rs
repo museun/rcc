@@ -1,4 +1,5 @@
 use super::*;
+
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -216,29 +217,13 @@ impl Node {
                 ty.get_or_insert(newtype);
             }
 
-            Node::Deref { expr, .. } => {
-                expr.set_type(newtype);
-            }
+            Node::Deref { expr, .. } => expr.set_type(newtype),
 
-            Node::Assign { lhs, .. } => {
-                lhs.set_type(newtype);
-            }
+            Node::Assign { lhs, .. } => lhs.set_type(newtype),
 
             // this must panic .. WHY?
             _ => panic!("can't set type"),
         };
-    }
-}
-
-impl AsRef<Node> for Kind {
-    fn as_ref(&self) -> &Node {
-        self.val.as_ref().unwrap()
-    }
-}
-
-impl AsMut<Node> for Kind {
-    fn as_mut(&mut self) -> &mut Node {
-        self.val.as_mut().unwrap()
     }
 }
 
@@ -744,8 +729,8 @@ impl Node {
         let (_pos, ty) = expect_type(tokens, "typename");
 
         let mut ty = match ty {
-            LexType::Char => Type::Char,
-            LexType::Int => Type::Int,
+            tokens::Type::Char => Type::Char,
+            tokens::Type::Int => Type::Int,
         };
 
         while consume(tokens, '*') {
@@ -815,7 +800,7 @@ fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: impl AsRef<str>) -> (
 }
 
 #[inline]
-fn expect_type(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, LexType) {
+fn expect_type(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, tokens::Type) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Type(ty) = next {
         return (*pos, ty.clone());

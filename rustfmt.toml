@@ -2,6 +2,6 @@ wrap_comments = true
 format_strings = true
 format_macro_matchers = true
 fn_single_line = false
-merge_imports = true
+merge_imports = false
 reorder_impl_items = true
 edition = "Edition2018"
