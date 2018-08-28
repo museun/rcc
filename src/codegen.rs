@@ -180,8 +180,8 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::Sub(RegImm { reg, val }) => {
-                writeln!(buf, "  sub {}, {}", REGS64[*reg as usize], val);
+            IR::BpRel(RegImm { reg, val }) => {
+                writeln!(buf, "  lea {}, [rbp-{}]", REGS64[*reg as usize], val);
             }
 
             IR::Mul(RegReg { dst, src }) => {

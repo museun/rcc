@@ -90,6 +90,8 @@ pub enum IR {
     Jmp(IRType),    // imm
     If(IRType),     // reg->imm
 
+    BpRel(IRType), // reg->imm
+
     Add(IRType), // reg->reg
     Sub(IRType), // reg->reg
     Mul(IRType), // reg->reg
@@ -187,8 +189,8 @@ impl<'a> Generate<'a> {
 
                 let rhs = self.gen_expr(init);
                 let lhs = self.next_reg();
-                self.add(IR::Mov(reg_reg(lhs, 0)));
-                self.add(IR::Sub(reg_imm(lhs, *offset)));
+
+                self.add(IR::BpRel(reg_imm(lhs, *offset)));
 
                 match node.as_ref().get_type() {
                     Type::Char => {
@@ -474,8 +476,8 @@ impl<'a> Generate<'a> {
 
         if let Node::LVal { offset, ty: _ty } = &node {
             let r = self.next_reg();
-            self.add(IR::Mov(reg_reg(r, 0)));
-            self.add(IR::Sub(reg_imm(r, *offset)));
+            self.add(IR::BpRel(reg_imm(r, *offset)));
+
             return r;
         }
 
@@ -564,6 +566,7 @@ impl Deref for IR {
             | Load(_, ty)
             | Store(_, ty)
             | StoreArg(_, ty)
+            | BpRel(ty)
             | Unless(ty)
             | Label(ty)
             | Jmp(ty)
@@ -590,6 +593,7 @@ impl DerefMut for IR {
             | Load(_, ty)
             | Store(_, ty)
             | StoreArg(_, ty)
+            | BpRel(ty)
             | Unless(ty)
             | Label(ty)
             | If(ty)
@@ -635,6 +639,7 @@ impl fmt::Debug for IR {
             Load(w, ty) => write!(f, "Load {:?} {{ {:?} }}", w, ty),
             Store(w, ty) => write!(f, "Store {:?} {{ {:?} }}", w, ty),
             StoreArg(w, ty) => write!(f, "StoreArg {:?} {{ {:?} }}", w, ty),
+            BpRel(ty) => write!(f, "BpRel {{ {:?} }}", ty),
             Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
             Label(ty) => write!(f, "Label {{ {:?} }}", ty),
             Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
