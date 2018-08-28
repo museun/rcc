@@ -713,6 +713,16 @@ impl Node {
             };
         }
 
+        if consume(tokens, "->") {
+            return Node::Dot {
+                offset: 0,
+                expr: Kind::make(Node::Deref {
+                    expr: Kind::make(lhs),
+                }),
+                member: Self::ident(tokens),
+            };
+        }
+
         while consume(tokens, '[') {
             lhs = Node::Deref {
                 expr: Kind::make(Node::Add {
@@ -858,7 +868,7 @@ fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
         "{} {} was expected. found {} at position: {}.\n",
         wrap_color!(Color::Red {}, "ERROR:"),
         wrap_color!(Color::Green {}, tok.get_char()),
-        wrap_color!(Color::Cyan {}, "{:?}", next),
+        wrap_color!(Color::Cyan {}, "{}", next),
         wrap_color!(Color::Blue {}, pos),
     );
 }

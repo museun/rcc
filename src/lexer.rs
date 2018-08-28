@@ -349,11 +349,12 @@ const SYMBOLS: [(&str, Token); 12] = [
     ("struct", Token::Struct),
 ];
 
-const CHARACTERS: [(char, Option<char>); 21] = [
+const CHARACTERS: [(char, Option<char>); 22] = [
     ('&', Some('&')),
     ('|', Some('|')),
     ('=', Some('=')),
     ('!', Some('=')),
+    ('-', Some('>')),
     ('+', None),
     ('-', None),
     ('*', None),

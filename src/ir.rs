@@ -444,10 +444,7 @@ impl<'a> Generate<'a> {
 
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
-                self.add(load_instruction(
-                    expr.get_type().as_ptr().expect("deref to be a pointer"),
-                    reg_reg(r, r),
-                ));
+                self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
                 r
             }
 

@@ -139,8 +139,10 @@ impl From<&'static str> for Token {
     fn from(c: &'static str) -> Token {
         match c {
             "else" => Token::Else,
+            // TODO make this better
             "==" => Token::MChar('=', '='),
             "!=" => Token::MChar('!', '='),
+            "->" => Token::MChar('-', '>'),
             _ => panic!("invalid str/token"),
         }
     }
@@ -163,7 +165,7 @@ impl fmt::Display for Token {
             Token::MChar(l, r) => write!(f, "{}{} : MChar", l, r),
             Token::Num(n) => write!(f, "{} : Num", n),
             Token::Ident(name) => write!(f, "{} : Ident", name),
-            Token::Type(ty) => write!(f, "{:?} : Type", ty),
+            Token::Type(ty) => write!(f, "{} : Type", ty),
             Token::Str(s) => write!(f, "\"{}\" : String", s),
 
             Token::If => write!(f, "If"),

@@ -221,7 +221,10 @@ impl<'a> Semantics<'a> {
                 offset,
             } => {
                 self.walk(env, expr.as_mut(), true);
-                let (ty, off) = if let Type::Struct { members, .. } = expr.get_type() {
+                let ty = expr.get_type();
+                eprintln!("{:#?}", ty);
+
+                let (ty, off) = if let Type::Struct { members, .. } = ty {
                     if let Some(member) = members.iter().find(|&m| {
                         if let Node::Vardef { name: mname, .. } = m {
                             *mname == *name
@@ -284,12 +287,13 @@ impl<'a> Semantics<'a> {
 
             Node::Deref { expr } => {
                 self.walk(env, expr.as_mut(), true);
-                if expr.get_type().as_ptr().is_none() {
-                    fail!("operand must be a pointer");
-                }
-
-                let ptr = expr.get_type().clone();
-                node.set_type(ptr);
+                match expr.get_type().as_ptr() {
+                    Some(ty) => {
+                        let ty = ty.clone();
+                        node.set_type(ty)
+                    }
+                    None => fail!("operand must be a pointer"),
+                };
             }
 
             Node::Return { expr } => self.walk(env, expr.as_mut(), true),
