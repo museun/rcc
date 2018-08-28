@@ -517,9 +517,7 @@ impl<'a> Generate<'a> {
     fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
         let r1 = self.gen_expr(lhs);
         let r2 = self.gen_expr(rhs);
-        eprintln!("a ir: {:#?}", ir);
         *ir = reg_reg(r1, r2);
-        eprintln!("b ir: {:#?}", ir);
         self.add(ir);
         self.add(IR::Kill(reg(r2)));
         r1

@@ -1,5 +1,6 @@
 use std::{
     env::args,
+    fs,
     io::{self, prelude::*},
 };
 
@@ -16,12 +17,13 @@ fn main() {
             .expect("to read stdin");
         buffer
     } else if args.len() != 2 {
-        fail!("usage: rcc <code>");
+        fail!("usage: rcc file");
     } else {
         args.skip(1).collect::<String>()
     };
 
-    let tokens = Tokens::tokenize("stdin", &input);
+    let fi = fs::read_to_string(&input).expect("to read file");
+    let tokens = Tokens::tokenize(&input, &fi);
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }

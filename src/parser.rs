@@ -699,8 +699,7 @@ impl Node {
         if let (_, Token::Ident(name)) = expect(tokens, Token::Ident("".into()), "identifier") {
             return name;
         }
-
-        unimplemented!()
+        unreachable!()
     }
 
     fn postfix(tokens: &mut Tokens) -> Self {

@@ -222,8 +222,6 @@ impl<'a> Semantics<'a> {
             } => {
                 self.walk(env, expr.as_mut(), true);
                 let ty = expr.get_type();
-                eprintln!("{:#?}", ty);
-
                 let (ty, off) = if let Type::Struct { members, .. } = ty {
                     if let Some(member) = members.iter().find(|&m| {
                         if let Node::Vardef { name: mname, .. } = m {
