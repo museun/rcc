@@ -58,6 +58,15 @@ impl Type {
             Type::Array { base, len, .. } => ((base.size_of() as usize) * len) as i32,
         }
     }
+
+    pub fn align_of(&self) -> i32 {
+        match self {
+            Type::Char => 1,
+            Type::Int => 4,
+            Type::Ptr { .. } => 8,
+            Type::Array { base, .. } => base.align_of(),
+        }
+    }
 }
 
 impl fmt::Display for Type {

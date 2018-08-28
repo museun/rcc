@@ -11,14 +11,15 @@ pub enum Token {
     Type(Type),        // types
     Str(String),       // string
 
-    If,     // if
-    Else,   // else
-    For,    // for
-    Do,     // do
-    While,  // while
-    Return, // return
-    Sizeof, // sizeof
-    Extern, // extern
+    If,      // if
+    Else,    // else
+    For,     // for
+    Do,      // do
+    While,   // while
+    Return,  // return
+    Sizeof,  // sizeof
+    Alignof, // _Alignof
+    Extern,  // extern
 
     Comment(usize, usize), // comment. start, end
 
@@ -173,6 +174,7 @@ impl fmt::Display for Token {
             Token::While => write!(f, "While"),
             Token::Return => write!(f, "Return"),
             Token::Sizeof => write!(f, "Sizeof"),
+            Token::Alignof => write!(f, "Alignof"),
 
             Token::Comment(start, end) => write!(f, "Comment({}, {})", start, end),
 

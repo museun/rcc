@@ -20,7 +20,7 @@ pub fn print_ast(ast: &[Node]) {
         let newline = || eprintln!();
 
         use Node::*;
-        match node {
+        match node {            
             Noop{}=>{},
             DoWhile{body, cond} => {
                 w!(depth, "Do (");
@@ -160,6 +160,14 @@ pub fn print_ast(ast: &[Node]) {
 
             Sizeof { expr} => {
                 w!(depth, "Sizeof (");
+                newline();
+                print(depth + 1, kind!(expr));
+                newline();
+                w!(depth, ")");
+            }
+
+            Alignof { expr} => {
+                w!(depth, "Alignof (");
                 newline();
                 print(depth + 1, kind!(expr));
                 newline();

@@ -155,6 +155,7 @@ impl<'a> Semantics<'a> {
                 is_extern,
                 data,
             } => {
+                self.stacksize = round(self.stacksize, ty.align_of());
                 self.stacksize += ty.size_of();
                 *offset = self.stacksize;
 
@@ -267,6 +268,14 @@ impl<'a> Semantics<'a> {
                 self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
                     val: expr.get_type().size_of() as u32,
+                    ty: Type::Int,
+                };
+            }
+
+            Node::Alignof { expr } => {
+                self.walk(env, expr.as_mut(), false);
+                *node = Node::Constant {
+                    val: expr.get_type().align_of() as u32,
                     ty: Type::Int,
                 };
             }

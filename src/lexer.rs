@@ -314,7 +314,7 @@ impl Lexical for SymbolLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
         if let Some(p) = iter.peek() {
-            if p.is_alphabetic() {
+            if p.is_alphabetic() || *p == '_' {
                 let name = iter
                     .take_while(|&c| c.is_alphabetic() || c == '_')
                     .collect::<String>();
@@ -334,7 +334,7 @@ impl Lexical for SymbolLexer {
     }
 }
 
-const SYMBOLS: [(&str, Token); 10] = [
+const SYMBOLS: [(&str, Token); 11] = [
     ("int", Token::Type(TokType::Int)),
     ("char", Token::Type(TokType::Char)),
     ("for", Token::For),
@@ -344,6 +344,7 @@ const SYMBOLS: [(&str, Token); 10] = [
     ("while", Token::While),
     ("return", Token::Return),
     ("sizeof", Token::Sizeof),
+    ("_Alignof", Token::Alignof),
     ("extern", Token::Extern),
 ];
 

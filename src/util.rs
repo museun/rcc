@@ -84,3 +84,8 @@ pub fn count_digits(n: usize) -> usize {
     }
     x
 }
+
+/// rounds to the alignment
+pub fn round(x: i32, align: i32) -> i32 {
+    (x + align - 1) & !(align - 1)
+}

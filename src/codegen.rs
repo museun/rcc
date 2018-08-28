@@ -45,7 +45,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
 
     writeln!(buf, "  push rbp");
     writeln!(buf, "  mov rbp, rsp");
-    writeln!(buf, "  sub rsp, {}", func.stacksize);
+    writeln!(buf, "  sub rsp, {}", round(func.stacksize, 16));
 
     // windows uses RAX RCX RDX R8 R9 R10 11
     // caller saved

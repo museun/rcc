@@ -109,6 +109,10 @@ pub enum Node {
         expr: Kind,
     },
 
+    Alignof {
+        expr: Kind,
+    },
+
     If {
         cond: Kind,
         body: Kind,
@@ -625,6 +629,11 @@ impl Node {
         }
         if consume(tokens, Token::Sizeof) {
             return Node::Sizeof {
+                expr: Kind::make(Self::unary(tokens)),
+            };
+        }
+        if consume(tokens, Token::Alignof) {
+            return Node::Alignof {
                 expr: Kind::make(Self::unary(tokens)),
             };
         }
