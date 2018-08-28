@@ -67,7 +67,7 @@ impl Type {
         let mut os = 0;
         let mut align = 0;
 
-        for node in members.iter_mut() {
+        for node in &mut members {
             if let Node::Vardef {
                 ty, ref mut offset, ..
             } = node

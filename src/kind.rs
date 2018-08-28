@@ -31,13 +31,6 @@ impl Kind {
         self.val.is_some()
     }
 
-    pub fn has_type(&self) -> bool {
-        match self.ty.as_ref() {
-            None => self.get_val().has_type(),
-            Some(_) => true,
-        }
-    }
-
     pub fn get_val(&self) -> &Node {
         self.val.as_ref().unwrap()
     }

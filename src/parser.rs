@@ -2,6 +2,7 @@
 use super::*;
 use std::fmt;
 
+#[allow(unknown_lints, large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {
     Constant {
@@ -258,7 +259,7 @@ impl Parser {
 
     fn top_level(&mut self, tokens: &mut Tokens) -> Node {
         let is_extern = consume(tokens, Token::Extern);
-        let mut ty = self.ty(tokens);
+        let ty = self.ty(tokens);
         let name = self.ident(tokens);
 
         // functions
@@ -286,7 +287,7 @@ impl Parser {
         let data = if is_extern { 0 } else { ty.size() }; // -1 for no data
 
         let node = Node::Vardef {
-            ty: self.read_array(tokens, &mut ty).clone(),
+            ty: self.read_array(tokens, ty),
             name,
             init: Kind::empty(),
             offset: 0,
@@ -444,10 +445,11 @@ impl Parser {
     }
 
     fn decl(&mut self, tokens: &mut Tokens) -> Node {
-        let mut ty = self.ty(tokens);
+        let ty = self.ty(tokens);
 
+        let size = ty.size();
         let name = self.ident(tokens);
-        let array = self.read_array(tokens, &mut ty);
+        let array = self.read_array(tokens, ty);
         let init = if consume(tokens, '=') {
             Kind::make(self.assign(tokens))
         } else {
@@ -459,8 +461,8 @@ impl Parser {
             name,
             init,
             offset: 0,
-            ty: array.clone(),
-            data: ty.size(),
+            ty: array,
+            data: size,
             is_extern: false,
         }
     }
@@ -685,13 +687,6 @@ impl Parser {
         }
     }
 
-    fn ident(&mut self, tokens: &mut Tokens) -> String {
-        if let (_, Token::Ident(name)) = expect(tokens, Token::Ident("".into()), "identifier") {
-            return name;
-        }
-        unreachable!()
-    }
-
     fn postfix(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.primary(tokens);
         if consume(tokens, '.') {
@@ -724,7 +719,7 @@ impl Parser {
         lhs
     }
 
-    fn read_array<'a>(&mut self, tokens: &mut Tokens, ty: &'a mut Type) -> &'a Type {
+    fn read_array(&mut self, tokens: &mut Tokens, ty: Type) -> Type {
         let mut param = vec![];
         while consume(tokens, '[') {
             match self.primary(tokens) {
@@ -734,11 +729,18 @@ impl Parser {
             expect_token(tokens, ']');
         }
 
+        let mut ty = ty;
         for el in param.iter().rev() {
-            *ty = Type::array_of(&ty, *el as usize);
+            ty = ty.array_of(*el as usize);
         }
-
         ty
+    }
+
+    fn ident(&mut self, tokens: &mut Tokens) -> String {
+        if let (_, Token::Ident(name)) = expect(tokens, Token::Ident("".into()), "identifier") {
+            return name;
+        }
+        unreachable!()
     }
 
     fn ty(&mut self, tokens: &mut Tokens) -> Type {

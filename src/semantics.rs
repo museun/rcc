@@ -231,7 +231,7 @@ impl<'a> Semantics<'a> {
                         }
                     }) {
                         if let Node::Vardef { offset, ty, .. } = member {
-                            (ty.clone(), offset.clone())
+                            (ty.clone(), offset)
                         } else {
                             unreachable!()
                         }
@@ -241,7 +241,7 @@ impl<'a> Semantics<'a> {
                 } else {
                     fail!("struct expected before . operator")
                 };
-                *offset = off;
+                *offset = *off;
                 node.set_type(ty);
             }
 
