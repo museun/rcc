@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! fail {
     ($($arg:tt)*) => {{
-        eprintln!($($arg)*);
+        eprintln!("{}: {}", wrap_color!(Color::Red{}, "failure"), format!($($arg)*));
         if cfg!(test) || cfg!(feature="dump") {
             panic!();
         }

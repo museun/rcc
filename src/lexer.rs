@@ -1,55 +1,69 @@
 #![allow(dead_code, unused_variables)] //go away clippy
 use super::*;
 
-pub fn scan(input: &str, lexers: &[&'static dyn Lexical<'static>]) -> Vec<(usize, Token)> {
+pub fn scan<'a>(
+    file: &'a str,
+    input: &'a str,
+    lexers: &[&'static dyn Lexical],
+) -> Vec<(Span<'a>, Token)> {
+    let lines = input
+        .char_indices()
+        .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
+        .collect::<Vec<_>>();
+
     let mut data = vec![];
     let mut skip = 0;
 
+    let mut line = 0;
+    let mut row = 0;
     for (i, c) in input.char_indices() {
+        row += 1;
+        if c == '\n' {
+            row = 0;
+            line += 1;
+        }
+
         if skip > 0 {
             skip -= 1;
             continue;
         }
 
-        let mut error = None;
+        let span = Span::new(file, line, row);
 
+        let mut error = None;
         'inner: for lexer in lexers {
             let mut iter = input.chars().skip(i);
             match lexer.lex(&mut iter) {
-                State::Yield => {}
-                State::Error => {
-                    error = Some("error");
-                    break 'inner;
-                }
-                State::Consume(n) => {
-                    skip += n;
-                    break 'inner;
-                }
+                State::Yield => continue,
+                State::Error(err) => error = Some(err),
+                State::Consume(n) => skip += n,
                 State::Produce(n, token) => {
+                    // TODO pass the current start postion to the lexers
+                    // update the comment with the correct position
                     let token = match token {
-                        Token::Comment(_, b) => Token::Comment(i, b),
+                        Token::Comment(_, b) => Token::Comment(i, b), /* this is raw offset
+                                                                        * into the file */
                         tok => tok,
                     };
                     skip += n;
-                    data.push((i, token));
-                    break 'inner;
+                    data.push((span, token));
                 }
             }
+            break 'inner;
         }
 
-        if let Some(err) = error {
-            fail!(
-                "error at {}. {:#?}",
-                i,
-                data.iter().map(|(_, d)| d).collect::<Vec<_>>()
-            );
+        match error {
+            Some(Error::UnknownToken) => {
+                fail!("{}: unknown token found", span);
+            }
+            e => {}
         }
     }
 
     data
 }
 
-pub trait Lexical<'a> {
+pub trait Lexical {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         State::Yield
     }
@@ -59,7 +73,17 @@ pub enum State {
     Yield,
     Consume(usize),
     Produce(usize, Token),
-    Error,
+    Error(Error),
+}
+
+impl From<Error> for State {
+    fn from(err: Error) -> State {
+        State::Error(err)
+    }
+}
+
+pub enum Error {
+    UnknownToken,
 }
 
 pub const LEXERS: [&'static dyn Lexical; 7] = [
@@ -73,7 +97,7 @@ pub const LEXERS: [&'static dyn Lexical; 7] = [
 ];
 
 struct WhitespaceLexer;
-impl<'a> Lexical<'a> for WhitespaceLexer {
+impl Lexical for WhitespaceLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
 
@@ -85,14 +109,14 @@ impl<'a> Lexical<'a> for WhitespaceLexer {
 }
 
 struct UnknownLexer;
-impl<'a> Lexical<'a> for UnknownLexer {
+impl Lexical for UnknownLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
-        State::Error
+        Error::UnknownToken.into()
     }
 }
 
 struct DigitLexer;
-impl<'a> Lexical<'a> for DigitLexer {
+impl Lexical for DigitLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
         if let Some(next) = iter.peek() {
@@ -113,7 +137,7 @@ impl<'a> Lexical<'a> for DigitLexer {
 }
 
 struct StringLexer;
-impl<'a> Lexical<'a> for StringLexer {
+impl Lexical for StringLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
         match iter.peek() {
@@ -148,7 +172,7 @@ impl<'a> Lexical<'a> for StringLexer {
 }
 
 struct CharLexer;
-impl<'a> Lexical<'a> for CharLexer {
+impl Lexical for CharLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
 
@@ -172,7 +196,7 @@ impl<'a> Lexical<'a> for CharLexer {
 }
 
 struct CharLiteralLexer;
-impl<'a> Lexical<'a> for CharLiteralLexer {
+impl Lexical for CharLiteralLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
 
@@ -191,7 +215,7 @@ impl<'a> Lexical<'a> for CharLiteralLexer {
 }
 
 struct CommentLexer;
-impl<'a> Lexical<'a> for CommentLexer {
+impl Lexical for CommentLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
 
@@ -228,7 +252,7 @@ impl<'a> Lexical<'a> for CommentLexer {
 }
 
 struct SymbolLexer;
-impl<'a> Lexical<'a> for SymbolLexer {
+impl Lexical for SymbolLexer {
     fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
         let mut iter = lexer.peekable();
         if let Some(p) = iter.peek() {

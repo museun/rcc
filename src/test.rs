@@ -5,8 +5,8 @@ use std::{fs, process::Command};
 // TODO use proper Paths
 // TODO make tests and tmp
 
-fn compile(n: usize, p: &str) -> Option<String> {
-    let program = frontend::compile(p).ok()?;
+fn compile(f: &str, n: usize, p: &str) -> Option<String> {
+    let program = frontend::compile(f, p).ok()?;
 
     let file = format!("test_{:04}", n);
     fs::write(&format!("tmp/{}.s", file), &program).expect("to write asm");

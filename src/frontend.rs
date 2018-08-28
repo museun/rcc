@@ -4,8 +4,8 @@ pub enum Error {
     Tokenize,
 }
 
-pub fn compile(input: impl AsRef<str>) -> Result<String, Error> {
-    let tokens = Tokens::tokenize(input.as_ref());
+pub fn compile(file: impl AsRef<str>, input: impl AsRef<str>) -> Result<String, Error> {
+    let tokens = Tokens::tokenize(file.as_ref(), input.as_ref());
     if tokens.is_empty() {
         return Err(Error::Tokenize {});
     }

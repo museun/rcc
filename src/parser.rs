@@ -424,8 +424,7 @@ impl Node {
             }
             tok if *tok != Token::EOF => Self::expr_stmt(tokens),
             _ => {
-                let pos = *pos;
-                expect_fail(tokens.input_at(0), pos, "token wasn't") // expected
+                expect_fail("", pos, "token wasn't") // expected
             }
         }
     }
@@ -682,10 +681,7 @@ impl Node {
                 Node::Call { name, args }
             }
 
-            _ => {
-                let pos = *pos;
-                expect_fail(tokens.input_at(0), pos, "number or ident")
-            }
+            _ => expect_fail("", pos, "number or ident"),
         }
     }
 
@@ -709,7 +705,7 @@ impl Node {
         while consume(tokens, '[') {
             match Self::primary(tokens) {
                 Node::Constant { val, .. } => param.push(val),
-                _ => expect_fail(tokens.input_at(0), tokens.pos(), "number"),
+                _ => expect_fail("", &tokens.pos(), "number"),
             };
             expect_token(tokens, ']');
         }
@@ -772,7 +768,8 @@ fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
 
     const SOURCE_LINE: &str = "source=> ";
     let (pos, next) = (*pos, next.clone());
-    let (input, adjusted) = midpoint(tokens.input_at(0), pos, 80 - SOURCE_LINE.len());
+    // TODO fix this
+    let (input, adjusted) = midpoint("", 0, 80 - SOURCE_LINE.len());
 
     eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
     draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
@@ -789,39 +786,42 @@ fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
 /// this uses a discriminant comparison
 #[inline]
 #[allow(dead_code)]
-fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: impl AsRef<str>) -> (usize, Token) {
+fn expect<'a>(
+    tokens: &'a mut Tokens,
+    tok: impl Into<Token>,
+    msg: impl AsRef<str>,
+) -> (Span<'a>, Token) {
     use std::mem::discriminant;
     let (pos, next) = tokens.next_token().expect("get next token");
     if discriminant(next) == discriminant(&tok.into()) {
         return (*pos, next.clone());
     }
-    let pos = *pos;
-    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+    expect_fail("", pos, msg.as_ref());
 }
 
 #[inline]
-fn expect_type(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, tokens::Type) {
+fn expect_type<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, tokens::Type) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Type(ty) = next {
         return (*pos, ty.clone());
     }
-    let pos = *pos;
-    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+    expect_fail("", pos, msg.as_ref());
 }
 
 #[inline]
-fn expect_ident(tokens: &mut Tokens, msg: impl AsRef<str>) -> (usize, String) {
+fn expect_ident<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, String) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Ident(name) = next {
         return (*pos, name.to_string());
     }
-    let pos = *pos;
-    expect_fail(tokens.input_at(0), pos, msg.as_ref());
+    expect_fail("", pos, msg.as_ref());
 }
 
-fn expect_fail(input: &str, pos: usize, msg: &str) -> ! {
+// lifetimes ??
+fn expect_fail<'a>(input: &str, span: &'a Span<'a>, msg: &str) -> ! {
     const SOURCE_LINE: &str = "source=> ";
-    let (input, adjusted) = midpoint(&input, pos, 80 - SOURCE_LINE.len());
+    // TODO: fix this
+    let (input, adjusted) = midpoint(&input, 0, 80 - SOURCE_LINE.len());
 
     eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
     draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
@@ -830,6 +830,6 @@ fn expect_fail(input: &str, pos: usize, msg: &str) -> ! {
         "{} {} was expected. at position: {}.\n",
         wrap_color!(Color::Red {}, "ERROR:"),
         wrap_color!(Color::Cyan {}, msg),
-        wrap_color!(Color::Blue {}, pos),
+        wrap_color!(Color::Blue {}, span),
     );
 }

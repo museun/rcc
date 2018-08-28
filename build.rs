@@ -40,10 +40,10 @@ fn test_{:04}() {{
 {}
     "#;
 
-    expect({}, run(compile({}, &source).expect("to compile")));
+    expect({}, run(compile("tests/test_{:04}.c", {}, &source).expect("to compile")));
 }}
     "###,
-        n, source, expected, n
+        n, source, expected, n, n
     );
 }
 

@@ -33,14 +33,14 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub struct Tokens<'a> {
-    data: Vec<(usize, Token)>,
+    data: Vec<(Span<'a>, Token)>,
     input: &'a str,
     pos: usize,
 }
 
 impl<'a> Tokens<'a> {
-    pub fn tokenize(input: &'a str) -> Self {
-        let data = lexer::scan(input, &LEXERS);
+    pub fn tokenize(file: &'a str, input: &'a str) -> Self {
+        let data = lexer::scan(file, input, &LEXERS);
 
         Tokens {
             data,
@@ -57,11 +57,11 @@ impl<'a> Tokens<'a> {
         self.data.len()
     }
 
-    pub fn pos(&self) -> usize {
-        self.pos
+    pub fn pos(&self) -> Span {
+        self.data[self.pos].0
     }
 
-    pub fn next_token(&mut self) -> Option<&(usize, Token)> {
+    pub fn next_token(&mut self) -> Option<&(Span, Token)> {
         loop {
             match self.data.get(self.pos) {
                 Some((_, Token::Comment(_, _))) => self.pos += 1,
@@ -75,7 +75,7 @@ impl<'a> Tokens<'a> {
     }
 
     /// this also eats comments
-    pub fn peek(&mut self) -> Option<&(usize, Token)> {
+    pub fn peek(&mut self) -> Option<&(Span, Token)> {
         loop {
             match self.data.get(self.pos) {
                 Some((_, Token::Comment(_, _))) => self.pos += 1,
@@ -93,7 +93,7 @@ impl<'a> Tokens<'a> {
         &self.input[pos..]
     }
 
-    pub fn tokens_at(&self, pos: usize) -> impl Iterator<Item = &(usize, Token)> {
+    pub fn tokens_at(&self, pos: usize) -> impl Iterator<Item = &(Span, Token)> {
         self.data.iter().skip(pos)
     }
 }

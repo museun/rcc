@@ -8,6 +8,9 @@ pub(crate) const MAX_INST: usize = 1000;
 mod util;
 pub use util::*;
 
+mod span; // code spans for reporting
+pub use span::*;
+
 mod types;
 pub use types::*;
 
