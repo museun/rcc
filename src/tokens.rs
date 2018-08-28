@@ -192,13 +192,22 @@ impl fmt::Display for Type {
 
 impl<'a> fmt::Display for Tokens<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let max = self
+            .data
+            .iter()
+            .map(|(pos, _)| pos.total_width())
+            .max()
+            .expect("to get max width");
+
         for (i, (pos, tok)) in self.data.iter().enumerate() {
             write!(
                 f,
-                "{},{}{: >2}",
-                wrap_color!(Color::Magenta {}, "{: >4}", i),
-                wrap_color!(Color::Cyan {}, "{: <4}", pos),
+                "{}{: <width$}{}{: >4}",
+                wrap_color!(Color::Cyan {}, "{}", pos),
                 "",
+                wrap_color!(Color::Magenta {}, "{: >5}", i),
+                "",
+                width = max - pos.total_width()
             )?;
             writeln!(f, "{}", tok)?
         }

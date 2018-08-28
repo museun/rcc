@@ -15,18 +15,18 @@ fn main() {
         io::stdin()
             .read_to_string(&mut buffer)
             .expect("to read stdin");
-        compile(&buffer);
+        compile("stdin", &buffer);
         return;
     }
 
     let mut args = args.skip(1);
     match &args.next().unwrap()[..] {
         "test" => {
-            let input = args.next().unwrap().parse::<usize>().expect("a number");
-            let input = get_source_for(input).expect("to read a file");
-            compile(&input);
+            let no = args.next().unwrap().parse::<usize>().expect("a number");
+            let input = get_source_for(no).expect("to read a file");
+            compile(&format!("tests/test_{:04}.c", no), &input);
         }
-        input => compile(&input),
+        input => compile("stdin", &input),
     }
 }
 
@@ -34,10 +34,10 @@ fn get_source_for(n: usize) -> Option<String> {
     fs::read_to_string(&format!("tests/test_{:04}.c", n)).ok()
 }
 
-fn compile(input: &str) {
+fn compile(file: &str, input: &str) {
     eprintln!("{} {}", wrap_color!(Color::Yellow {}, "input:"), input);
 
-    let tokens = Tokens::tokenize("stdin", &input);
+    let tokens = Tokens::tokenize(file, &input);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
     eprintln!("{}", tokens);
 

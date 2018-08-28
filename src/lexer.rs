@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)] //go away clippy
 use super::*;
+use std::{char, str};
 
 pub fn scan<'a>(
     file: &'a str,
@@ -14,7 +15,7 @@ pub fn scan<'a>(
     let mut data = vec![];
     let mut skip = 0;
 
-    let mut line = 0;
+    let mut line = 1;
     let mut row = 0;
     for (i, c) in input.char_indices() {
         row += 1;
@@ -53,9 +54,7 @@ pub fn scan<'a>(
         }
 
         match error {
-            Some(Error::UnknownToken) => {
-                fail!("{}: unknown token found", span);
-            }
+            Some(Error::UnknownToken) => fail!("{}: unknown token found", span),
             e => {}
         }
     }
@@ -84,11 +83,13 @@ impl From<Error> for State {
 
 pub enum Error {
     UnknownToken,
+    InvalidEscape,
 }
 
-pub const LEXERS: [&'static dyn Lexical; 7] = [
+pub const LEXERS: [&'static dyn Lexical; 8] = [
     &WhitespaceLexer,
     &CommentLexer,
+    &CharLiteralLexer,
     &CharLexer,
     &StringLexer,
     &SymbolLexer,
@@ -205,8 +206,65 @@ impl Lexical for CharLiteralLexer {
                 return State::Yield;
             }
 
-            if let Some(esc) = is_escape(*p) {
-                return State::Produce(0, Token::Char(esc));
+            let mut iter = iter.skip(1).peekable();
+            if let Some(ch) = iter.peek() {
+                if *ch != '\\' {
+                    return State::Produce(3, Token::Num(*ch as u32));
+                }
+
+                let mut iter = iter.skip(1);
+                let ch = iter.next();
+                if ch.is_none() {
+                    return Error::InvalidEscape.into();
+                };
+
+                let ch = ch.unwrap();
+                if let Some(ch) = match ch {
+                    'a' => Some('\x07'),
+                    'b' => Some('\x08'),
+                    'f' => Some('\x0C'),
+                    'n' => Some('\x0a'),
+                    'r' => Some('\x0d'),
+                    't' => Some('\x09'),
+                    'v' => Some('\x0b'),
+                    _ => None,
+                } {
+                    return State::Produce(4, Token::Num(ch as u32));
+                }
+
+                // '\x00'
+                if ch == 'x' {
+                    let s = iter.take(2).map(|c| c as u8).collect::<Vec<_>>();
+                    if s.len() != 2 {
+                        return Error::InvalidEscape.into();
+                    }
+                    match str::from_utf8(&s)
+                        .ok()
+                        .and_then(|i| u32::from_str_radix(i, 16).ok())
+                    {
+                        Some(c) => return State::Produce(5, Token::Num(c)),
+                        _ => return Error::InvalidEscape.into(),
+                    }
+                }
+                // '\000'
+                if let Some(ch) = match ch {
+                    '0'...'3' => Some(ch),
+                    _ => None,
+                } {
+                    let s = iter.take(3).map(|c| c as u8).collect::<Vec<_>>();
+                    if s.len() != 3 {
+                        return Error::InvalidEscape.into();
+                    }
+                    match str::from_utf8(&s)
+                        .ok()
+                        .and_then(|i| u32::from_str_radix(i, 8).ok())
+                    {
+                        Some(c) => return State::Produce(5, Token::Num(c)),
+                        _ => return Error::InvalidEscape.into(),
+                    }
+                }
+
+                return Error::InvalidEscape.into();
             }
         }
 
@@ -329,35 +387,4 @@ fn is_valid_char(l: char, r: char) -> bool {
         }
     }
     false
-}
-
-const VALID_ESCAPE: [(u8, char); 7] = [
-    (b'\x07', 'a'),
-    (b'\x08', 'b'),
-    (b'\x0C', 'f'),
-    (b'\x0a', 'n'),
-    (b'\x0d', 'r'),
-    (b'\x09', 't'),
-    (b'\x0b', 'v'),
-];
-
-fn is_escape(c: char) -> Option<char> {
-    for (k, v) in &VALID_ESCAPE {
-        if *k == c as u8 {
-            // UTF8: ??
-            return Some(*v);
-        }
-    }
-
-    is_octal_escape(c).or_else(|| is_hex_escape(c))
-}
-
-fn is_octal_escape(c: char) -> Option<char> {
-    // TODO implement
-    None
-}
-
-fn is_hex_escape(c: char) -> Option<char> {
-    // TODO implement
-    None
 }

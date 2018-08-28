@@ -70,3 +70,17 @@ pub fn draw_caret(width: usize, color: Color) {
     let s = ::std::iter::repeat(" ").take(width).collect::<String>();
     eprintln!("{}{}", s, wrap_color!(color, "^"));
 }
+
+pub fn count_digits(n: usize) -> usize {
+    if n == 0 {
+        return 1;
+    }
+
+    let mut n = n;
+    let mut x = 0;
+    while n > 0 {
+        n /= 10;
+        x += 1;
+    }
+    x
+}
