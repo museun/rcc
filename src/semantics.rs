@@ -155,8 +155,8 @@ impl<'a> Semantics<'a> {
                 is_extern,
                 data,
             } => {
-                self.stacksize = round(self.stacksize, ty.align_of());
-                self.stacksize += ty.size_of();
+                self.stacksize = round(self.stacksize, ty.align());
+                self.stacksize += ty.size();
                 *offset = self.stacksize;
 
                 env.insert(
@@ -233,8 +233,9 @@ impl<'a> Semantics<'a> {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);
 
-                if let Type::Ptr { ptr: r } = rhs.get_type() {
-                    if let Type::Ptr { ptr: l } = lhs.get_type() {
+                // XXX: this is awful
+                if let Type::Ptr { ptr: r, .. } = rhs.get_type() {
+                    if let Type::Ptr { ptr: l, .. } = lhs.get_type() {
                         let (r, l) = (*r.clone(), *l.clone());
                         lhs.set_type(r);
                         rhs.set_type(l);
@@ -254,7 +255,7 @@ impl<'a> Semantics<'a> {
 
             Node::Deref { expr } => {
                 self.walk(env, expr.as_mut(), true);
-                if !expr.get_type().is_ptr() {
+                if expr.get_type().as_ptr().is_none() {
                     fail!("operand must be a pointer");
                 }
 
@@ -267,7 +268,7 @@ impl<'a> Semantics<'a> {
             Node::Sizeof { expr } => {
                 self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
-                    val: expr.get_type().size_of() as u32,
+                    val: expr.get_type().size() as u32,
                     ty: Type::Int,
                 };
             }
@@ -275,7 +276,7 @@ impl<'a> Semantics<'a> {
             Node::Alignof { expr } => {
                 self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
-                    val: expr.get_type().align_of() as u32,
+                    val: expr.get_type().align() as u32,
                     ty: Type::Int,
                 };
             }

@@ -1,5 +1,5 @@
+#![allow(dead_code)]
 use super::*;
-
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,6 +111,11 @@ pub enum Node {
 
     Alignof {
         expr: Kind,
+    },
+
+    Struct {
+        members: Vec<Kind>,
+        offset: i32, // used for alignment
     },
 
     If {
@@ -279,7 +284,7 @@ impl Node {
             };
         }
 
-        let data = if is_extern { 0 } else { ty.size_of() }; // -1 for no data
+        let data = if is_extern { 0 } else { ty.size() }; // -1 for no data
 
         let node = Node::Vardef {
             ty: Self::read_array(tokens, &mut ty).clone(),
@@ -306,7 +311,7 @@ impl Node {
             Kind::empty()
         };
 
-        let data = ty.size_of();
+        let data = ty.size();
         Node::Vardef {
             name,
             init,
@@ -329,7 +334,7 @@ impl Node {
         let (pos, next) = tokens.peek().expect("token for statement");
 
         match next {
-            Token::Type(_) => Self::decl(tokens),
+            Token::Type(_) | Token::Struct => Self::decl(tokens),
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
@@ -461,7 +466,7 @@ impl Node {
             init,
             offset: 0,
             ty: array.clone(),
-            data: ty.size_of(),
+            data: ty.size(),
             is_extern: false,
         }
     }
@@ -662,13 +667,9 @@ impl Node {
                 ty: Type::Int,
             },
 
-            Token::Str(ref s) => Node::Str {
+            Token::Str(s) => Node::Str {
                 str: s.clone(),
-                ty: Type::Array {
-                    base: Box::new(Type::Char),
-                    len: s.len(),
-                    data: vec![], // HACK: probably not needed
-                },
+                ty: Type::array_of(&Type::Char, s.len()),
             },
 
             Token::Ident(ref name) => {
@@ -720,22 +721,36 @@ impl Node {
         }
 
         for el in param.iter().rev() {
-            *ty = Type::Array {
-                base: Box::new(ty.clone()),
-                len: *el as usize,
-                data: vec![],
-            }
+            *ty = Type::array_of(&ty, *el as usize);
         }
 
         ty
     }
 
     fn ty(tokens: &mut Tokens) -> Type {
-        let (_pos, ty) = expect_type(tokens, "typename");
+        let (_pos, token) = expect_tokens(
+            tokens,
+            &[
+                Token::Type(tokens::Type::Char), // are you serious
+                Token::Type(tokens::Type::Int),
+                Token::Struct,
+            ],
+        );
 
-        let mut ty = match ty {
-            tokens::Type::Char => Type::Char,
-            tokens::Type::Int => Type::Int,
+        let mut ty = match token {
+            Token::Type(ty) => match ty {
+                tokens::Type::Char => Type::Char,
+                tokens::Type::Int => Type::Int,
+            },
+            Token::Struct => {
+                expect_token(tokens, '{');
+                let mut members = vec![];
+                while !consume(tokens, '}') {
+                    members.push(Self::decl(tokens))
+                }
+                Type::struct_of(&members)
+            }
+            _ => unreachable!(),
         };
 
         while consume(tokens, '*') {
@@ -748,7 +763,7 @@ impl Node {
 #[inline]
 fn is_typename(tokens: &mut Tokens) -> bool {
     match tokens.peek() {
-        Some((_, Token::Type(_))) => true,
+        Some((_, Token::Type(_))) | Some((_, Token::Struct)) => true,
         _ => false,
     }
 }
@@ -765,7 +780,47 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
     }
 }
 
-// TODO track col:row + filename
+#[inline]
+fn expect_tokens<'a>(tokens: &'a mut Tokens, toks: &[Token]) -> (Span<'a>, Token) {
+    let (pos, next) = tokens.next_token().expect("get next token");
+
+    for tok in toks {
+        if *next == *tok {
+            return (*pos, next.clone());
+        }
+    }
+
+    const SOURCE_LINE: &str = "source=> ";
+    let (pos, next) = (*pos, next.clone());
+    // TODO fix this
+    let (input, adjusted) = midpoint("", 0, 80 - SOURCE_LINE.len());
+
+    eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
+    draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
+
+    let mut out = String::new();
+    for (i, s) in toks
+        .iter()
+        .map(|t| match t {
+            Token::Char(c) => c.to_string(),
+            tok => format!("{}", tok),
+        }).enumerate()
+    {
+        out.push_str(&s);
+        if i < toks.len() {
+            out.push_str(", ");
+        }
+    }
+
+    fail!(
+        "{} one of {} was expected. found {} at position: {}.\n",
+        wrap_color!(Color::Red {}, "ERROR:"),
+        wrap_color!(Color::Green {}, out),
+        wrap_color!(Color::Cyan {}, "{:?}", next),
+        wrap_color!(Color::Blue {}, pos),
+    );
+}
+
 #[inline]
 fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
     let tok = tok.into();

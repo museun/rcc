@@ -163,7 +163,7 @@ impl<'a> Generate<'a> {
                             Type::Int => {
                                 this.add(IR::StoreArg(Width::W32, reg_imm(i as i32, *offset)));
                             }
-                            Type::Ptr { .. } | Type::Array { .. } => {
+                            Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                                 this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
                             }
                         }
@@ -204,7 +204,7 @@ impl<'a> Generate<'a> {
                     Type::Int => {
                         self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
                     }
-                    Type::Ptr { .. } | Type::Array { .. } => {
+                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
                     }
                 }
@@ -361,7 +361,7 @@ impl<'a> Generate<'a> {
                 match ty {
                     Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
                     Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
-                    Type::Ptr { .. } | Type::Array { .. } => {
+                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Load(Width::W64, reg_reg(r, r)))
                     }
                 };
@@ -396,7 +396,7 @@ impl<'a> Generate<'a> {
                 match l.get_type() {
                     Type::Char => self.add(IR::Store(Width::W8, reg_reg(lhs, rhs))),
                     Type::Int => self.add(IR::Store(Width::W32, reg_reg(lhs, rhs))),
-                    Type::Ptr { .. } | Type::Array { .. } => {
+                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)))
                     }
                 };
@@ -409,7 +409,13 @@ impl<'a> Generate<'a> {
                 if let Type::Ptr { .. } = lhs.get_type() {
                     let rhs = self.gen_expr(rhs);
                     let r = self.next_reg();
-                    self.add(IR::Imm(reg_imm(r, lhs.get_type().ptr().size_of())));
+                    self.add(IR::Imm(reg_imm(
+                        r,
+                        lhs.get_type()
+                            .as_ptr()
+                            .expect("add lhs to be a pointer")
+                            .size(),
+                    )));
                     self.add(IR::Mul(reg_reg(rhs, r)));
                     self.add(IR::Kill(reg(r)));
 
@@ -440,10 +446,10 @@ impl<'a> Generate<'a> {
 
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
-                match expr.get_type().ptr() {
+                match expr.get_type().as_ptr().expect("deref to be a pointer") {
                     Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
                     Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
-                    Type::Ptr { .. } | Type::Array { .. } => {
+                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Load(Width::W64, reg_reg(r, r)))
                     }
                 }

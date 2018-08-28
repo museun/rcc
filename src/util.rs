@@ -89,3 +89,20 @@ pub fn count_digits(n: usize) -> usize {
 pub fn round(x: i32, align: i32) -> i32 {
     (x + align - 1) & !(align - 1)
 }
+
+pub fn join_with<S, I, T>(mut iter: I, sep: S) -> String
+where
+    S: AsRef<str>,
+    T: AsRef<str>,
+    I: Iterator<Item = T>,
+{
+    let mut buf = String::new();
+    if let Some(s) = iter.next() {
+        buf.push_str(s.as_ref());
+    }
+    for i in iter {
+        buf.push_str(sep.as_ref());
+        buf.push_str(i.as_ref());
+    }
+    buf
+}

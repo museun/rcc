@@ -20,6 +20,7 @@ pub enum Token {
     Sizeof,  // sizeof
     Alignof, // _Alignof
     Extern,  // extern
+    Struct,  // struct
 
     Comment(usize, usize), // comment. start, end
 
@@ -175,6 +176,7 @@ impl fmt::Display for Token {
             Token::Return => write!(f, "Return"),
             Token::Sizeof => write!(f, "Sizeof"),
             Token::Alignof => write!(f, "Alignof"),
+            Token::Struct => write!(f, "Struct"),
 
             Token::Comment(start, end) => write!(f, "Comment({}, {})", start, end),
 
