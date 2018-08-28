@@ -27,7 +27,7 @@ fn main() {
     if tokens.is_empty() {
         fail!("didn't tokenize anything");
     }
-    let mut ast = Node::parse(tokens);
+    let mut ast = Parser::parse(tokens);
     let ast = Semantics::analyze(&mut ast);
     let mut ir = Generate::gen_ir(&ast);
     let ir = Registers::allocate(&mut ir);

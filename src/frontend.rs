@@ -9,7 +9,7 @@ pub fn compile(file: impl AsRef<str>, input: impl AsRef<str>) -> Result<String, 
     if tokens.is_empty() {
         return Err(Error::Tokenize {});
     }
-    let mut ast = Node::parse(tokens);
+    let mut ast = Parser::parse(tokens);
     let ast = Semantics::analyze(&mut ast);
     let mut ir = Generate::gen_ir(&ast);
     let ir = Registers::allocate(&mut ir);

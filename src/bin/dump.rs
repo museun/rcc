@@ -41,7 +41,7 @@ fn compile(file: &str, input: &str) {
     eprintln!("{}", wrap_color!(Color::Yellow {}, "tokens:"));
     eprintln!("{}", tokens);
 
-    let mut ast = Node::parse(tokens);
+    let mut ast = Parser::parse(tokens);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
     eprintln!("{:#?}", ast);
 

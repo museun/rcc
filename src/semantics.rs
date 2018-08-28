@@ -364,6 +364,10 @@ impl<'a> Environment<'a> {
         }
     }
 
+    pub fn prev(&self) -> Option<&'a Environment<'a>> {
+        self.prev
+    }
+
     pub fn insert(&mut self, name: String, var: Var) {
         self.vars.insert(name, var);
     }
