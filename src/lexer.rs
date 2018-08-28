@@ -349,7 +349,7 @@ const SYMBOLS: [(&str, Token); 12] = [
     ("struct", Token::Struct),
 ];
 
-const CHARACTERS: [(char, Option<char>); 20] = [
+const CHARACTERS: [(char, Option<char>); 21] = [
     ('&', Some('&')),
     ('|', Some('|')),
     ('=', Some('=')),
@@ -370,6 +370,7 @@ const CHARACTERS: [(char, Option<char>); 20] = [
     ('<', None),
     ('>', None),
     ('&', None),
+    ('.', None),
 ];
 
 // TODO: this shouldn't be public

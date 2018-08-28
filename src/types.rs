@@ -18,9 +18,9 @@ pub enum Type {
         data: Vec<Type>,
     },
     Struct {
-        size: i32,  // maybe
-        align: i32, // maybe
-        members: Vec<Type>,
+        size: i32,
+        align: i32,
+        members: Vec<Node>, // Vardef
     },
 }
 
@@ -58,15 +58,22 @@ impl Type {
     }
 
     pub fn struct_of(nodes: &[Node]) -> Self {
-        // TODO add members
-        let members = vec![];
+        let mut members = nodes
+            .iter()
+            .filter_map(|n| match n {
+                Node::Vardef { .. } => Some(n.clone()),
+                _ => None,
+            }).collect::<Vec<_>>();
         let mut os = 0;
         let mut align = 0;
 
-        for node in nodes {
-            if let Node::Vardef { ty, .. } = node {
+        for node in members.iter_mut() {
+            if let Node::Vardef {
+                ty, ref mut offset, ..
+            } = node
+            {
                 os = round(os, ty.align());
-                //*offset = os;
+                *offset = os;
                 os += ty.size();
                 if align < ty.align() {
                     align = ty.align();
@@ -134,7 +141,7 @@ impl fmt::Display for Type {
             Type::Struct { members, .. } => {
                 write!(f, "Struct {{")?;
                 for (i, member) in members.iter().enumerate() {
-                    write!(f, "{}", member)?;
+                    write!(f, "{:?}", member)?;
                     if i < members.len() {
                         write!(f, ", ")?;
                     }

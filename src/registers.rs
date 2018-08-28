@@ -2,7 +2,7 @@ use super::*;
 use std::{mem, ops::DerefMut};
 
 pub struct Registers {
-    used: [bool; 8],
+    used: [bool; 7],
     map: Vec<i32>,
 }
 
@@ -11,7 +11,7 @@ impl Registers {
         for func in funcs.iter_mut() {
             let len = ::std::cmp::max(func.ir.len(), 1);
             let mut this = Self {
-                used: [false; 8],
+                used: [false; 7],
                 map: vec![-1; len],
             };
             this.visit(&mut func.ir);
@@ -46,13 +46,7 @@ impl Registers {
                     *src = self.alloc(*src);
                 }
 
-                Reg { src } => *src = self.alloc(*src),
-
-                RegLabel { reg, .. } => {
-                    *reg = self.alloc(*reg);
-                }
-
-                RegImm { reg, .. } => {
+                RegLabel { reg, .. } | RegImm { reg, .. } | Reg { src: reg } => {
                     *reg = self.alloc(*reg);
                 }
 

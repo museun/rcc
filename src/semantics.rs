@@ -72,7 +72,7 @@ impl<'a> Semantics<'a> {
 
     fn check_lval(node: &Node) {
         match node {
-            Node::LVal { .. } | Node::GVar { .. } | Node::Deref { .. } => {
+            Node::LVal { .. } | Node::GVar { .. } | Node::Deref { .. } | Node::Dot { .. } => {
                 return;
             }
             _ => fail!("not an lvalue: {:?}", node),
@@ -201,6 +201,11 @@ impl<'a> Semantics<'a> {
                 self.walk(env, body.as_mut(), true);
             }
 
+            Node::DoWhile { body, cond, .. } => {
+                self.walk(env, cond.as_mut(), true);
+                self.walk(env, body.as_mut(), true);
+            }
+
             Node::Assign { lhs, rhs } => {
                 self.walk(env, lhs.as_mut(), false); // can't decay this
                 Self::check_lval(lhs.get_val());
@@ -208,6 +213,35 @@ impl<'a> Semantics<'a> {
                 self.walk(env, rhs.as_mut(), true);
                 let lhs = lhs.get_type().clone();
                 node.set_type(lhs);
+            }
+
+            Node::Dot {
+                expr,
+                member: name,
+                offset,
+            } => {
+                self.walk(env, expr.as_mut(), true);
+                let (ty, off) = if let Type::Struct { members, .. } = expr.get_type() {
+                    if let Some(member) = members.iter().find(|&m| {
+                        if let Node::Vardef { name: mname, .. } = m {
+                            *mname == *name
+                        } else {
+                            false
+                        }
+                    }) {
+                        if let Node::Vardef { offset, ty, .. } = member {
+                            (ty.clone(), offset.clone())
+                        } else {
+                            unreachable!()
+                        }
+                    } else {
+                        fail!("no member '{}' on struct", name)
+                    }
+                } else {
+                    fail!("struct expected before . operator")
+                };
+                *offset = off;
+                node.set_type(ty);
             }
 
             Node::LogAnd { lhs, rhs }
@@ -219,11 +253,6 @@ impl<'a> Semantics<'a> {
                 self.walk(env, rhs.as_mut(), true);
 
                 // TYPE: implement types for this
-            }
-
-            Node::DoWhile { body, cond, .. } => {
-                self.walk(env, cond.as_mut(), true);
-                self.walk(env, body.as_mut(), true);
             }
 
             Node::Mul { lhs, rhs, .. }

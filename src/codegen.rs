@@ -1,9 +1,9 @@
 use super::*;
 use std::fmt::Write;
 
-const REGS8: [&str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-const REGS32: [&str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
-const REGS64: [&str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+pub(crate) const REGS8: [&str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub(crate) const REGS32: [&str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
+pub(crate) const REGS64: [&str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 
 pub enum ABI {
     Windows,
@@ -142,6 +142,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
             IR::Label(IRType::Imm { val }) => {
                 writeln!(buf, ".L{}:", val);
             }
+
             IR::Label(IRType::RegLabel { reg, label }) => {
                 writeln!(buf, "  lea {}, {}", REGS64[*reg as usize], label);
             }
@@ -166,10 +167,6 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                     "  add {}, {}",
                     REGS64[*dst as usize], REGS64[*src as usize]
                 );
-            }
-
-            IR::Add(RegImm { reg, val }) => {
-                writeln!(buf, "  mov {}, {}", REGS64[*reg as usize], val);
             }
 
             IR::Sub(RegReg { dst, src }) => {
@@ -215,7 +212,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
             }
 
             IR::Nop(_) => {}
-            ty => fail!("unknown operator: {:?}", ty),
+            ty => fail!("unknown operator: {}", ty),
         }
     }
 

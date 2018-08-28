@@ -51,11 +51,35 @@ fn compile(file: &str, input: &str) {
 
     let mut ir = Generate::gen_ir(&nodes);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));
-    eprintln!("{:#?}", ir);
+    for func in &ir {
+        eprintln!("{}(): -- {}", func.name, func.stacksize);
+        if !func.globals.is_empty() {
+            eprintln!("  globals:");
+            for g in &func.globals {
+                eprintln!("    {:?}", g);
+            }
+            eprintln!();
+        }
+        for ir in &func.ir {
+            eprintln!("  {}", ir);
+        }
+    }
 
     let ir = Registers::allocate(&mut ir);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "reg:"));
-    eprintln!("{:#?}", ir);
+    for func in ir.iter() {
+        eprintln!("{}(): -- {}", func.name, func.stacksize);
+        if !func.globals.is_empty() {
+            eprintln!("  globals:");
+            for g in &func.globals {
+                eprintln!("    {:?}", g);
+            }
+            eprintln!();
+        }
+        for ir in &func.ir {
+            eprintln!("  {}", ir);
+        }
+    }
 
     let asm = generate_x64(&ABI::SystemV, ir);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "asm:"));

@@ -4,7 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IRType {
     RegReg {
         dst: i32,
@@ -37,7 +37,7 @@ pub enum IRType {
     Nop,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Cmp {
     Gt, // same as lt assembly-wise
     Lt,
@@ -45,7 +45,7 @@ pub enum Cmp {
     NEq,
 }
 
-impl fmt::Debug for Cmp {
+impl fmt::Display for Cmp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w = match self {
             Cmp::Gt => ">",
@@ -57,14 +57,14 @@ impl fmt::Debug for Cmp {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Width {
     W8,
     W32,
     W64,
 }
 
-impl fmt::Debug for Width {
+impl fmt::Display for Width {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w = match self {
             Width::W8 => "8",
@@ -75,7 +75,7 @@ impl fmt::Debug for Width {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IR {
     Imm(IRType),    // reg->imm
     Mov(IRType),    // reg->reg
@@ -106,10 +106,10 @@ pub enum IR {
 
 #[derive(Debug)]
 pub struct Function {
-    pub(crate) name: String,
-    pub(crate) stacksize: i32,
-    pub(crate) ir: Vec<IR>,
-    pub(crate) globals: Vec<Var>,
+    pub name: String,
+    pub stacksize: i32,
+    pub ir: Vec<IR>,
+    pub globals: Vec<Var>,
 }
 
 #[derive(Debug)]
@@ -146,7 +146,7 @@ impl<'a> Generate<'a> {
                         label: &mut label,
                         ret_label: 0,
                         ret_reg: 0,
-                        reg: 0,
+                        reg: 1,
                     };
 
                     for (i, arg) in args.iter().enumerate() {
@@ -303,7 +303,7 @@ impl<'a> Generate<'a> {
         match &node.as_ref() {
             Node::Constant { val, .. } => {
                 let r = self.next_reg();
-                self.add(IR::Add(reg_imm(r, *val as i32)));
+                self.add(IR::Imm(reg_imm(r, *val as i32)));
                 r
             }
 
@@ -319,7 +319,6 @@ impl<'a> Generate<'a> {
                 self.add(IR::Unless(reg_imm(r1, x)));
                 self.add(IR::Imm(reg_imm(r1, 1)));
                 self.add(IR::Label(imm(x)));
-
                 r1
             }
 
@@ -339,7 +338,6 @@ impl<'a> Generate<'a> {
                 self.add(IR::Unless(reg_imm(r1, y)));
                 self.add(IR::Imm(reg_imm(r1, 1)));
                 self.add(IR::Label(imm(y)));
-
                 r1
             }
 
@@ -355,18 +353,6 @@ impl<'a> Generate<'a> {
                 lhs,
                 rhs,
             ),
-
-            Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
-                let r = self.gen_lval(&node);
-                match ty {
-                    Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
-                    Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
-                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
-                        self.add(IR::Load(Width::W64, reg_reg(r, r)))
-                    }
-                };
-                r
-            }
 
             Node::Call { name, args } => {
                 let mut exprs = vec![];
@@ -444,15 +430,24 @@ impl<'a> Generate<'a> {
 
             Node::Addr { expr, .. } => self.gen_lval(expr),
 
+            Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
+                let r = self.gen_lval(&node);
+                self.add(load_instruction(ty, reg_reg(r, r)));
+                r
+            }
+
+            Node::Dot { expr, .. } => {
+                let r = self.gen_lval(&node);
+                self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
+                r
+            }
+
             Node::Deref { expr } => {
                 let r = self.gen_expr(expr);
-                match expr.get_type().as_ptr().expect("deref to be a pointer") {
-                    Type::Char => self.add(IR::Load(Width::W8, reg_reg(r, r))),
-                    Type::Int => self.add(IR::Load(Width::W32, reg_reg(r, r))),
-                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
-                        self.add(IR::Load(Width::W64, reg_reg(r, r)))
-                    }
-                }
+                self.add(load_instruction(
+                    expr.get_type().as_ptr().expect("deref to be a pointer"),
+                    reg_reg(r, r),
+                ));
                 r
             }
 
@@ -485,10 +480,18 @@ impl<'a> Generate<'a> {
             return self.gen_expr(expr);
         }
 
+        if let Node::Dot { expr, offset, .. } = &node {
+            let r1 = self.gen_lval(expr);
+            let r2 = self.next_reg();
+            self.add(IR::Imm(reg_imm(r2, *offset)));
+            self.add(IR::Add(reg_reg(r1, r2)));
+            self.add(IR::Kill(reg(r2)));
+            return r1;
+        }
+
         if let Node::LVal { offset, ty: _ty } = &node {
             let r = self.next_reg();
             self.add(IR::BpRel(reg_imm(r, *offset)));
-
             return r;
         }
 
@@ -517,7 +520,9 @@ impl<'a> Generate<'a> {
     fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
         let r1 = self.gen_expr(lhs);
         let r2 = self.gen_expr(rhs);
+        eprintln!("a ir: {:#?}", ir);
         *ir = reg_reg(r1, r2);
+        eprintln!("b ir: {:#?}", ir);
         self.add(ir);
         self.add(IR::Kill(reg(r2)));
         r1
@@ -541,6 +546,16 @@ impl<'a> Generate<'a> {
 }
 
 // helpers to make IRTypes
+
+#[inline]
+fn load_instruction(ty: &Type, irt: IRType) -> IR {
+    match ty {
+        Type::Char => IR::Load(Width::W8, irt),
+        Type::Int => IR::Load(Width::W32, irt),
+        Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => IR::Load(Width::W64, irt),
+    }
+}
+
 #[inline]
 fn reg_reg(dst: i32, src: i32) -> IRType {
     IRType::RegReg { dst, src }
@@ -623,48 +638,46 @@ impl DerefMut for IR {
     }
 }
 
-impl fmt::Debug for IRType {
+impl fmt::Display for IRType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use IRType::*;
         match self {
-            RegReg { dst, src } => write!(f, "RegReg {{ dst: {:?}, src: {:?} }}", dst, src),
-            RegImm { reg, val } => write!(f, "RegImm {{ reg: {:?}, val: {:?} }}", reg, val),
-            RegLabel { reg, label } => write!(f, "RegLabel {{ reg: {:?}, label: {} }}", reg, label),
-            Reg { src } => write!(f, "Reg {{ src: {:?} }}", src),
-            Imm { val } => write!(f, "Imm {{ val: {:?} }}", val),
-            Cmp { cmp, dst, src } => {
-                write!(f, "Cmp {:?} {{ dst: {:?}, src: {:?} }}", cmp, dst, src)
-            }
-            Call { reg, name, args } => write!(f, "Call {{ {} @ {}({:?}) }}", reg, name, args),
-            Nop => write!(f, "Nop {{ }}"),
+            RegReg { dst, src } => write!(f, "r{}, r{}", dst, src),
+            RegImm { reg, val } => write!(f, "r{}, {}", reg, val),
+            RegLabel { reg, label } => write!(f, "r{}, {}", reg, label),
+            Reg { src } => write!(f, "r{}", src),
+            Imm { val } => write!(f, "{}", val),
+            Cmp { cmp, dst, src } => write!(f, "{} r{}, r{}", cmp, dst, src),
+            Call { reg, name, args } => write!(f, "CALL r{} @ {}({:?})", reg, name, args),
+            Nop => write!(f, "NOP"),
         }
     }
 }
 
-impl fmt::Debug for IR {
+impl fmt::Display for IR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use IR::*;
 
         match self {
-            Imm(ty) => write!(f, "Imm {{ {:?} }}", ty),
-            Mov(ty) => write!(f, "Mov {{ {:?} }}", ty),
-            Return(ty) => write!(f, "Return {{ {:?} }}", ty),
-            Load(w, ty) => write!(f, "Load {:?} {{ {:?} }}", w, ty),
-            Store(w, ty) => write!(f, "Store {:?} {{ {:?} }}", w, ty),
-            StoreArg(w, ty) => write!(f, "StoreArg {:?} {{ {:?} }}", w, ty),
-            BpRel(ty) => write!(f, "BpRel {{ {:?} }}", ty),
-            Unless(ty) => write!(f, "Unless {{ {:?} }}", ty),
-            Label(ty) => write!(f, "Label {{ {:?} }}", ty),
-            Jmp(ty) => write!(f, "Jmp {{ {:?} }}", ty),
-            If(ty) => write!(f, "If {{ {:?} }}", ty),
-            Add(ty) => write!(f, "Add {{ {:?} }}", ty),
-            Sub(ty) => write!(f, "Sub {{ {:?} }}", ty),
-            Mul(ty) => write!(f, "Mul {{ {:?} }}", ty),
-            Div(ty) => write!(f, "Div {{ {:?} }}", ty),
-            Comparison(ty) => write!(f, "Cmp {{ {:?} }}", ty),
-            Kill(ty) => write!(f, "Kill {{ {:?} }}", ty),
-            Nop(ty) => write!(f, "Nop {{ {:?} }}", ty),
-            Call(ty) => write!(f, "Call {{ {:?} }}", ty),
+            Imm(ty) => write!(f, "IMM {}", ty),
+            Mov(ty) => write!(f, "MOV {}", ty),
+            Return(ty) => write!(f, "RETURN {} ", ty),
+            Load(w, ty) => write!(f, "LOAD {} {}", w, ty),
+            Store(w, ty) => write!(f, "STORE {} {}", w, ty),
+            StoreArg(w, ty) => write!(f, "STOREARG {} {}", w, ty),
+            BpRel(ty) => write!(f, "BPREL {}", ty),
+            Unless(ty) => write!(f, "UNLESS {}", ty),
+            Label(ty) => write!(f, "LABEL {}", ty),
+            Jmp(ty) => write!(f, "JMP {}", ty),
+            If(ty) => write!(f, "IF {}", ty),
+            Add(ty) => write!(f, "ADD {}", ty),
+            Sub(ty) => write!(f, "SUB {}", ty),
+            Mul(ty) => write!(f, "MUL {}", ty),
+            Div(ty) => write!(f, "DIV {}", ty),
+            Comparison(ty) => write!(f, "CMP {}", ty),
+            Kill(ty) => write!(f, "KILL {}", ty),
+            Nop(ty) => write!(f, "NOP {}", ty),
+            Call(ty) => write!(f, "CALL {}", ty),
         }
     }
 }

@@ -118,6 +118,12 @@ pub enum Node {
         offset: i32, // used for alignment
     },
 
+    Dot {
+        expr: Kind,
+        member: String,
+        offset: i32, // used for offset into the struct
+    },
+
     If {
         cond: Kind,
         body: Kind,
@@ -205,7 +211,7 @@ impl Node {
             | Node::Div { ty, .. } => ty.as_ref().expect("get type"),
 
             Node::Addr { ty, .. } => ty,
-            Node::Deref { expr } => expr.get_type(),
+            Node::Deref { expr } | Node::Dot { expr, .. } => expr.get_type(),
 
             // Node::Return { expr } => expr.get_type(),
             Node::Constant { ty, .. }
@@ -226,7 +232,7 @@ impl Node {
                 ty.get_or_insert(newtype);
             }
 
-            Node::Deref { expr, .. } => expr.set_type(newtype),
+            Node::Deref { expr, .. } | Node::Dot { expr, .. } => expr.set_type(newtype),
 
             Node::Assign { lhs, .. } => lhs.set_type(newtype),
 
@@ -260,7 +266,7 @@ impl Node {
         let is_extern = consume(tokens, Token::Extern);
 
         let mut ty = Self::ty(tokens);
-        let (_, name) = expect_ident(tokens, "function name");
+        let name = Self::ident(tokens);
 
         // functions
         if consume(tokens, '(') {
@@ -277,7 +283,7 @@ impl Node {
             return Node::Func {
                 ty: ty.clone(),
                 body: Kind::make(Self::compound_stmt(tokens)),
-                name: name.clone(),
+                name,
                 args,
                 stacksize: 0,
                 globals: vec![],
@@ -288,7 +294,7 @@ impl Node {
 
         let node = Node::Vardef {
             ty: Self::read_array(tokens, &mut ty).clone(),
-            name: name.clone(),
+            name,
             init: Kind::empty(),
             offset: 0,
             data,
@@ -301,10 +307,7 @@ impl Node {
 
     fn param(tokens: &mut Tokens) -> Self {
         let ty = Self::ty(tokens);
-
-        let (_, name) = expect_ident(tokens, "variable name as param");
-        let name = name.to_string();
-
+        let name = Self::ident(tokens);
         let init = if consume(tokens, '=') {
             Kind::make(Self::assign(tokens))
         } else {
@@ -449,11 +452,8 @@ impl Node {
     fn decl(tokens: &mut Tokens) -> Self {
         let mut ty = Self::ty(tokens);
 
-        let (_, name) = expect_ident(tokens, "variable name as decl");
-        let name = name.to_string();
-
+        let name = Self::ident(tokens);
         let array = Self::read_array(tokens, &mut ty);
-
         let init = if consume(tokens, '=') {
             Kind::make(Self::assign(tokens))
         } else {
@@ -695,8 +695,24 @@ impl Node {
         }
     }
 
+    fn ident(tokens: &mut Tokens) -> String {
+        if let (_, Token::Ident(name)) = expect(tokens, Token::Ident("".into()), "identifier") {
+            return name;
+        }
+
+        unimplemented!()
+    }
+
     fn postfix(tokens: &mut Tokens) -> Self {
         let mut lhs = Self::primary(tokens);
+        if consume(tokens, '.') {
+            return Node::Dot {
+                offset: 0,
+                expr: Kind::make(lhs),
+                member: Self::ident(tokens),
+            };
+        }
+
         while consume(tokens, '[') {
             lhs = Node::Deref {
                 expr: Kind::make(Node::Add {

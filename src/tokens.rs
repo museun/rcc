@@ -149,7 +149,6 @@ impl From<&'static str> for Token {
 impl From<char> for Token {
     fn from(c: char) -> Token {
         if is_left_char(c) {
-            // what
             return Token::Char(c);
         }
 
