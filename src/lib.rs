@@ -23,6 +23,9 @@ pub use lexer::*;
 mod kind;
 pub use kind::*;
 
+mod node;
+pub use node::*;
+
 mod parser;
 pub use parser::*;
 

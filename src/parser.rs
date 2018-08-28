@@ -1,236 +1,35 @@
 #![allow(dead_code)]
 use super::*;
+use std::collections::HashMap;
 use std::fmt;
 
-#[allow(unknown_lints, large_enum_variant)]
-#[derive(Debug, Clone, PartialEq)]
-pub enum Node {
-    Constant {
-        val: u32, // XXX: why is this a u32
-        ty: Type,
-    },
-
-    Ident {
-        name: String,
-    },
-
-    Str {
-        str: String,
-        ty: Type, // array
-    },
-
-    Addr {
-        expr: Kind,
-        ty: Type,
-    },
-
-    Add {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Sub {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Mul {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Div {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    LogAnd {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    LogOr {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Equals {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    NEquals {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Assign {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    Comparison {
-        lhs: Kind,
-        rhs: Kind,
-        comp: Comp,
-    },
-
-    LVal {
-        offset: i32,
-        ty: Type,
-    },
-
-    GVar {
-        name: String,
-        ty: Type,
-    },
-
-    Deref {
-        expr: Kind,
-    },
-
-    Vardef {
-        ty: Type,
-        name: String,
-        init: Kind,
-        offset: i32,
-        data: i32,
-        is_extern: bool,
-    },
-
-    Return {
-        expr: Kind,
-    },
-
-    Sizeof {
-        expr: Kind,
-    },
-
-    Alignof {
-        expr: Kind,
-    },
-
-    Struct {
-        members: Vec<Kind>,
-        offset: i32, // used for alignment
-    },
-
-    Dot {
-        expr: Kind,
-        member: String,
-        offset: i32, // used for offset into the struct
-    },
-
-    If {
-        cond: Kind,
-        body: Kind,
-        else_: Kind,
-    },
-
-    DoWhile {
-        body: Kind,
-        cond: Kind,
-    },
-
-    Else {
-        body: Kind,
-    },
-
-    For {
-        init: Kind,
-        cond: Kind,
-        step: Kind,
-        body: Kind,
-    },
-
-    Call {
-        name: String,
-        args: Vec<Kind>,
-    },
-
-    Func {
-        name: String,
-        args: Vec<Kind>,
-        body: Kind,
-        stacksize: i32,
-        ty: Type,
-        globals: Vec<Var>,
-    },
-
-    Statement {
-        stmt: Kind,
-        ty: Type,
-    },
-
-    Expression {
-        expr: Kind,
-    },
-
-    Compound {
-        stmts: Vec<Kind>,
-    },
-
-    Noop {},
+#[derive(Debug, Clone)]
+struct Environment {
+    tags: HashMap<String, Vec<Node>>,
+    prev: Option<Box<Environment>>,
 }
 
-impl Node {
-    /// instrinsic types
-    pub(crate) fn has_type(&self) -> bool {
-        match self {
-            Node::Constant { .. } | Node::GVar { .. } | Node::LVal { .. } | Node::Vardef { .. } => {
-                true
-            }
-            _ => false,
+impl Environment {
+    pub fn new(env: Option<Environment>) -> Self {
+        Self {
+            tags: HashMap::new(),
+            prev: env.and_then(|env| Some(Box::new(env))),
         }
     }
-
-    pub(crate) fn get_type(&self) -> &Type {
-        match self {
-            Node::Add { lhs, .. }
-            | Node::Sub { lhs, .. }
-            | Node::Mul { lhs, .. }
-            | Node::Div { lhs, .. } => lhs.get_type(),
-
-            Node::Addr { ty, .. } => ty,
-            Node::Deref { expr } | Node::Dot { expr, .. } => expr.get_type(),
-
-            Node::Constant { ty, .. }
-            | Node::Statement { ty, .. }
-            | Node::GVar { ty, .. }
-            | Node::LVal { ty, .. }
-            | Node::Vardef { ty, .. } => ty,
-            _ => fail!("doesn't have a type\n{:#?}", self),
-        }
-    }
-
-    pub(crate) fn set_type(&mut self, newtype: Type) {
-        match self {
-            Node::Add { lhs, rhs }
-            | Node::Sub { lhs, rhs }
-            | Node::Mul { lhs, rhs }
-            | Node::Div { lhs, rhs } => {
-                lhs.set_type(newtype.clone());
-                rhs.set_type(newtype);
-            }
-            Node::Deref { expr, .. } | Node::Dot { expr, .. } => expr.set_type(newtype),
-            Node::Assign { lhs, .. } => lhs.set_type(newtype),
-            _ => unreachable!(),
-        };
-    }
 }
 
-impl AsMut<Node> for Node {
-    fn as_mut(&mut self) -> &mut Node {
-        self
-    }
+pub struct Parser {
+    env: Environment,
 }
-
-pub struct Parser {}
 
 impl Parser {
     pub fn parse(mut tokens: Tokens) -> Vec<Node> {
         let tokens = &mut tokens;
-        let mut this = Parser {};
+
+        let mut this = Parser {
+            env: Environment::new(None),
+        };
+
         let mut nodes = vec![];
         while let Some((_, tok)) = tokens.peek() {
             if *tok == Token::EOF {
@@ -304,10 +103,17 @@ impl Parser {
     }
 
     fn compound_stmt(&mut self, tokens: &mut Tokens) -> Node {
+        let newenv = Environment::new(Some(self.env.clone()));
+        self.env = newenv;
+
         let mut stmts = vec![];
         while !consume(tokens, '}') {
             stmts.push(Kind::make(self.stmt(tokens)))
         }
+
+        // nice
+        self.env = *(self.env.prev.as_ref().unwrap()).clone();
+
         Node::Compound { stmts }
     }
 
@@ -743,12 +549,49 @@ impl Parser {
                 tokens::Type::Int => Type::Int,
             },
             Token::Struct => {
-                expect_token(tokens, '{');
-                let mut members = vec![];
-                while !consume(tokens, '}') {
-                    members.push(self.decl(tokens))
-                }
-                Type::struct_of(&members)
+                let tag = if let Some((_, Token::Ident(s))) = tokens.peek() {
+                    let s = Some(s.clone());
+                    tokens.advance();
+                    s
+                } else {
+                    None
+                };
+
+                let mut members = if consume(tokens, '{') {
+                    let mut v = vec![];
+                    while !consume(tokens, '}') {
+                        v.push(self.decl(tokens));
+                    }
+                    Some(v)
+                } else {
+                    None
+                };
+
+                match (tag.is_none(), members.is_none()) {
+                    (true, true) => {
+                        fail!("bad struct definition");
+                    }
+                    (false, false) => {
+                        self.env.tags.insert(
+                            tag.as_ref().unwrap().to_string(),
+                            members.as_ref().unwrap().clone(),
+                        );
+                    }
+                    (false, true) => {
+                        let tag = tag.unwrap();
+                        members = self
+                            .env
+                            .tags
+                            .get(tag.as_str())
+                            .and_then(|m| Some(m.clone()));
+                        if members.is_none() {
+                            fail!("incomplete type: {}", tag);
+                        }
+                    }
+                    _ => {} // no tag
+                };
+
+                Type::struct_of(&members.as_ref().unwrap())
             }
             _ => unreachable!(),
         };
