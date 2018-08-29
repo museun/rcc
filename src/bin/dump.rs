@@ -43,11 +43,11 @@ fn compile(file: &str, input: &str) {
 
     let mut ast = Parser::parse(tokens);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
-    eprintln!("{:#?}", ast);
+    //eprintln!("{:#?}", ast);
 
     let nodes = Semantics::analyze(&mut ast);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "semantics:"));
-    eprintln!("{:#?}", nodes);
+    //eprintln!("{:#?}", nodes);
 
     let mut ir = Generate::gen_ir(&nodes);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));

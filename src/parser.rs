@@ -479,34 +479,40 @@ impl Parser {
 
     fn postfix(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.primary(tokens);
-        if consume(tokens, '.') {
-            return Node::Dot {
-                offset: 0,
-                expr: Kind::make(lhs),
-                member: self.ident(tokens),
-            };
-        }
-
-        if consume(tokens, "->") {
-            return Node::Dot {
-                offset: 0,
-                expr: Kind::make(Node::Deref {
+        loop {
+            if consume(tokens, '.') {
+                lhs = Node::Dot {
+                    offset: 0,
                     expr: Kind::make(lhs),
-                }),
-                member: self.ident(tokens),
-            };
-        }
+                    name: self.ident(tokens),
+                };
+                continue;
+            }
 
-        while consume(tokens, '[') {
-            lhs = Node::Deref {
-                expr: Kind::make(Node::Add {
-                    lhs: Kind::make(lhs),
-                    rhs: Kind::make(self.assign(tokens)),
-                }),
-            };
-            expect_token(tokens, ']')
+            if consume(tokens, "->") {
+                lhs = Node::Dot {
+                    offset: 0,
+                    expr: Kind::make(Node::Deref {
+                        expr: Kind::make(lhs),
+                    }),
+                    name: self.ident(tokens),
+                };
+                continue;
+            }
+
+            if consume(tokens, '[') {
+                lhs = Node::Deref {
+                    expr: Kind::make(Node::Add {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(self.assign(tokens)),
+                    }),
+                };
+                expect_token(tokens, ']');
+                continue;
+            }
+            eprintln!("final lhs: {:#?}", lhs);
+            return lhs;
         }
-        lhs
     }
 
     fn read_array(&mut self, tokens: &mut Tokens, ty: Type) -> Type {

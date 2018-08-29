@@ -17,11 +17,6 @@ pub enum Node {
         ty: Type, // array
     },
 
-    Addr {
-        expr: Kind,
-        ty: Type,
-    },
-
     Add {
         lhs: Kind,
         rhs: Kind,
@@ -62,15 +57,15 @@ pub enum Node {
         rhs: Kind,
     },
 
-    Assign {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
     Comparison {
         lhs: Kind,
         rhs: Kind,
         comp: Comp,
+    },
+
+    Assign {
+        lhs: Kind,
+        rhs: Kind,
     },
 
     LVal {
@@ -80,6 +75,11 @@ pub enum Node {
 
     GVar {
         name: String,
+        ty: Type,
+    },
+
+    Addr {
+        expr: Kind,
         ty: Type,
     },
 
@@ -96,6 +96,17 @@ pub enum Node {
         is_extern: bool,
     },
 
+    Struct {
+        members: Vec<Kind>,
+        offset: i32, // used for alignment
+    },
+
+    Dot {
+        expr: Kind,
+        name: String,
+        offset: i32, // used for offset into the struct
+    },
+
     Return {
         expr: Kind,
     },
@@ -108,30 +119,19 @@ pub enum Node {
         expr: Kind,
     },
 
-    Struct {
-        members: Vec<Kind>,
-        offset: i32, // used for alignment
-    },
-
-    Dot {
-        expr: Kind,
-        member: String,
-        offset: i32, // used for offset into the struct
-    },
-
     If {
         cond: Kind,
         body: Kind,
         else_: Kind,
     },
 
+    Else {
+        body: Kind,
+    },
+
     DoWhile {
         body: Kind,
         cond: Kind,
-    },
-
-    Else {
-        body: Kind,
     },
 
     For {

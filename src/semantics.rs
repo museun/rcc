@@ -215,11 +215,7 @@ impl<'a> Semantics<'a> {
                 node.set_type(lhs);
             }
 
-            Node::Dot {
-                expr,
-                member: name,
-                offset,
-            } => {
+            Node::Dot { expr, name, offset } => {
                 self.walk(env, expr.as_mut(), true);
                 let ty = expr.get_type();
                 let (ty, off) = if let Type::Struct { members, .. } = ty {

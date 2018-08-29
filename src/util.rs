@@ -14,22 +14,42 @@ pub enum Color {
     Red,
     Green,
     Yellow,
-    Cyan,
-    Magenta,
     Blue,
+    Magenta,
+    Cyan,
     White,
+
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
 }
 
 impl Color {
+    pub fn len() -> usize {
+        7 * 2
+    }
+
     pub fn get(self) -> &'static str {
         match self {
             Color::Red => "\x1B[31m",
             Color::Green => "\x1B[32m",
             Color::Yellow => "\x1B[33m",
-            Color::Cyan => "\x1B[36m",
-            Color::Magenta => "\x1B[35m",
             Color::Blue => "\x1B[34m",
+            Color::Magenta => "\x1B[35m",
+            Color::Cyan => "\x1B[36m",
             Color::White => "\x1B[37m",
+
+            Color::BrightRed => "\x1B[91m",
+            Color::BrightGreen => "\x1B[92m",
+            Color::BrightYellow => "\x1B[93m",
+            Color::BrightBlue => "\x1B[94m",
+            Color::BrightMagenta => "\x1B[95m",
+            Color::BrightCyan => "\x1B[96m",
+            Color::BrightWhite => "\x1B[97m",
         }
     }
 
@@ -40,9 +60,6 @@ impl Color {
 
 #[macro_export]
 macro_rules! wrap_color {
-    //, $(arg:tt),* $(,)*
-
-    // TODO fix this
     ($color:expr, $fmt:expr) => {{
         format!("{}{}{}", $color.get(), $fmt, Color::reset())
     }};
@@ -90,19 +107,82 @@ pub fn round(x: i32, align: i32) -> i32 {
     (x + align - 1) & !(align - 1)
 }
 
-pub fn join_with<S, I, T>(mut iter: I, sep: S) -> String
-where
-    S: AsRef<str>,
-    T: AsRef<str>,
-    I: Iterator<Item = T>,
-{
-    let mut buf = String::new();
-    if let Some(s) = iter.next() {
-        buf.push_str(s.as_ref());
-    }
-    for i in iter {
-        buf.push_str(sep.as_ref());
-        buf.push_str(i.as_ref());
-    }
-    buf
+use std::borrow::Cow;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+const IDENTATION: usize = 4;
+static TRACER_DEPTH: AtomicUsize = AtomicUsize::new(0);
+
+pub fn indent() {
+    let _ = TRACER_DEPTH.fetch_add(IDENTATION, Ordering::Relaxed);
 }
+
+pub fn dedent() {
+    let _ = TRACER_DEPTH.fetch_sub(IDENTATION, Ordering::Relaxed);
+}
+
+pub fn reset_level() {
+    TRACER_DEPTH.store(0, Ordering::Relaxed)
+}
+
+pub fn level() -> usize {
+    TRACER_DEPTH.load(Ordering::Relaxed)
+}
+
+#[macro_export]
+macro_rules! tracer {
+    ($e:expr, $($args:tt)*) => {{
+         Tracer::new($e, &format!($($args)*))
+    }};
+}
+
+pub struct Tracer<'a> {
+    label: &'a str,
+    pad: Cow<'a, str>,
+}
+
+impl<'a> Tracer<'a> {
+    pub fn new(label: &'a str, data: &str) -> Self {
+        let pad = ::std::iter::repeat(".")
+            .take(level())
+            .collect::<String>()
+            .into();
+        let next = COLORS[(level() + COLORS.len() - 1) % COLORS.len()];
+        let lede = wrap_color!(next, "{}>", pad);
+        eprintln!("{}{}: {}", lede, label, data);
+        indent();
+        Tracer { label, pad }
+    }
+
+    pub fn writeln(&self, data: &str) {
+        let next = COLORS[(level() + COLORS.len() - 1) % COLORS.len()];
+        let lede = wrap_color!(next, "{}?", self.pad);
+        eprintln!("{}{}", lede, data);
+    }
+}
+
+impl<'a> Drop for Tracer<'a> {
+    fn drop(&mut self) {
+        dedent();
+        let next = COLORS[(level() + COLORS.len() - 1) % COLORS.len()];
+        let lede = wrap_color!(next, "<{}", self.pad);
+        eprintln!("{}{}", lede, self.label);
+    }
+}
+
+static COLORS: [Color; 14] = [
+    Color::Red,
+    Color::Green,
+    Color::Yellow,
+    Color::Blue,
+    Color::Magenta,
+    Color::Cyan,
+    Color::White,
+    Color::BrightRed,
+    Color::BrightGreen,
+    Color::BrightYellow,
+    Color::BrightBlue,
+    Color::BrightMagenta,
+    Color::BrightCyan,
+    Color::BrightWhite,
+];

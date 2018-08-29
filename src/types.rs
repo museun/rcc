@@ -1,5 +1,4 @@
 use super::*;
-use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -131,23 +130,24 @@ impl AlignOf for Type {
     }
 }
 
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Type::Char => write!(f, "Char"),
-            Type::Int => write!(f, "Int"),
-            Type::Ptr { ptr, size, align } => write!(f, "Ptr: {} ({},{})", ptr, size, align),
-            Type::Array { base, len, .. } => write!(f, "Arr of {}, {}", base, len),
-            Type::Struct { members, .. } => {
-                write!(f, "Struct {{")?;
-                for (i, member) in members.iter().enumerate() {
-                    write!(f, "{:?}", member)?;
-                    if i < members.len() {
-                        write!(f, ", ")?;
-                    }
-                }
-                write!(f, "}}")
-            }
-        }
-    }
-}
+// TODO redo this
+// impl fmt::Display for Type {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             Type::Char => write!(f, "Char"),
+//             Type::Int => write!(f, "Int"),
+//             Type::Ptr { ptr, size, align } => write!(f, "Ptr: {} ({},{})",
+// ptr, size, align),             Type::Array { base, len, .. } => write!(f,
+// "Arr of {}, {}", base, len),             Type::Struct { members, .. } => {
+//                 write!(f, "Struct {{")?;
+//                 for (i, member) in members.iter().enumerate() {
+//                     write!(f, "{:?}", member)?;
+//                     if i < members.len() {
+//                         write!(f, ", ")?;
+//                     }
+//                 }
+//                 write!(f, "}}")
+//             }
+//         }
+//     }
+// }
