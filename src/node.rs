@@ -1,4 +1,8 @@
-use super::*;
+use kind::Kind;
+use semantics::Var;
+use types::Type;
+
+use std::fmt;
 
 #[allow(unknown_lints, large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
@@ -173,7 +177,7 @@ pub enum Node {
 
 impl Node {
     /// instrinsic types
-    pub(crate) fn has_type(&self) -> bool {
+    pub fn has_type(&self) -> bool {
         match self {
             Node::Constant { .. } | Node::GVar { .. } | Node::LVal { .. } | Node::Vardef { .. } => {
                 true
@@ -182,7 +186,7 @@ impl Node {
         }
     }
 
-    pub(crate) fn get_type(&self) -> &Type {
+    pub fn get_type(&self) -> &Type {
         match self {
             Node::Add { lhs, .. }
             | Node::Sub { lhs, .. }
@@ -220,5 +224,25 @@ impl Node {
 impl AsMut<Node> for Node {
     fn as_mut(&mut self) -> &mut Node {
         self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Comp {
+    Gt, // same as lt assembly-wise
+    Lt,
+    Eq,
+    NEq,
+}
+
+impl fmt::Display for Comp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let w = match self {
+            Comp::Gt => ">",
+            Comp::Lt => "<",
+            Comp::Eq => "==",
+            Comp::NEq => "!=",
+        };
+        write!(f, "{}", w)
     }
 }

@@ -1,46 +1,21 @@
+#![allow(dead_code)]
 #![feature(nll)]
-#![recursion_limit = "1024"]
-
-// TODO remove this
-pub(crate) const MAX_INST: usize = 1000;
 
 #[macro_use]
 mod util;
 pub use util::*;
 
-mod span; // code spans for reporting
-pub use span::*;
-
-mod types;
-pub use types::*;
-
-mod tokens;
-pub use tokens::{Type as TokType, *};
-
-mod lexer;
-pub use lexer::*;
-
-mod kind;
-pub use kind::*;
-
-mod node;
-pub use node::*;
-
-mod parser;
-pub use parser::*;
-
-mod ir;
-pub use ir::*;
-
-mod registers;
-pub use registers::*;
-
-mod codegen;
-pub use codegen::*;
-
-mod semantics;
-pub use semantics::*;
-
+pub mod codegen;
 pub mod frontend;
+pub mod ir;
+pub mod kind;
+pub mod lexer;
+pub mod node;
+pub mod parser;
+pub mod registers;
+pub mod semantics;
+pub mod span;
+pub mod tokens;
+pub mod types;
 
 pub mod test;

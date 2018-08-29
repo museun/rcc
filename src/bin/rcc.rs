@@ -1,8 +1,5 @@
-use std::{
-    env::args,
-    fs,
-    io::{self, prelude::*},
-};
+use std::env::args;
+use std::fs;
 
 #[macro_use]
 extern crate rcc;
@@ -10,26 +7,15 @@ use rcc::*;
 
 fn main() {
     let args = args();
-    let input = if args.len() == 1 {
-        let mut buffer = String::new();
-        io::stdin()
-            .read_to_string(&mut buffer)
-            .expect("to read stdin");
-        buffer
-    } else if args.len() != 2 {
+    let input = if args.len() != 2 {
         fail!("usage: rcc file");
     } else {
         args.skip(1).collect::<String>()
     };
 
     let fi = fs::read_to_string(&input).expect("to read file");
-    let tokens = Tokens::tokenize(&input, &fi);
-    if tokens.is_empty() {
-        fail!("didn't tokenize anything");
+    match frontend::compile(&input, fi) {
+        Ok(output) => println!("{}", output),
+        Err(_err) => eprintln!("error!"),
     }
-    let mut ast = Parser::parse(tokens);
-    let ast = Semantics::analyze(&mut ast);
-    let mut ir = Generate::gen_ir(&ast);
-    let ir = Registers::allocate(&mut ir);
-    println!("{}", generate_x64(&ABI::SystemV, ir));
 }

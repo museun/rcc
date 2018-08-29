@@ -1,13 +1,16 @@
-use super::*;
+use node::Node;
+use types::{AlignOf, SizeOf, Type};
+use util::*;
+
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Var {
-    pub(crate) ty: Type,
-    pub(crate) offset: i32,
-    pub(crate) global: Option<(String, String)>, // None = local
-    pub(crate) data: i32,
-    pub(crate) is_extern: bool,
+    pub ty: Type,
+    pub offset: i32,
+    pub global: Option<(String, String)>, // None = local
+    pub data: i32,
+    pub is_extern: bool,
 }
 
 pub struct Semantics<'a> {

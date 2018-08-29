@@ -1,12 +1,18 @@
-use std::{
-    env::args,
-    fs,
-    io::{self, prelude::*},
-};
+use std::env::args;
+use std::fs;
+use std::io::{self, prelude::*};
 
 #[macro_use]
 extern crate rcc;
-use rcc::*;
+use rcc::{
+    codegen,              //
+    ir::Generate,         //
+    parser::Parser,       //
+    registers::Registers, //
+    semantics::Semantics, //
+    tokens::Tokens,       //
+    *,
+};
 
 fn main() {
     let args = args();
@@ -49,7 +55,7 @@ fn compile(file: &str, input: &str) {
     eprintln!("{}", wrap_color!(Color::Yellow {}, "semantics:"));
     //eprintln!("{:#?}", nodes);
 
-    let mut ir = Generate::gen_ir(&nodes);
+    let mut ir = Generate::generate(&nodes);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ir:"));
     for func in &ir {
         eprintln!("{}(): -- {}", func.name, func.stacksize);
@@ -81,7 +87,7 @@ fn compile(file: &str, input: &str) {
         }
     }
 
-    let asm = generate_x64(&ABI::SystemV, ir);
+    let asm = codegen::generate_x64(&codegen::ABI::SystemV, ir);
     eprintln!("{}", wrap_color!(Color::Yellow {}, "asm:"));
     eprintln!("{}", asm);
 }

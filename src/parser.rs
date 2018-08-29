@@ -1,7 +1,11 @@
-#![allow(dead_code)]
-use super::*;
+use kind::Kind;
+use node::{Comp, Node};
+use span::Span;
+use tokens::{Token, Tokens, Type as TokType};
+use types::{SizeOf, Type};
+use util::*;
+
 use std::collections::HashMap;
-use std::fmt;
 
 #[derive(Debug, Clone)]
 struct Environment {
@@ -35,14 +39,14 @@ impl Parser {
             if *tok == Token::EOF {
                 break;
             }
-            nodes.push(this.top_level(tokens))
+            nodes.push(this.root(tokens))
         }
         nodes
     }
 
-    fn top_level(&mut self, tokens: &mut Tokens) -> Node {
+    fn root(&mut self, tokens: &mut Tokens) -> Node {
         let is_extern = consume(tokens, Token::Extern);
-        let ty = self.ty(tokens);
+        let ty = self.type_(tokens);
         let name = self.ident(tokens);
 
         // functions
@@ -59,7 +63,7 @@ impl Parser {
 
             return Node::Func {
                 ty,
-                body: Kind::make(self.compound_stmt(tokens)),
+                body: Kind::make(self.compound(tokens)),
                 name,
                 args,
                 stacksize: 0,
@@ -83,7 +87,7 @@ impl Parser {
     }
 
     fn param(&mut self, tokens: &mut Tokens) -> Node {
-        let ty = self.ty(tokens);
+        let ty = self.type_(tokens);
         let name = self.ident(tokens);
         let init = if consume(tokens, '=') {
             Kind::make(self.assign(tokens))
@@ -102,13 +106,13 @@ impl Parser {
         }
     }
 
-    fn compound_stmt(&mut self, tokens: &mut Tokens) -> Node {
+    fn compound(&mut self, tokens: &mut Tokens) -> Node {
         let newenv = Environment::new(Some(self.env.clone()));
         self.env = newenv;
 
         let mut stmts = vec![];
         while !consume(tokens, '}') {
-            stmts.push(Kind::make(self.stmt(tokens)))
+            stmts.push(Kind::make(self.statement(tokens)))
         }
 
         // nice
@@ -117,21 +121,21 @@ impl Parser {
         Node::Compound { stmts }
     }
 
-    fn stmt(&mut self, tokens: &mut Tokens) -> Node {
+    fn statement(&mut self, tokens: &mut Tokens) -> Node {
         let (pos, next) = tokens.peek().expect("token for statement");
 
         match next {
-            Token::Type(_) | Token::Struct => self.decl(tokens),
+            Token::Type(_) | Token::Struct => self.declaration(tokens),
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
                 let cond = Kind::make(self.assign(tokens));
 
                 expect_token(tokens, ')');
-                let body = Kind::make(self.stmt(tokens));
+                let body = Kind::make(self.statement(tokens));
 
                 let else_ = if consume(tokens, "else") {
-                    Kind::make(self.stmt(tokens))
+                    Kind::make(self.statement(tokens))
                 } else {
                     Kind::empty()
                 };
@@ -142,9 +146,9 @@ impl Parser {
                 tokens.advance();
                 expect_token(tokens, '(');
                 let init = if is_typename(tokens) {
-                    self.decl(tokens)
+                    self.declaration(tokens)
                 } else {
-                    self.expr_stmt(tokens)
+                    self.expression(tokens)
                 };
 
                 let cond = self.assign(tokens);
@@ -156,7 +160,7 @@ impl Parser {
 
                 expect_token(tokens, ')');
 
-                let body = self.stmt(tokens);
+                let body = self.statement(tokens);
                 Node::For {
                     init: Kind::make(init),
                     cond: Kind::make(cond),
@@ -172,7 +176,7 @@ impl Parser {
                 let cond = self.assign(tokens);
 
                 expect_token(tokens, ')');
-                let body = self.stmt(tokens);
+                let body = self.statement(tokens);
 
                 Node::For {
                     init: Kind::empty(),
@@ -184,7 +188,7 @@ impl Parser {
 
             Token::Do => {
                 tokens.advance();
-                let body = self.stmt(tokens);
+                let body = self.statement(tokens);
 
                 expect_token(tokens, Token::While);
                 expect_token(tokens, '(');
@@ -211,7 +215,7 @@ impl Parser {
                 tokens.advance();
                 let mut stmts = vec![];
                 while !consume(tokens, '}') {
-                    stmts.push(Kind::make(self.stmt(tokens)));
+                    stmts.push(Kind::make(self.statement(tokens)));
                 }
                 Node::Compound { stmts }
             }
@@ -219,14 +223,14 @@ impl Parser {
                 tokens.advance();
                 Node::Noop {}
             }
-            tok if *tok != Token::EOF => self.expr_stmt(tokens),
+            tok if *tok != Token::EOF => self.expression(tokens),
             _ => {
                 expect_fail("", pos, "token wasn't") // expected
             }
         }
     }
 
-    fn expr_stmt(&mut self, tokens: &mut Tokens) -> Node {
+    fn expression(&mut self, tokens: &mut Tokens) -> Node {
         let node = Node::Expression {
             expr: Kind::make(self.assign(tokens)),
         };
@@ -234,8 +238,8 @@ impl Parser {
         node
     }
 
-    fn decl(&mut self, tokens: &mut Tokens) -> Node {
-        let ty = self.ty(tokens);
+    fn declaration(&mut self, tokens: &mut Tokens) -> Node {
+        let ty = self.type_(tokens);
 
         let size = ty.size();
         let name = self.ident(tokens);
@@ -301,7 +305,7 @@ impl Parser {
     }
 
     fn equality(&mut self, tokens: &mut Tokens) -> Node {
-        let mut lhs = self.rel(tokens);
+        let mut lhs = self.relative(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
@@ -309,14 +313,14 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Equals {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.rel(tokens)),
+                        rhs: Kind::make(self.relative(tokens)),
                     };
                 }
                 Token::MChar('!', '=') => {
                     tokens.advance();
                     lhs = Node::NEquals {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.rel(tokens)),
+                        rhs: Kind::make(self.relative(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -325,7 +329,7 @@ impl Parser {
         lhs
     }
 
-    fn rel(&mut self, tokens: &mut Tokens) -> Node {
+    fn relative(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.add(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
@@ -353,7 +357,7 @@ impl Parser {
     }
 
     fn add(&mut self, tokens: &mut Tokens) -> Node {
-        let mut lhs = self.mul(tokens);
+        let mut lhs = self.multiply(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for add");
             match next {
@@ -361,14 +365,14 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Add {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.mul(tokens)),
+                        rhs: Kind::make(self.multiply(tokens)),
                     };
                 }
                 tok if *tok == '-' => {
                     tokens.advance();
                     lhs = Node::Sub {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.mul(tokens)),
+                        rhs: Kind::make(self.multiply(tokens)),
                     };
                 }
                 _ => break 'expr,
@@ -377,7 +381,7 @@ impl Parser {
         lhs
     }
 
-    fn mul(&mut self, tokens: &mut Tokens) -> Node {
+    fn multiply(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.unary(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for mul");
@@ -405,12 +409,12 @@ impl Parser {
     fn unary(&mut self, tokens: &mut Tokens) -> Node {
         if consume(tokens, '*') {
             return Node::Deref {
-                expr: Kind::make(self.mul(tokens)),
+                expr: Kind::make(self.multiply(tokens)),
             };
         }
         if consume(tokens, '&') {
             return Node::Addr {
-                expr: Kind::make(self.mul(tokens)),
+                expr: Kind::make(self.multiply(tokens)),
                 ty: Type::Int, // ?? what to do here
             };
         }
@@ -432,7 +436,7 @@ impl Parser {
         match next {
             tok if *tok == '(' => {
                 if consume(tokens, '{') {
-                    let stmt = self.compound_stmt(tokens);
+                    let stmt = self.compound(tokens);
                     expect_token(tokens, ')');
                     return Node::Statement {
                         stmt: Kind::make(stmt),
@@ -510,7 +514,6 @@ impl Parser {
                 expect_token(tokens, ']');
                 continue;
             }
-            eprintln!("final lhs: {:#?}", lhs);
             return lhs;
         }
     }
@@ -539,20 +542,20 @@ impl Parser {
         unreachable!()
     }
 
-    fn ty(&mut self, tokens: &mut Tokens) -> Type {
+    fn type_(&mut self, tokens: &mut Tokens) -> Type {
         let (_pos, token) = expect_tokens(
             tokens,
             &[
-                Token::Type(tokens::Type::Char), // are you serious
-                Token::Type(tokens::Type::Int),
+                Token::Type(TokType::Char), // are you serious
+                Token::Type(TokType::Int),
                 Token::Struct,
             ],
         );
 
         let mut ty = match token {
             Token::Type(ty) => match ty {
-                tokens::Type::Char => Type::Char,
-                tokens::Type::Int => Type::Int,
+                TokType::Char => Type::Char,
+                TokType::Int => Type::Int,
             },
             Token::Struct => {
                 let tag = if let Some((_, Token::Ident(s))) = tokens.peek() {
@@ -566,7 +569,7 @@ impl Parser {
                 let mut members = if consume(tokens, '{') {
                     let mut v = vec![];
                     while !consume(tokens, '}') {
-                        v.push(self.decl(tokens));
+                        v.push(self.declaration(tokens));
                     }
                     Some(v)
                 } else {
@@ -606,22 +609,6 @@ impl Parser {
             ty = ty.ptr_of();
         }
         ty
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Comp {
-    Lt,
-    Gt,
-}
-
-impl fmt::Display for Comp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let c = match self {
-            Comp::Lt => '<',
-            Comp::Gt => '>',
-        };
-        write!(f, "{}", c)
     }
 }
 
@@ -729,7 +716,7 @@ fn expect<'a>(
 }
 
 #[inline]
-fn expect_type<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, tokens::Type) {
+fn expect_type<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, TokType) {
     let (pos, next) = tokens.next_token().expect("get next token");
     if let Token::Type(ty) = next {
         return (*pos, ty.clone());

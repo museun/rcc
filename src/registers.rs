@@ -1,4 +1,5 @@
-use super::*;
+use ir::{Function, IRType, IR};
+
 use std::{mem, ops::DerefMut};
 
 pub struct Registers {
@@ -27,7 +28,7 @@ impl Registers {
     }
 
     fn visit(&mut self, inst: &mut Vec<IR>) {
-        use IRType::*;
+        use ir::IRType::*;
 
         for ir in inst.iter_mut() {
             if let IR::Kill(Reg { src }) = &ir {

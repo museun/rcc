@@ -1,9 +1,12 @@
-use super::*;
+use ir::Function;
+use node::Comp;
+use util::*;
+
 use std::fmt::Write;
 
-pub(crate) const REGS8: [&str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-pub(crate) const REGS32: [&str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
-pub(crate) const REGS64: [&str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+pub const REGS8: [&str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub const REGS32: [&str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
+pub const REGS64: [&str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 
 pub enum ABI {
     Windows,
@@ -71,7 +74,8 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
         writeln!(buf, "  push {}", r);
     }
 
-    use IRType::*;
+    use ir::IRType::*;
+    use ir::*;
 
     for ir in &func.ir {
         match ir {
@@ -194,7 +198,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
             }
 
-            IR::Comparison(Cmp { .. }) => emit_cmp(&mut buf, &ir),
+            IR::Comparison(Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
 
             IR::Call(IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
@@ -227,26 +231,22 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
     writeln!(buf, "  ret");
 }
 
-fn emit_cmp<W: Write>(mut buf: W, ir: &IR) {
-    if let IR::Comparison(IRType::Cmp { cmp, dst, src }) = &ir {
-        writeln!(
-            buf,
-            "  cmp {}, {}",
-            REGS64[*dst as usize], REGS64[*src as usize]
-        );
-        let _ = match cmp {
-            Cmp::Lt | Cmp::Gt => writeln!(buf, "  setl {}", REGS8[*dst as usize]),
-            Cmp::Eq => writeln!(buf, "  sete {}", REGS8[*dst as usize]),
-            Cmp::NEq => writeln!(buf, "  setne {}", REGS8[*dst as usize]),
-        };
-        writeln!(
-            buf,
-            "  movzx {}, {}",
-            REGS64[*dst as usize], REGS8[*dst as usize]
-        );
-    } else {
-        unreachable!();
-    }
+fn emit_cmp<W: Write>(mut buf: W, cmp: &Comp, dst: i32, src: i32) {
+    writeln!(
+        buf,
+        "  cmp {}, {}",
+        REGS64[dst as usize], REGS64[src as usize]
+    );
+    let _ = match cmp {
+        Comp::Lt | Comp::Gt => writeln!(buf, "  setl {}", REGS8[dst as usize]),
+        Comp::Eq => writeln!(buf, "  sete {}", REGS8[dst as usize]),
+        Comp::NEq => writeln!(buf, "  setne {}", REGS8[dst as usize]),
+    };
+    writeln!(
+        buf,
+        "  movzx {}, {}",
+        REGS64[dst as usize], REGS8[dst as usize]
+    );
 }
 
 fn escape(s: &str) -> String {

@@ -1,8 +1,9 @@
-use super::*;
-use std::{
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use node::{Comp, Node};
+use semantics::Var;
+use types::{SizeOf, Type};
+
+use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IRType {
@@ -30,31 +31,11 @@ pub enum IRType {
         args: Vec<i32>,
     },
     Cmp {
-        cmp: Cmp,
+        cmp: Comp,
         dst: i32,
         src: i32,
     },
     Nop,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Cmp {
-    Gt, // same as lt assembly-wise
-    Lt,
-    Eq,
-    NEq,
-}
-
-impl fmt::Display for Cmp {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let w = match self {
-            Cmp::Gt => ">",
-            Cmp::Lt => "<",
-            Cmp::Eq => "==",
-            Cmp::NEq => "!=",
-        };
-        write!(f, "{}", w)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -125,7 +106,7 @@ pub struct Generate<'a> {
 }
 
 impl<'a> Generate<'a> {
-    pub fn gen_ir(nodes: &[Node]) -> Vec<Function> {
+    pub fn generate(nodes: &[Node]) -> Vec<Function> {
         let mut label = 1;
         let mut out = vec![];
 
@@ -142,7 +123,7 @@ impl<'a> Generate<'a> {
                 } => {
                     let mut this = Self {
                         // TODO be smarter about this
-                        inst: Vec::with_capacity(MAX_INST),
+                        inst: Vec::with_capacity(1 << 12),
                         label: &mut label,
                         ret_label: 0,
                         ret_reg: 0,
@@ -169,7 +150,7 @@ impl<'a> Generate<'a> {
                         }
                     }
 
-                    this.gen_stmt(body);
+                    this.statement(body);
 
                     let function = Function {
                         name: name.to_string(),
@@ -185,14 +166,14 @@ impl<'a> Generate<'a> {
         out
     }
 
-    fn gen_stmt(&mut self, node: impl AsRef<Node>) {
+    fn statement(&mut self, node: impl AsRef<Node>) {
         match &node.as_ref() {
             Node::Vardef { init, offset, .. } => {
                 if !init.has_val() {
                     return;
                 }
 
-                let rhs = self.gen_expr(init);
+                let rhs = self.expression(init);
                 let lhs = self.next_reg();
 
                 self.add(IR::BpRel(reg_imm(lhs, *offset)));
@@ -214,13 +195,13 @@ impl<'a> Generate<'a> {
             }
 
             Node::If { cond, body, else_ } => {
-                let r = self.gen_expr(cond);
+                let r = self.expression(cond);
                 let x = self.next_label();
 
                 self.add(IR::Unless(reg_imm(r, x)));
                 self.add(IR::Kill(reg(r)));
 
-                self.gen_stmt(body);
+                self.statement(body);
 
                 if !else_.has_val() {
                     self.add(IR::Label(imm(x)));
@@ -231,16 +212,16 @@ impl<'a> Generate<'a> {
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                self.gen_stmt(else_);
+                self.statement(else_);
                 self.add(IR::Label(imm(y)));
             }
 
             Node::DoWhile { cond, body } => {
                 let x = self.next_label();
                 self.add(IR::Label(imm(x)));
-                self.gen_stmt(body);
+                self.statement(body);
 
-                let r = self.gen_expr(cond);
+                let r = self.expression(cond);
                 self.add(IR::If(reg_imm(r, x)));
                 self.add(IR::Kill(reg(r)));
             }
@@ -255,24 +236,24 @@ impl<'a> Generate<'a> {
                 let y = self.next_label();
 
                 if init.has_val() {
-                    self.gen_stmt(init);
+                    self.statement(init);
                 }
                 self.add(IR::Label(imm(x)));
 
-                let r = self.gen_expr(cond);
+                let r = self.expression(cond);
                 self.add(IR::Unless(reg_imm(r, y)));
                 self.add(IR::Kill(reg(r)));
-                self.gen_stmt(body);
+                self.statement(body);
 
                 if step.has_val() {
-                    self.gen_stmt(step);
+                    self.statement(step);
                 }
                 self.add(IR::Jmp(imm(x)));
                 self.add(IR::Label(imm(y)));
             }
 
             Node::Return { expr } => {
-                let r = self.gen_expr(expr);
+                let r = self.expression(expr);
                 if self.ret_label != 0 {
                     self.add(IR::Mov(reg_reg(self.ret_reg, r)));
                     self.add(IR::Kill(reg(r)));
@@ -284,13 +265,13 @@ impl<'a> Generate<'a> {
             }
 
             Node::Expression { expr } => {
-                let r = self.gen_expr(expr);
+                let r = self.expression(expr);
                 self.add(IR::Kill(reg(r)));
             }
 
             Node::Compound { ref stmts } => {
                 for stmt in stmts {
-                    self.gen_stmt(stmt)
+                    self.statement(stmt)
                 }
             }
             Node::Noop {} => {}
@@ -299,7 +280,7 @@ impl<'a> Generate<'a> {
         }
     }
 
-    fn gen_expr(&mut self, node: impl AsRef<Node>) -> i32 {
+    fn expression(&mut self, node: impl AsRef<Node>) -> i32 {
         match &node.as_ref() {
             Node::Constant { val, .. } => {
                 let r = self.next_reg();
@@ -310,10 +291,10 @@ impl<'a> Generate<'a> {
             Node::LogAnd { lhs, rhs } => {
                 let x = self.next_label();
 
-                let r1 = self.gen_expr(lhs);
+                let r1 = self.expression(lhs);
                 self.add(IR::Unless(reg_imm(r1, x)));
 
-                let r2 = self.gen_expr(rhs);
+                let r2 = self.expression(rhs);
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, x)));
@@ -326,13 +307,13 @@ impl<'a> Generate<'a> {
                 let x = self.next_label();
                 let y = self.next_label();
 
-                let r1 = self.gen_expr(lhs);
+                let r1 = self.expression(lhs);
                 self.add(IR::Unless(reg_imm(r1, x)));
                 self.add(IR::Imm(reg_imm(r1, 1)));
                 self.add(IR::Jmp(imm(y)));
                 self.add(IR::Label(imm(x)));
 
-                let r2 = self.gen_expr(rhs);
+                let r2 = self.expression(rhs);
                 self.add(IR::Mov(reg_reg(r1, r2)));
                 self.add(IR::Kill(reg(r2)));
                 self.add(IR::Unless(reg_imm(r1, y)));
@@ -341,14 +322,15 @@ impl<'a> Generate<'a> {
                 r1
             }
 
-            Node::Equals { lhs, rhs } => self.gen_cmp(Cmp::Eq, lhs, rhs),
+            Node::Equals { lhs, rhs } => self.comparison(Comp::Eq, lhs, rhs),
 
-            Node::NEquals { lhs, rhs } => self.gen_cmp(Cmp::NEq, lhs, rhs),
+            Node::NEquals { lhs, rhs } => self.comparison(Comp::NEq, lhs, rhs),
 
-            Node::Comparison { lhs, rhs, comp } => self.gen_cmp(
+            Node::Comparison { lhs, rhs, comp } => self.comparison(
                 match comp {
-                    Comp::Lt => Cmp::Lt,
-                    Comp::Gt => Cmp::Gt,
+                    Comp::Lt => Comp::Lt,
+                    Comp::Gt => Comp::Gt,
+                    _ => unreachable!(),
                 },
                 lhs,
                 rhs,
@@ -357,7 +339,7 @@ impl<'a> Generate<'a> {
             Node::Call { name, args } => {
                 let mut exprs = vec![];
                 for arg in args {
-                    exprs.push(self.gen_expr(arg))
+                    exprs.push(self.expression(arg))
                 }
 
                 let r = self.next_reg();
@@ -376,8 +358,8 @@ impl<'a> Generate<'a> {
             Node::Assign { lhs, rhs } => {
                 let l = lhs;
 
-                let rhs = self.gen_expr(rhs);
-                let lhs = self.gen_lval(lhs);
+                let rhs = self.expression(rhs);
+                let lhs = self.lvalue(lhs);
 
                 match l.get_type() {
                     Type::Char => self.add(IR::Store(Width::W8, reg_reg(lhs, rhs))),
@@ -393,7 +375,7 @@ impl<'a> Generate<'a> {
 
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
                 if let Type::Ptr { .. } = lhs.get_type() {
-                    let rhs = self.gen_expr(rhs);
+                    let rhs = self.expression(rhs);
                     let r = self.next_reg();
                     self.add(IR::Imm(reg_imm(
                         r,
@@ -405,7 +387,7 @@ impl<'a> Generate<'a> {
                     self.add(IR::Mul(reg_reg(rhs, r)));
                     self.add(IR::Kill(reg(r)));
 
-                    let lhs = self.gen_expr(lhs);
+                    let lhs = self.expression(lhs);
                     let ir = match node.as_ref() {
                         Node::Add { .. } => IR::Add(reg_reg(lhs, rhs)),
                         Node::Sub { .. } => IR::Sub(reg_reg(lhs, rhs)),
@@ -421,29 +403,29 @@ impl<'a> Generate<'a> {
                     Node::Sub { .. } => IR::Sub(IRType::Nop),
                     _ => unreachable!(),
                 };
-                self.gen_binops(ir, lhs, rhs)
+                self.binary(ir, lhs, rhs)
             }
 
-            Node::Mul { lhs, rhs } => self.gen_binops(IR::Mul(IRType::Nop), lhs, rhs),
+            Node::Mul { lhs, rhs } => self.binary(IR::Mul(IRType::Nop), lhs, rhs),
 
-            Node::Div { lhs, rhs } => self.gen_binops(IR::Div(IRType::Nop), lhs, rhs),
+            Node::Div { lhs, rhs } => self.binary(IR::Div(IRType::Nop), lhs, rhs),
 
-            Node::Addr { expr, .. } => self.gen_lval(expr),
+            Node::Addr { expr, .. } => self.lvalue(expr),
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
-                let r = self.gen_lval(&node);
+                let r = self.lvalue(&node);
                 self.add(load_instruction(ty, reg_reg(r, r)));
                 r
             }
 
             Node::Dot { expr, .. } => {
-                let r = self.gen_lval(&node);
+                let r = self.lvalue(&node);
                 self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
                 r
             }
 
             Node::Deref { expr } => {
-                let r = self.gen_expr(expr);
+                let r = self.expression(expr);
                 self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
                 r
             }
@@ -458,7 +440,7 @@ impl<'a> Generate<'a> {
 
                 self.ret_reg = reg;
 
-                self.gen_stmt(stmt);
+                self.statement(stmt);
                 self.add(IR::Label(imm(self.ret_label)));
 
                 self.ret_label = l;
@@ -471,14 +453,14 @@ impl<'a> Generate<'a> {
         }
     }
 
-    fn gen_lval(&mut self, node: impl AsRef<Node>) -> i32 {
+    fn lvalue(&mut self, node: impl AsRef<Node>) -> i32 {
         let node = node.as_ref();
         if let Node::Deref { expr } = &node {
-            return self.gen_expr(expr);
+            return self.expression(expr);
         }
 
         if let Node::Dot { expr, offset, .. } = &node {
-            let r1 = self.gen_lval(expr);
+            let r1 = self.lvalue(expr);
             let r2 = self.next_reg();
             self.add(IR::Imm(reg_imm(r2, *offset)));
             self.add(IR::Add(reg_reg(r1, r2)));
@@ -501,9 +483,9 @@ impl<'a> Generate<'a> {
         unreachable!();
     }
 
-    fn gen_cmp(&mut self, cmp: Cmp, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
-        let r1 = self.gen_expr(lhs);
-        let r2 = self.gen_expr(rhs);
+    fn comparison(&mut self, cmp: Comp, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
+        let r1 = self.expression(lhs);
+        let r2 = self.expression(rhs);
 
         self.add(IR::Comparison(IRType::Cmp {
             cmp,
@@ -514,9 +496,9 @@ impl<'a> Generate<'a> {
         r1
     }
 
-    fn gen_binops(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
-        let r1 = self.gen_expr(lhs);
-        let r2 = self.gen_expr(rhs);
+    fn binary(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
+        let r1 = self.expression(lhs);
+        let r2 = self.expression(rhs);
         *ir = reg_reg(r1, r2);
         self.add(ir);
         self.add(IR::Kill(reg(r2)));
@@ -581,7 +563,7 @@ impl Deref for IR {
     type Target = IRType;
 
     fn deref(&self) -> &Self::Target {
-        use IR::*;
+        use ir::IR::*;
         match self {
             Imm(ty)
             | Mov(ty)
@@ -608,7 +590,7 @@ impl Deref for IR {
 
 impl DerefMut for IR {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        use IR::*;
+        use ir::IR::*;
         match self {
             Imm(ty)
             | Mov(ty)
@@ -635,7 +617,7 @@ impl DerefMut for IR {
 
 impl fmt::Display for IRType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use IRType::*;
+        use ir::IRType::*;
         match self {
             RegReg { dst, src } => write!(f, "r{}, r{}", dst, src),
             RegImm { reg, val } => write!(f, "r{}, {}", reg, val),
@@ -651,7 +633,7 @@ impl fmt::Display for IRType {
 
 impl fmt::Display for IR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use IR::*;
+        use ir::IR::*;
 
         match self {
             Imm(ty) => write!(f, "IMM {}", ty),

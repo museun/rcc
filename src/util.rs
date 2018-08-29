@@ -1,14 +1,3 @@
-#[macro_export]
-macro_rules! fail {
-    ($($arg:tt)*) => {{
-        eprintln!("{}: {}", wrap_color!(Color::Red{}, "failure"), format!($($arg)*));
-        if cfg!(test) || cfg!(feature="dump") {
-            panic!();
-        }
-        ::std::process::exit(1);
-    }};
-}
-
 #[derive(Clone, Copy)]
 pub enum Color {
     Red,
@@ -61,11 +50,22 @@ impl Color {
 #[macro_export]
 macro_rules! wrap_color {
     ($color:expr, $fmt:expr) => {{
-        format!("{}{}{}", $color.get(), $fmt, Color::reset())
+        format!("{}{}{}", $color.get(), $fmt, $crate::Color::reset())
     }};
 
     ($color:expr, $fmt:expr, $($arg:tt)*) => {{
-        format!("{}{}{}", $color.get(), format!($fmt, $($arg)*), Color::reset())
+        format!("{}{}{}", $color.get(), format!($fmt, $($arg)*), $crate::Color::reset())
+    }};
+}
+
+#[macro_export]
+macro_rules! fail {
+    ($($arg:tt)*) => {{
+        eprintln!("{}: {}", wrap_color!($crate::Color::Red{}, "failure"), format!($($arg)*));
+        if cfg!(test) || cfg!(feature="dump") {
+            panic!();
+        }
+        ::std::process::exit(1);
     }};
 }
 

@@ -1,4 +1,7 @@
-use super::*;
+use lexer::{self, LEXERS};
+use span::Span;
+use util::*;
+
 use std::fmt;
 use std::ops::{Index, IndexMut};
 
@@ -111,7 +114,7 @@ impl<'a> Index<usize> for Tokens<'a> {
 }
 
 impl<'a> IndexMut<usize> for Tokens<'a> {
-    fn index_mut(&mut self, p: usize) -> &mut Token {
+    fn index_mut(&mut self, p: usize) -> &mut Self::Output {
         &mut self.data[p].1
     }
 }
@@ -150,7 +153,7 @@ impl From<&'static str> for Token {
 
 impl From<char> for Token {
     fn from(c: char) -> Token {
-        if is_left_char(c) {
+        if lexer::is_left_char(c) {
             return Token::Char(c);
         }
 

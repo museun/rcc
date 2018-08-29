@@ -1,5 +1,6 @@
-#![allow(dead_code, unused_variables)] //go away clippy
-use super::*;
+use span::Span;
+use tokens::{Token, Type};
+
 use std::{char, str};
 
 pub fn scan<'a>(
@@ -7,11 +8,6 @@ pub fn scan<'a>(
     input: &'a str,
     lexers: &[&'static dyn Lexical],
 ) -> Vec<(Span<'a>, Token)> {
-    let lines = input
-        .char_indices()
-        .filter_map(|(i, c)| if c == '\n' { Some(i) } else { None })
-        .collect::<Vec<_>>();
-
     let mut data = vec![];
     let mut skip = 0;
 
@@ -55,7 +51,7 @@ pub fn scan<'a>(
 
         match error {
             Some(Error::UnknownToken) => fail!("{}: unknown token found", span),
-            e => {}
+            _e => {}
         }
     }
 
@@ -63,7 +59,7 @@ pub fn scan<'a>(
 }
 
 pub trait Lexical {
-    fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
+    fn lex(&self, &mut dyn Iterator<Item = char>) -> State {
         State::Yield
     }
 }
@@ -111,7 +107,7 @@ impl Lexical for WhitespaceLexer {
 
 struct UnknownLexer;
 impl Lexical for UnknownLexer {
-    fn lex(&self, lexer: &mut dyn Iterator<Item = char>) -> State {
+    fn lex(&self, _lexer: &mut dyn Iterator<Item = char>) -> State {
         Error::UnknownToken.into()
     }
 }
@@ -247,7 +243,7 @@ impl Lexical for CharLiteralLexer {
                     }
                 }
                 // '\000'
-                if let Some(ch) = match ch {
+                if let Some(_ch) = match ch {
                     '0'...'3' => Some(ch),
                     _ => None,
                 } {
@@ -278,7 +274,7 @@ impl Lexical for CommentLexer {
         let mut iter = lexer.peekable();
 
         if let Some('/') = iter.peek() {
-            let next = iter.next();
+            let _next = iter.next();
 
             return match iter.peek() {
                 Some('/') => {
@@ -290,10 +286,10 @@ impl Lexical for CommentLexer {
                 }
                 Some('*') => {
                     let mut skip = 2;
-                    let mut iter = iter.skip(1).enumerate().peekable();
-                    while let Some((i, p)) = iter.next() {
+                    let mut iter = iter.skip(1).peekable();
+                    while let Some(p) = iter.next() {
                         if p == '*' {
-                            if let Some((_, '/')) = iter.peek() {
+                            if let Some('/') = iter.peek() {
                                 skip += 2;
                                 break;
                             }
@@ -335,8 +331,8 @@ impl Lexical for SymbolLexer {
 }
 
 const SYMBOLS: [(&str, Token); 12] = [
-    ("int", Token::Type(TokType::Int)),
-    ("char", Token::Type(TokType::Char)),
+    ("int", Token::Type(Type::Int)),
+    ("char", Token::Type(Type::Char)),
     ("for", Token::For),
     ("if", Token::If),
     ("else", Token::Else),
@@ -375,7 +371,7 @@ const CHARACTERS: [(char, Option<char>); 22] = [
 ];
 
 // TODO: this shouldn't be public
-pub(crate) fn is_left_char(left: char) -> bool {
+pub fn is_left_char(left: char) -> bool {
     for (ch, _) in &CHARACTERS {
         if left == *ch {
             return true;

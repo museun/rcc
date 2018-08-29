@@ -1,4 +1,5 @@
-use super::*;
+use node::Node;
+use types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Kind {

@@ -1,4 +1,6 @@
-use super::*;
+use kind::Kind;
+use node::Node;
+use util::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
