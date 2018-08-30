@@ -270,6 +270,15 @@ impl<'a> Semantics<'a> {
                 node.set_type(ty);
             }
 
+            Node::Conditional { cond, then, else_ } => {
+                self.walk(env, cond.as_mut(), true);
+                self.walk(env, then.as_mut(), true);
+                self.walk(env, else_.as_mut(), true);
+
+                let ty = Rc::clone(then.get_type().as_ref().unwrap());
+                node.set_type(ty);
+            }
+
             Node::Addr { expr, ty: _ty } => {
                 self.walk(env, expr.as_mut(), true);
                 Self::check_lval(expr.as_ref());

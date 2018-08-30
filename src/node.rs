@@ -137,6 +137,12 @@ pub enum Node {
         body: Kind,
     },
 
+    Conditional {
+        cond: Kind,
+        then: Kind,
+        else_: Kind,
+    },
+
     DoWhile {
         body: Kind,
         cond: Kind,
@@ -227,6 +233,9 @@ impl Node {
             Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } => expr.set_type(newtype),
             Assign { lhs, .. } => lhs.set_type(newtype),
 
+            // what?
+            Conditional { then, .. } => then.set_type(newtype),
+
             Constant { ty, .. }
             | Str { ty, .. }
             | Addr { ty, .. }
@@ -299,6 +308,7 @@ impl fmt::Display for Node {
             Alignof { .. } => write!(f, "Alignof"),
             If { .. } => write!(f, "If"),
             Else { .. } => write!(f, "Else"),
+            Conditional { .. } => write!(f, "Conditional"),
             DoWhile { .. } => write!(f, "DoWhile"),
             For { .. } => write!(f, "For"),
             Call { .. } => write!(f, "Call"),

@@ -290,6 +290,26 @@ impl<'a> Generate<'a> {
                 r
             }
 
+            Node::Conditional { cond, then, else_ } => {
+                let x = self.next_label();
+                let y = self.next_label();
+
+                let r = self.expression(cond);
+                self.add(IR::Unless(reg_imm(r, x)));
+
+                let r2 = self.expression(then);
+                self.add(IR::Mov(reg_reg(r, r2)));
+                self.add(IR::Kill(reg(r2)));
+                self.add(IR::Jmp(imm(y)));
+                self.add(IR::Label(imm(x)));
+
+                let r3 = self.expression(else_);
+                self.add(IR::Mov(reg_reg(r, r3)));
+                self.add(IR::Kill(reg(r2)));
+                self.add(IR::Label(imm(y)));
+                r
+            }
+
             Node::Not { expr } => {
                 let lhs = self.expression(expr);
                 let rhs = self.next_reg();

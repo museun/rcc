@@ -289,14 +289,30 @@ impl Parser {
     }
 
     fn assign(&mut self, tokens: &mut Tokens) -> Node {
-        let lhs = self.logor(tokens);
+        let lhs = self.conditional(tokens);
         if consume(tokens, '=') {
             return Node::Assign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.logor(tokens)),
+                rhs: Kind::make(self.conditional(tokens)),
             };
         }
         lhs
+    }
+
+    fn conditional(&mut self, tokens: &mut Tokens) -> Node {
+        let cond = self.logor(tokens);
+        if !consume(tokens, '?') {
+            return cond;
+        }
+        let then = self.assign(tokens);
+        expect_token(tokens, ':');
+
+        let else_ = self.assign(tokens);
+        Node::Conditional {
+            cond: Kind::make(cond),
+            then: Kind::make(then),
+            else_: Kind::make(else_),
+        }
     }
 
     fn logor(&mut self, tokens: &mut Tokens) -> Node {
