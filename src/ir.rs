@@ -1,7 +1,6 @@
 use super::*;
 use node::{Comp, Node};
-use semantics::Var;
-use types::Type;
+use types::{Type, Var};
 
 use std::fmt;
 use std::ops::{Deref, DerefMut};

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 struct Environment {
     tags: HashMap<String, Vec<Node>>,
+    typedefs: HashMap<String, Type>, // XXX: does this have to be a RefType?
     prev: Option<Box<Environment>>,
 }
 
@@ -17,6 +18,7 @@ impl Environment {
     pub fn new(env: Option<Environment>) -> Self {
         Self {
             tags: HashMap::new(),
+            typedefs: HashMap::new(),
             prev: env.and_then(|env| Some(Box::new(env))),
         }
     }
@@ -125,6 +127,20 @@ impl Parser {
         let (pos, next) = tokens.peek().expect("token for statement");
 
         match next {
+            Token::Typedef => {
+                tokens.advance();
+                let node = self.declaration(tokens);
+                if let Node::Vardef { name, ty, .. } = &node {
+                    if name.is_empty() {
+                        fail!("typename name is empty");
+                    }
+
+                    self.env.typedefs.insert(name.clone(), ty.borrow().clone());
+                    return node;
+                }
+                unreachable!();
+            }
+
             Token::Type(_) | Token::Struct => self.declaration(tokens),
             Token::If => {
                 tokens.advance();
@@ -145,7 +161,7 @@ impl Parser {
             Token::For => {
                 tokens.advance();
                 expect_token(tokens, '(');
-                let init = if is_typename(tokens) {
+                let init = if self.is_typename(tokens) {
                     self.declaration(tokens)
                 } else {
                     self.expression(tokens)
@@ -223,9 +239,15 @@ impl Parser {
                 tokens.advance();
                 Node::Noop {}
             }
-            tok if *tok != Token::EOF => self.expression(tokens),
+            tok if *tok != Token::EOF => {
+                if self.is_typename(tokens) {
+                    self.declaration(tokens)
+                } else {
+                    self.expression(tokens)
+                }
+            }
             _ => {
-                expect_fail("", pos, "token wasn't") // expected
+                expect_fail("", pos, "no token") // expected
             }
         }
     }
@@ -552,6 +574,7 @@ impl Parser {
             &[
                 Token::Type(TokType::Char), // are you serious
                 Token::Type(TokType::Int),
+                Token::Ident("".into()),
                 Token::Struct,
             ],
         );
@@ -561,6 +584,12 @@ impl Parser {
                 TokType::Char => Type::Char,
                 TokType::Int => Type::Int,
             },
+            Token::Ident(s) => {
+                match self.env.typedefs.get(&s) {
+                    Some(ty) => ty.clone(), // this returns a RefType
+                    None => fail!("{} unknown type", s),
+                }
+            }
             Token::Struct => {
                 let tag = if let Some((_, Token::Ident(s))) = tokens.peek() {
                     let s = Some(s.clone());
@@ -614,13 +643,14 @@ impl Parser {
         }
         ty
     }
-}
 
-#[inline]
-fn is_typename(tokens: &mut Tokens) -> bool {
-    match tokens.peek() {
-        Some((_, Token::Type(_))) | Some((_, Token::Struct)) => true,
-        _ => false,
+    #[inline]
+    fn is_typename(&self, tokens: &mut Tokens) -> bool {
+        match tokens.peek() {
+            Some((_, Token::Type(_))) | Some((_, Token::Struct)) => true,
+            Some((_, Token::Ident(n))) => self.env.typedefs.contains_key(n),
+            _ => false,
+        }
     }
 }
 
@@ -638,10 +668,10 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
 
 #[inline]
 fn expect_tokens<'a>(tokens: &'a mut Tokens, toks: &[Token]) -> (Span<'a>, Token) {
+    use std::mem::discriminant;
     let (pos, next) = tokens.next_token().expect("get next token");
-
     for tok in toks {
-        if *next == *tok {
+        if discriminant(next) == discriminant(tok) {
             return (*pos, next.clone());
         }
     }

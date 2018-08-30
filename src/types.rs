@@ -114,6 +114,27 @@ pub fn align_of(ty: &Type) -> i32 {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Var {
+    pub ty: RefType,
+    pub offset: i32,
+    pub global: Option<(String, String)>, // None = local
+    pub data: i32,
+    pub is_extern: bool,
+}
+
+impl Var {
+   pub fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
+        Self {
+            ty,
+            offset: 0,
+            global: Some((name.into(), s.into())),
+            is_extern,
+            data,
+        }
+    }
+}
+
 use std::fmt;
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

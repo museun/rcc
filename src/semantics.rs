@@ -1,29 +1,8 @@
 use super::*;
 use node::Node;
-use types::Type;
+use types::{Type, Var};
 
 use std::collections::HashMap;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Var {
-    pub ty: RefType,
-    pub offset: i32,
-    pub global: Option<(String, String)>, // None = local
-    pub data: i32,
-    pub is_extern: bool,
-}
-
-impl Var {
-    fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
-        Self {
-            ty,
-            offset: 0,
-            global: Some((name.into(), s.into())),
-            is_extern,
-            data,
-        }
-    }
-}
 
 pub struct Semantics<'a> {
     stacksize: i32,

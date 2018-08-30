@@ -330,7 +330,7 @@ impl Lexical for SymbolLexer {
     }
 }
 
-const SYMBOLS: [(&str, Token); 12] = [
+const SYMBOLS: [(&str, Token); 13] = [
     ("int", Token::Type(Type::Int)),
     ("char", Token::Type(Type::Char)),
     ("for", Token::For),
@@ -343,6 +343,7 @@ const SYMBOLS: [(&str, Token); 12] = [
     ("_Alignof", Token::Alignof),
     ("extern", Token::Extern),
     ("struct", Token::Struct),
+    ("typedef", Token::Typedef),
 ];
 
 const CHARACTERS: [(char, Option<char>); 22] = [

@@ -1,6 +1,6 @@
 use super::*;
 use kind::Kind;
-use semantics::Var;
+use types::Var;
 
 use std::fmt;
 
