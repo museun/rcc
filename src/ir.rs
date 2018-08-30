@@ -80,6 +80,7 @@ pub enum IR {
 
     Or(IRType),  // reg->reg
     Xor(IRType), // reg->reg
+    And(IRType), // reg->reg
 
     Comparison(IRType), // cmp, reg->reg
 
@@ -422,6 +423,7 @@ impl<'a> Generate<'a> {
 
             Node::Or { lhs, rhs } => self.binary(IR::Or(IRType::Nop), lhs, rhs),
             Node::Xor { lhs, rhs } => self.binary(IR::Xor(IRType::Nop), lhs, rhs),
+            Node::And { lhs, rhs } => self.binary(IR::And(IRType::Nop), lhs, rhs),
 
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
                 if let Type::Ptr { .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
@@ -641,6 +643,7 @@ impl Deref for IR {
             | Div(ty)
             | Or(ty)
             | Xor(ty)
+            | And(ty)
             | Comparison(ty)
             | Kill(ty)
             | Nop(ty)
@@ -670,6 +673,7 @@ impl DerefMut for IR {
             | Div(ty)
             | Or(ty)
             | Xor(ty)
+            | And(ty)
             | Comparison(ty)
             | Kill(ty)
             | Nop(ty)
@@ -716,6 +720,7 @@ impl fmt::Display for IR {
             Div(ty) => write!(f, "DIV {}", ty),
             Or(ty) => write!(f, "OR {}", ty),
             Xor(ty) => write!(f, "XOR {}", ty),
+            And(ty) => write!(f, "AND {}", ty),
             Comparison(ty) => write!(f, "CMP {}", ty),
             Kill(ty) => write!(f, "KILL {}", ty),
             Nop(ty) => write!(f, "NOP {}", ty),

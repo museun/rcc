@@ -346,8 +346,25 @@ impl Parser {
         lhs
     }
 
-    fn bit_xor(&mut self, tokens: &mut Tokens) -> Node {
+    fn bit_and(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.equality(tokens);
+        while let Some((_, t)) = tokens.peek() {
+            if *t != '&' {
+                return lhs;
+            }
+
+            let _ = tokens.next_token();
+            lhs = Node::And {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.equality(tokens)),
+            };
+        }
+
+        unreachable!()
+    }
+
+    fn bit_xor(&mut self, tokens: &mut Tokens) -> Node {
+        let mut lhs = self.bit_and(tokens);
         while let Some((_, t)) = tokens.peek() {
             if *t != '^' {
                 return lhs;
@@ -356,7 +373,7 @@ impl Parser {
             let _ = tokens.next_token();
             lhs = Node::Xor {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.equality(tokens)),
+                rhs: Kind::make(self.bit_and(tokens)),
             };
         }
 
