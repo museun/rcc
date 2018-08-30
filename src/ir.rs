@@ -310,6 +310,12 @@ impl<'a> Generate<'a> {
                 r
             }
 
+            Node::Comma { lhs, rhs } => {
+                let r = self.expression(lhs);
+                self.add(IR::Kill(reg(r)));
+                self.expression(rhs)
+            }
+
             Node::Not { expr } => {
                 let lhs = self.expression(expr);
                 let rhs = self.next_reg();

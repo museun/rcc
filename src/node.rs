@@ -182,6 +182,11 @@ pub enum Node {
         stmts: Vec<Kind>,
     },
 
+    Comma {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     Noop {},
 }
 
@@ -233,7 +238,11 @@ impl Node {
             Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } => expr.set_type(newtype),
             Assign { lhs, .. } => lhs.set_type(newtype),
 
-            // what?
+            Comma { lhs, rhs } => {
+                lhs.set_type(Rc::clone(&newtype));
+                rhs.set_type(Rc::clone(&newtype))
+            }
+
             Conditional { then, .. } => then.set_type(newtype),
 
             Constant { ty, .. }
@@ -316,6 +325,7 @@ impl fmt::Display for Node {
             Statement { .. } => write!(f, "Statement"),
             Expression { .. } => write!(f, "Expression"),
             Compound { .. } => write!(f, "Compound"),
+            Comma { .. } => write!(f, "Comma"),
             _ => Ok(()),
         }
     }

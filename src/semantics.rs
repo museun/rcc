@@ -264,6 +264,15 @@ impl<'a> Semantics<'a> {
                 node.set_type(ty);
             }
 
+            Node::Comma { lhs, rhs } => {
+                self.walk(env, lhs.as_mut(), true);
+                self.walk(env, rhs.as_mut(), true);
+
+                // TODO: comma binds to the right
+                let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
+                node.set_type(ty);
+            }
+
             Node::Not { expr } => {
                 self.walk(env, expr.as_mut(), true);
                 let ty = Rc::clone(expr.get_type().as_ref().unwrap());

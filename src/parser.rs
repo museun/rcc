@@ -141,12 +141,14 @@ impl Parser {
                 unreachable!();
             }
 
-            Token::Type(_) | Token::Struct => self.declaration(tokens),
+            Token::Type(TokType::Int) | Token::Type(TokType::Char) | Token::Struct => {
+                self.declaration(tokens)
+            }
 
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
-                let cond = Kind::make(self.assign(tokens));
+                let cond = Kind::make(self.expression(tokens));
 
                 expect_token(tokens, ')');
                 let body = Kind::make(self.statement(tokens));
@@ -166,14 +168,14 @@ impl Parser {
                 let init = if self.is_typename(tokens) {
                     self.declaration(tokens)
                 } else {
-                    self.expression(tokens)
+                    self.expression_statement(tokens)
                 };
 
-                let cond = self.assign(tokens);
+                let cond = self.expression(tokens);
                 expect_token(tokens, ';');
 
                 let step = Node::Expression {
-                    expr: Kind::make(self.assign(tokens)),
+                    expr: Kind::make(self.expression(tokens)),
                 };
 
                 expect_token(tokens, ')');
@@ -191,7 +193,7 @@ impl Parser {
                 tokens.advance();
 
                 expect_token(tokens, '(');
-                let cond = self.assign(tokens);
+                let cond = self.expression(tokens);
 
                 expect_token(tokens, ')');
                 let body = self.statement(tokens);
@@ -210,7 +212,7 @@ impl Parser {
 
                 expect_token(tokens, Token::While);
                 expect_token(tokens, '(');
-                let cond = self.assign(tokens);
+                let cond = self.expression(tokens);
                 expect_token(tokens, ')');
                 expect_token(tokens, ';');
 
@@ -223,7 +225,7 @@ impl Parser {
             Token::Return => {
                 tokens.advance();
                 let node = Node::Return {
-                    expr: Kind::make(self.assign(tokens)),
+                    expr: Kind::make(self.expression(tokens)),
                 };
                 expect_token(tokens, ';');
                 node
@@ -245,7 +247,7 @@ impl Parser {
                 if self.is_typename(tokens) {
                     self.declaration(tokens)
                 } else {
-                    self.expression(tokens)
+                    self.expression_statement(tokens)
                 }
             }
             _ => {
@@ -254,9 +256,9 @@ impl Parser {
         }
     }
 
-    fn expression(&mut self, tokens: &mut Tokens) -> Node {
+    fn expression_statement(&mut self, tokens: &mut Tokens) -> Node {
         let node = Node::Expression {
-            expr: Kind::make(self.assign(tokens)),
+            expr: Kind::make(self.expression(tokens)),
         };
         expect_token(tokens, ';');
         node
@@ -288,30 +290,43 @@ impl Parser {
         }
     }
 
-    fn assign(&mut self, tokens: &mut Tokens) -> Node {
-        let lhs = self.conditional(tokens);
-        if consume(tokens, '=') {
-            return Node::Assign {
-                lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
-            };
-        }
-        lhs
-    }
-
     fn conditional(&mut self, tokens: &mut Tokens) -> Node {
         let cond = self.logor(tokens);
         if !consume(tokens, '?') {
             return cond;
         }
-        let then = self.assign(tokens);
+        let then = self.expression(tokens);
         expect_token(tokens, ':');
 
-        let else_ = self.assign(tokens);
+        let else_ = self.conditional(tokens);
         Node::Conditional {
             cond: Kind::make(cond),
             then: Kind::make(then),
             else_: Kind::make(else_),
+        }
+    }
+
+    fn expression(&mut self, tokens: &mut Tokens) -> Node {
+        let lhs = self.assign(tokens);
+        if !consume(tokens, ',') {
+            return lhs;
+        }
+
+        Node::Comma {
+            lhs: Kind::make(lhs),
+            rhs: Kind::make(self.expression(tokens)),
+        }
+    }
+
+    fn assign(&mut self, tokens: &mut Tokens) -> Node {
+        let lhs = self.conditional(tokens);
+        if !consume(tokens, '=') {
+            return lhs;
+        }
+
+        Node::Assign {
+            lhs: Kind::make(lhs),
+            rhs: Kind::make(self.conditional(tokens)),
         }
     }
 
@@ -491,7 +506,7 @@ impl Parser {
                         ty: Rc::new(RefCell::new(Type::Int)),
                     };
                 }
-                let node = self.assign(tokens);
+                let node = self.expression(tokens);
                 expect_token(tokens, ')');
                 node
             }
@@ -572,7 +587,7 @@ impl Parser {
     fn read_array(&mut self, tokens: &mut Tokens, ty: Type) -> Type {
         let mut param = vec![];
         while consume(tokens, '[') {
-            match self.primary(tokens) {
+            match self.expression(tokens) {
                 Node::Constant { val, .. } => param.push(val),
                 _ => expect_fail("", &tokens.pos(), "number"),
             };
