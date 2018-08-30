@@ -229,6 +229,16 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  mov {}, rdx", REGS64[*dst as usize]);
             }
 
+            IR::Shl(RegReg { dst, src }) => {
+                writeln!(buf, "  mov cl, {}", REGS8[*src as usize]);
+                writeln!(buf, "  shl {}, cl", REGS64[*dst as usize]);
+            }
+
+            IR::Shr(RegReg { dst, src }) => {
+                writeln!(buf, "  mov cl, {}", REGS8[*src as usize]);
+                writeln!(buf, "  shr {}, cl", REGS64[*dst as usize]);
+            }
+
             IR::Comparison(Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
 
             IR::Call(IRType::Call { reg, name, args }) => {

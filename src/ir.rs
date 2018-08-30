@@ -78,6 +78,10 @@ pub enum IR {
     Mul(IRType), // reg->reg
     Div(IRType), // reg->reg
     Mod(IRType), // reg->reg
+
+    Shr(IRType), // reg->reg
+    Shl(IRType), // reg->reg
+
     Or(IRType),  // reg->reg
     Xor(IRType), // reg->reg
     And(IRType), // reg->reg
@@ -454,6 +458,10 @@ impl<'a> Generate<'a> {
 
             Node::Mod { lhs, rhs } => self.binary(IR::Mod(IRType::Nop), lhs, rhs),
 
+            Node::Shr { lhs, rhs } => self.binary(IR::Shr(IRType::Nop), lhs, rhs),
+
+            Node::Shl { lhs, rhs } => self.binary(IR::Shl(IRType::Nop), lhs, rhs),
+
             Node::Addr { expr, .. } => self.lvalue(expr),
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
@@ -631,6 +639,8 @@ impl Deref for IR {
             | Sub(ty)
             | Mul(ty)
             | Div(ty)
+            | Shr(ty)
+            | Shl(ty)
             | Mod(ty)
             | Or(ty)
             | Xor(ty)
@@ -663,6 +673,8 @@ impl DerefMut for IR {
             | Mul(ty)
             | Div(ty)
             | Mod(ty)
+            | Shr(ty)
+            | Shl(ty)
             | Or(ty)
             | Xor(ty)
             | And(ty)
@@ -710,6 +722,8 @@ impl fmt::Display for IR {
             Sub(ty) => write!(f, "SUB {}", ty),
             Mul(ty) => write!(f, "MUL {}", ty),
             Div(ty) => write!(f, "DIV {}", ty),
+            Shr(ty) => write!(f, "SHR {}", ty),
+            Shl(ty) => write!(f, "SHL {}", ty),
             Mod(ty) => write!(f, "MOD {}", ty),
             Or(ty) => write!(f, "OR {}", ty),
             Xor(ty) => write!(f, "XOR {}", ty),

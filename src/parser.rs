@@ -414,7 +414,7 @@ impl Parser {
     }
 
     fn equality(&mut self, tokens: &mut Tokens) -> Node {
-        let mut lhs = self.relative(tokens);
+        let mut lhs = self.relational(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
@@ -422,7 +422,7 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.relative(tokens)),
+                        rhs: Kind::make(self.relational(tokens)),
                         comp: Comp::Eq,
                     };
                 }
@@ -430,7 +430,7 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.relative(tokens)),
+                        rhs: Kind::make(self.relational(tokens)),
                         comp: Comp::NEq,
                     };
                 }
@@ -440,8 +440,33 @@ impl Parser {
         lhs
     }
 
-    fn relative(&mut self, tokens: &mut Tokens) -> Node {
+    fn shift(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.add(tokens);
+        'expr: loop {
+            let (_, next) = tokens.peek().expect("token for shift");
+            match next {
+                tok if *tok == Token::MChar('<', '<') => {
+                    tokens.advance();
+                    lhs = Node::Shl {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(self.add(tokens)),
+                    };
+                }
+                tok if *tok == Token::MChar('>', '>') => {
+                    tokens.advance();
+                    lhs = Node::Shr {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(self.add(tokens)),
+                    };
+                }
+                _ => break 'expr,
+            }
+        }
+        lhs
+    }
+
+    fn relational(&mut self, tokens: &mut Tokens) -> Node {
+        let mut lhs = self.shift(tokens);
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
@@ -449,14 +474,14 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.add(tokens)),
+                        rhs: Kind::make(self.shift(tokens)),
                         comp: Comp::Lt,
                     };
                 }
                 tok if *tok == '>' => {
                     tokens.advance();
                     lhs = Node::Comparison {
-                        lhs: Kind::make(self.add(tokens)),
+                        lhs: Kind::make(self.shift(tokens)),
                         rhs: Kind::make(lhs),
                         comp: Comp::Gt,
                     };
@@ -465,14 +490,14 @@ impl Parser {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
-                        rhs: Kind::make(self.add(tokens)),
+                        rhs: Kind::make(self.shift(tokens)),
                         comp: Comp::Le,
                     };
                 }
                 tok if *tok == Token::MChar('>', '=') => {
                     tokens.advance();
                     lhs = Node::Comparison {
-                        lhs: Kind::make(self.add(tokens)),
+                        lhs: Kind::make(self.shift(tokens)),
                         rhs: Kind::make(lhs),
                         comp: Comp::Ge,
                     };

@@ -243,6 +243,8 @@ impl<'a> Semantics<'a> {
             | Node::Xor { lhs, rhs }
             | Node::And { lhs, rhs }
             | Node::Mod { lhs, rhs }
+            | Node::Shr { lhs, rhs }
+            | Node::Shl { lhs, rhs }
             | Node::Mul { lhs, rhs, .. }
             | Node::Div { lhs, rhs, .. }
             | Node::Add { lhs, rhs, .. }
