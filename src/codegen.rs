@@ -263,6 +263,7 @@ fn emit_cmp<W: Write>(mut buf: W, cmp: &Comp, dst: i32, src: i32) {
     );
     let _ = match cmp {
         Comp::Lt | Comp::Gt => writeln!(buf, "  setl {}", REGS8[dst as usize]),
+        Comp::Le | Comp::Ge => writeln!(buf, "  setle {}", REGS8[dst as usize]),
         Comp::Eq => writeln!(buf, "  sete {}", REGS8[dst as usize]),
         Comp::NEq => writeln!(buf, "  setne {}", REGS8[dst as usize]),
     };

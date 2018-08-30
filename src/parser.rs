@@ -420,16 +420,18 @@ impl Parser {
             match next {
                 Token::MChar('=', '=') => {
                     tokens.advance();
-                    lhs = Node::Equals {
+                    lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.relative(tokens)),
+                        comp: Comp::Eq,
                     };
                 }
                 Token::MChar('!', '=') => {
                     tokens.advance();
-                    lhs = Node::NEquals {
+                    lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.relative(tokens)),
+                        comp: Comp::NEq,
                     };
                 }
                 _ => break 'expr,
@@ -457,6 +459,22 @@ impl Parser {
                         lhs: Kind::make(self.add(tokens)),
                         rhs: Kind::make(lhs),
                         comp: Comp::Gt,
+                    };
+                }
+                tok if *tok == Token::MChar('<', '=') => {
+                    tokens.advance();
+                    lhs = Node::Comparison {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(self.add(tokens)),
+                        comp: Comp::Le,
+                    };
+                }
+                tok if *tok == Token::MChar('>', '=') => {
+                    tokens.advance();
+                    lhs = Node::Comparison {
+                        lhs: Kind::make(self.add(tokens)),
+                        rhs: Kind::make(lhs),
+                        comp: Comp::Ge,
                     };
                 }
                 _ => break 'expr,

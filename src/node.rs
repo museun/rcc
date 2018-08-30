@@ -70,16 +70,6 @@ pub enum Node {
         rhs: Kind,
     },
 
-    Equals {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
-    NEquals {
-        lhs: Kind,
-        rhs: Kind,
-    },
-
     Comparison {
         lhs: Kind,
         rhs: Kind,
@@ -292,10 +282,12 @@ impl AsMut<Node> for Node {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Comp {
-    Gt, // same as lt assembly-wise
-    Lt,
-    Eq,
-    NEq,
+    Gt,  // > same as lt assembly-wise
+    Lt,  // <
+    Ge,  // >=
+    Le,  // <=
+    Eq,  // ==
+    NEq, // !=
 }
 
 impl fmt::Display for Comp {
@@ -303,6 +295,8 @@ impl fmt::Display for Comp {
         let w = match self {
             Comp::Gt => ">",
             Comp::Lt => "<",
+            Comp::Ge => ">=",
+            Comp::Le => "<=",
             Comp::Eq => "==",
             Comp::NEq => "!=",
         };
@@ -328,8 +322,6 @@ impl fmt::Display for Node {
             And { .. } => write!(f, "And"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
-            Equals { .. } => write!(f, "Equals"),
-            NEquals { .. } => write!(f, "NEquals"),
             Comparison { .. } => write!(f, "Comparison"),
             Assign { .. } => write!(f, "Assign"),
             LVal { .. } => write!(f, "LVal"),

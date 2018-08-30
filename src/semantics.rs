@@ -234,8 +234,6 @@ impl<'a> Semantics<'a> {
 
             Node::LogAnd { lhs, rhs }
             | Node::LogOr { lhs, rhs }
-            | Node::Equals { lhs, rhs }
-            | Node::NEquals { lhs, rhs }
             | Node::Comparison { lhs, rhs, .. } => {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);

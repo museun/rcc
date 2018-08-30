@@ -369,19 +369,7 @@ impl<'a> Generate<'a> {
                 r1
             }
 
-            Node::Equals { lhs, rhs } => self.comparison(Comp::Eq, lhs, rhs),
-
-            Node::NEquals { lhs, rhs } => self.comparison(Comp::NEq, lhs, rhs),
-
-            Node::Comparison { lhs, rhs, comp } => self.comparison(
-                match comp {
-                    Comp::Lt => Comp::Lt,
-                    Comp::Gt => Comp::Gt,
-                    _ => unreachable!(),
-                },
-                lhs,
-                rhs,
-            ),
+            Node::Comparison { lhs, rhs, comp } => self.comparison(comp, lhs, rhs),
 
             Node::Call { name, args } => {
                 let mut exprs = vec![];
@@ -543,12 +531,12 @@ impl<'a> Generate<'a> {
         unreachable!();
     }
 
-    fn comparison(&mut self, cmp: Comp, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
+    fn comparison(&mut self, cmp: &Comp, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
         let r1 = self.expression(lhs);
         let r2 = self.expression(rhs);
 
         self.add(IR::Comparison(IRType::Cmp {
-            cmp,
+            cmp: cmp.clone(),
             dst: r1,
             src: r2,
         }));
