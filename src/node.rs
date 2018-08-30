@@ -106,6 +106,10 @@ pub enum Node {
         ty: RefType,
     },
 
+    Neg {
+        expr: Kind,
+    },
+
     Addr {
         expr: Kind,
         ty: RefType,
@@ -230,9 +234,10 @@ impl Node {
 
             Node::Assign { rhs, .. } => rhs.get_type(),
 
-            Node::Expression { expr, .. } | Node::Deref { expr } | Node::Dot { expr, .. } => {
-                expr.get_type()
-            }
+            Node::Expression { expr, .. }
+            | Node::Neg { expr }
+            | Node::Deref { expr }
+            | Node::Dot { expr, .. } => expr.get_type(),
 
             Node::Addr { ty, .. }
             | Node::Constant { ty, .. }
@@ -265,7 +270,9 @@ impl Node {
                 rhs.set_type(Rc::clone(&newtype));
             }
 
-            Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } => expr.set_type(newtype),
+            Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } | Neg { expr } => {
+                expr.set_type(newtype)
+            }
 
             Assign { lhs, .. } => lhs.set_type(newtype),
 

@@ -268,7 +268,7 @@ impl<'a> Semantics<'a> {
                 node.set_type(ty);
             }
 
-            Node::Not { expr } => {
+            Node::Not { expr } | Node::Neg { expr } => {
                 self.walk(env, expr.as_mut(), true);
                 let ty = Rc::clone(expr.get_type().as_ref().unwrap());
                 node.set_type(ty);

@@ -566,14 +566,19 @@ impl Parser {
     }
 
     fn unary(&mut self, tokens: &mut Tokens) -> Node {
+        if consume(tokens, '-') {
+            return Node::Neg {
+                expr: Kind::make(self.unary(tokens)),
+            };
+        }
         if consume(tokens, '*') {
             return Node::Deref {
-                expr: Kind::make(self.multiply(tokens)),
+                expr: Kind::make(self.unary(tokens)),
             };
         }
         if consume(tokens, '&') {
             return Node::Addr {
-                expr: Kind::make(self.multiply(tokens)),
+                expr: Kind::make(self.unary(tokens)),
                 ty: Rc::new(RefCell::new(Type::Int)), // TODO: ?? what to do here
             };
         }

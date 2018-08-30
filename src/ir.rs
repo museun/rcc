@@ -86,6 +86,8 @@ pub enum IR {
     Xor(IRType), // reg->reg
     And(IRType), // reg->reg
 
+    Neg(IRType), // reg
+
     Comparison(IRType), // cmp, reg->reg
 
     Kill(IRType), // reg
@@ -462,6 +464,12 @@ impl<'a> Generate<'a> {
 
             Node::Shl { lhs, rhs } => self.binary(IR::Shl(IRType::Nop), lhs, rhs),
 
+            Node::Neg { expr } => {
+                let r = self.expression(expr);
+                self.add(IR::Neg(reg(r)));
+                r
+            }
+
             Node::Addr { expr, .. } => self.lvalue(expr),
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
@@ -645,6 +653,7 @@ impl Deref for IR {
             | Or(ty)
             | Xor(ty)
             | And(ty)
+            | Neg(ty)
             | Comparison(ty)
             | Kill(ty)
             | Nop(ty)
@@ -678,6 +687,7 @@ impl DerefMut for IR {
             | Or(ty)
             | Xor(ty)
             | And(ty)
+            | Neg(ty)
             | Comparison(ty)
             | Kill(ty)
             | Nop(ty)
@@ -728,6 +738,7 @@ impl fmt::Display for IR {
             Or(ty) => write!(f, "OR {}", ty),
             Xor(ty) => write!(f, "XOR {}", ty),
             And(ty) => write!(f, "AND {}", ty),
+            Neg(ty) => write!(f, "NEG {}", ty),
             Comparison(ty) => write!(f, "CMP {}", ty),
             Kill(ty) => write!(f, "KILL {}", ty),
             Nop(ty) => write!(f, "NOP {}", ty),

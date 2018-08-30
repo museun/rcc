@@ -239,6 +239,10 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  shr {}, cl", REGS64[*dst as usize]);
             }
 
+            IR::Neg(Reg { src }) => {
+                writeln!(buf, "  neg {}", REGS64[*src as usize]);
+            }
+
             IR::Comparison(Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
 
             IR::Call(IRType::Call { reg, name, args }) => {
