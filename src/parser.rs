@@ -527,6 +527,13 @@ impl Parser {
                         rhs: Kind::make(self.unary(tokens)),
                     };
                 }
+                tok if *tok == '%' => {
+                    tokens.advance();
+                    lhs = Node::Mod {
+                        lhs: Kind::make(lhs),
+                        rhs: Kind::make(self.unary(tokens)),
+                    };
+                }
                 _ => break 'expr,
             }
         }

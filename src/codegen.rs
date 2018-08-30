@@ -222,6 +222,13 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
             }
 
+            IR::Mod(RegReg { dst, src }) => {
+                writeln!(buf, "  mov rax, {}", REGS64[*dst as usize]);
+                writeln!(buf, "  cqo");
+                writeln!(buf, "  div {}", REGS64[*src as usize]);
+                writeln!(buf, "  mov {}, rdx", REGS64[*dst as usize]);
+            }
+
             IR::Comparison(Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
 
             IR::Call(IRType::Call { reg, name, args }) => {

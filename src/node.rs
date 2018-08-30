@@ -55,6 +55,11 @@ pub enum Node {
         rhs: Kind,
     },
 
+    Mod {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     And {
         lhs: Kind,
         rhs: Kind,
@@ -239,6 +244,7 @@ impl Node {
             Or { lhs, rhs }
             | Xor { lhs, rhs }
             | And { lhs, rhs }
+            | Mod { lhs, rhs }
             | Add { lhs, rhs }
             | Sub { lhs, rhs }
             | Mul { lhs, rhs }
@@ -320,6 +326,7 @@ impl fmt::Display for Node {
             Or { .. } => write!(f, "Or"),
             Xor { .. } => write!(f, "Xor"),
             And { .. } => write!(f, "And"),
+            Mod { .. } => write!(f, "Mod"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
             Comparison { .. } => write!(f, "Comparison"),

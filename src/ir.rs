@@ -77,7 +77,7 @@ pub enum IR {
     Sub(IRType), // reg->reg
     Mul(IRType), // reg->reg
     Div(IRType), // reg->reg
-
+    Mod(IRType), // reg->reg
     Or(IRType),  // reg->reg
     Xor(IRType), // reg->reg
     And(IRType), // reg->reg
@@ -452,6 +452,8 @@ impl<'a> Generate<'a> {
 
             Node::Div { lhs, rhs } => self.binary(IR::Div(IRType::Nop), lhs, rhs),
 
+            Node::Mod { lhs, rhs } => self.binary(IR::Mod(IRType::Nop), lhs, rhs),
+
             Node::Addr { expr, .. } => self.lvalue(expr),
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
@@ -629,6 +631,7 @@ impl Deref for IR {
             | Sub(ty)
             | Mul(ty)
             | Div(ty)
+            | Mod(ty)
             | Or(ty)
             | Xor(ty)
             | And(ty)
@@ -659,6 +662,7 @@ impl DerefMut for IR {
             | Sub(ty)
             | Mul(ty)
             | Div(ty)
+            | Mod(ty)
             | Or(ty)
             | Xor(ty)
             | And(ty)
@@ -706,6 +710,7 @@ impl fmt::Display for IR {
             Sub(ty) => write!(f, "SUB {}", ty),
             Mul(ty) => write!(f, "MUL {}", ty),
             Div(ty) => write!(f, "DIV {}", ty),
+            Mod(ty) => write!(f, "MOD {}", ty),
             Or(ty) => write!(f, "OR {}", ty),
             Xor(ty) => write!(f, "XOR {}", ty),
             And(ty) => write!(f, "AND {}", ty),

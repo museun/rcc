@@ -348,7 +348,7 @@ const SYMBOLS: [(&str, Token); 14] = [
     ("typedef", Token::Typedef),
 ];
 
-const CHARACTERS: [(char, Option<char>); 29] = [
+const CHARACTERS: [(char, Option<char>); 30] = [
     ('&', Some('&')),
     ('|', Some('|')),
     //
@@ -382,6 +382,7 @@ const CHARACTERS: [(char, Option<char>); 29] = [
     ('.', None),
     ('|', None),
     ('^', None),
+    ('%', None),
 ];
 
 // TODO: this shouldn't be public
