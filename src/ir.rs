@@ -1,6 +1,7 @@
+use super::*;
 use node::{Comp, Node};
 use semantics::Var;
-use types::{SizeOf, Type};
+use types::Type;
 
 use std::fmt;
 use std::ops::{Deref, DerefMut};
@@ -137,7 +138,7 @@ impl<'a> Generate<'a> {
                             _ => unreachable!(),
                         };
 
-                        match arg.get_type() {
+                        match &*arg.get_type().as_ref().unwrap().borrow() {
                             Type::Char => {
                                 this.add(IR::StoreArg(Width::W8, reg_imm(i as i32, *offset)));
                             }
@@ -178,7 +179,7 @@ impl<'a> Generate<'a> {
 
                 self.add(IR::BpRel(reg_imm(lhs, *offset)));
 
-                match node.as_ref().get_type() {
+                match &*node.as_ref().get_type().as_ref().unwrap().borrow() {
                     Type::Char => {
                         self.add(IR::Store(Width::W8, reg_reg(lhs, rhs)));
                     }
@@ -361,7 +362,7 @@ impl<'a> Generate<'a> {
                 let rhs = self.expression(rhs);
                 let lhs = self.lvalue(lhs);
 
-                match l.get_type() {
+                match &*l.get_type().as_ref().unwrap().borrow() {
                     Type::Char => self.add(IR::Store(Width::W8, reg_reg(lhs, rhs))),
                     Type::Int => self.add(IR::Store(Width::W32, reg_reg(lhs, rhs))),
                     Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
@@ -374,15 +375,17 @@ impl<'a> Generate<'a> {
             }
 
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
-                if let Type::Ptr { .. } = lhs.get_type() {
+                if let Type::Ptr { .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
                     let rhs = self.expression(rhs);
                     let r = self.next_reg();
                     self.add(IR::Imm(reg_imm(
                         r,
-                        lhs.get_type()
-                            .as_ptr()
-                            .expect("add lhs to be a pointer")
-                            .size(),
+                        types::size_of(
+                            &*types::as_ptr(Rc::clone(&lhs.get_type().as_ref().unwrap()))
+                                .as_ref()
+                                .unwrap()
+                                .borrow(),
+                        ),
                     )));
                     self.add(IR::Mul(reg_reg(rhs, r)));
                     self.add(IR::Kill(reg(r)));
@@ -414,19 +417,25 @@ impl<'a> Generate<'a> {
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
                 let r = self.lvalue(&node);
-                self.add(load_instruction(ty, reg_reg(r, r)));
+                self.add(load_instruction(&*ty.borrow(), reg_reg(r, r)));
                 r
             }
 
             Node::Dot { expr, .. } => {
                 let r = self.lvalue(&node);
-                self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
+                self.add(load_instruction(
+                    &*expr.get_type().as_ref().unwrap().borrow(),
+                    reg_reg(r, r),
+                ));
                 r
             }
 
             Node::Deref { expr } => {
                 let r = self.expression(expr);
-                self.add(load_instruction(expr.get_type(), reg_reg(r, r)));
+                self.add(load_instruction(
+                    &*expr.get_type().as_ref().unwrap().borrow(),
+                    reg_reg(r, r),
+                ));
                 r
             }
 

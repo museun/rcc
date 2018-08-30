@@ -137,18 +137,19 @@ macro_rules! tracer {
 }
 
 pub struct Tracer<'a> {
-    label: &'a str,
+    label: Cow<'a, str>,
     pad: Cow<'a, str>,
 }
 
 impl<'a> Tracer<'a> {
-    pub fn new(label: &'a str, data: &str) -> Self {
+    pub fn new(label: String, data: &str) -> Self {
         let pad = ::std::iter::repeat(".")
             .take(level())
             .collect::<String>()
             .into();
         let next = COLORS[(level() + COLORS.len() - 1) % COLORS.len()];
         let lede = wrap_color!(next, "{}>", pad);
+        let label = label.into();
         eprintln!("{}{}: {}", lede, label, data);
         indent();
         Tracer { label, pad }

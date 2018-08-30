@@ -1,16 +1,28 @@
+use super::*;
 use node::Node;
-use types::{AlignOf, SizeOf, Type};
-use util::*;
+use types::Type;
 
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Var {
-    pub ty: Type,
+    pub ty: RefType,
     pub offset: i32,
     pub global: Option<(String, String)>, // None = local
     pub data: i32,
     pub is_extern: bool,
+}
+
+impl Var {
+    fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
+        Self {
+            ty,
+            offset: 0,
+            global: Some((name.into(), s.into())),
+            is_extern,
+            data,
+        }
+    }
 }
 
 pub struct Semantics<'a> {
@@ -40,7 +52,7 @@ impl<'a> Semantics<'a> {
                 ..
             } = &node
             {
-                let var = Self::new_global(ty, &name, "", *data, *is_extern);
+                let var = Var::global(Rc::clone(&ty), &name, "", *data, *is_extern);
                 globals.push(var.clone());
                 env.insert(name.clone(), var);
                 continue;
@@ -63,16 +75,6 @@ impl<'a> Semantics<'a> {
         nodes
     }
 
-    fn new_global(ty: &Type, name: &str, s: &str, data: i32, is_extern: bool) -> Var {
-        Var {
-            ty: ty.clone(),
-            offset: 0,
-            global: Some((name.into(), s.into())),
-            is_extern,
-            data,
-        }
-    }
-
     fn check_lval(node: &Node) {
         match node {
             Node::LVal { .. } | Node::GVar { .. } | Node::Deref { .. } | Node::Dot { .. } => {
@@ -88,13 +90,9 @@ impl<'a> Semantics<'a> {
             return;
         }
 
-        if let Type::Array { .. } = base.get_type() {
-            match base {
-                Node::LVal { ref ty, .. } | Node::GVar { ref ty, .. } => {
-                    *base = ty.addr_of(&base);
-                }
-                _ => fail!("must be a lvalue"),
-            }
+        if let Type::Array { base: t, .. } = &*base.get_type().unwrap().borrow() {
+            let addr = types::addr_of(Rc::clone(&t), &base);
+            *base = addr;
         }
     }
 
@@ -105,7 +103,7 @@ impl<'a> Semantics<'a> {
 
             Node::Str { str, ty } => {
                 let label = self.next_label();
-                let var = Self::new_global(ty, &label, str, 0, false);
+                let var = Var::global(Rc::clone(&ty), &label, str, 0, false);
                 self.globals.push(var);
 
                 // this doesn't seem right
@@ -123,6 +121,7 @@ impl<'a> Semantics<'a> {
                 }
 
                 let var = var.unwrap();
+
                 // local
                 if var.global.is_none() {
                     *node = Node::LVal {
@@ -133,7 +132,7 @@ impl<'a> Semantics<'a> {
                     return;
                 }
 
-                // globals
+                // global
                 *node = Node::GVar {
                     name: name.to_string(),
                     ty: var.ty.clone(),
@@ -142,14 +141,13 @@ impl<'a> Semantics<'a> {
                 self.maybe_decay(node, decay);
             }
 
-            Node::GVar { ref ty, .. } => {
-                if decay {
-                    if let Type::Array { .. } = ty {
-                        *node = ty.addr_of(&node);
-                    }
-                }
-            }
-
+            // Node::GVar { ref ty, .. } => {
+            //     if decay {
+            //         if let Type::Array { .. } = &*ty.borrow() {
+            //             *node = types::addr_of(Rc::clone(&ty), &node);
+            //         }
+            //     }
+            // }
             Node::Vardef {
                 name,
                 init,
@@ -158,8 +156,8 @@ impl<'a> Semantics<'a> {
                 is_extern,
                 data,
             } => {
-                self.stacksize = round(self.stacksize, ty.align());
-                self.stacksize += ty.size();
+                self.stacksize = round(self.stacksize, types::align_of(&*ty.borrow()));
+                self.stacksize += types::size_of(&*ty.borrow());
                 *offset = self.stacksize;
 
                 env.insert(
@@ -212,36 +210,42 @@ impl<'a> Semantics<'a> {
             Node::Assign { lhs, rhs } => {
                 self.walk(env, lhs.as_mut(), false); // can't decay this
                 Self::check_lval(lhs.get_val());
-
                 self.walk(env, rhs.as_mut(), true);
-                let lhs = lhs.get_type().clone();
-                node.set_type(lhs);
+
+                let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
+                node.set_type(ty);
             }
 
             Node::Dot { expr, name, offset } => {
                 self.walk(env, expr.as_mut(), true);
-                let ty = expr.get_type();
-                let (ty, off) = if let Type::Struct { members, .. } = ty {
-                    if let Some(member) = members.iter().find(|&m| {
-                        if let Node::Vardef { name: mname, .. } = m {
-                            *mname == *name
-                        } else {
-                            false
+
+                if let Type::Struct { ref members, .. } =
+                    &*expr.get_type().as_ref().unwrap().borrow()
+                {
+                    let mut typ = None;
+                    for member in members {
+                        if let Node::Vardef {
+                            name: mname,
+                            ty,
+                            offset: ref off,
+                            ..
+                        } = member
+                        {
+                            if *mname != *name {
+                                continue;
+                            }
+                            *offset = *off;
+                            typ = Some(ty.clone())
                         }
-                    }) {
-                        if let Node::Vardef { offset, ty, .. } = member {
-                            (ty.clone(), offset)
-                        } else {
-                            unreachable!()
-                        }
-                    } else {
-                        fail!("no member '{}' on struct", name)
                     }
+
+                    node.set_type(typ.unwrap());
+                    return self.maybe_decay(node, decay);
                 } else {
                     fail!("struct expected before . operator")
-                };
-                *offset = *off;
-                node.set_type(ty);
+                }
+
+                // fail!("no member '{}' on struct", name)
             }
 
             Node::LogAnd { lhs, rhs }
@@ -264,32 +268,31 @@ impl<'a> Semantics<'a> {
                 self.walk(env, rhs.as_mut(), true);
 
                 // XXX: this is awful
-                if let Type::Ptr { ptr: r, .. } = rhs.get_type() {
-                    if let Type::Ptr { ptr: l, .. } = lhs.get_type() {
-                        let (r, l) = (*r.clone(), *l.clone());
-                        lhs.set_type(r);
-                        rhs.set_type(l);
+                if let Type::Ptr { ptr: r, .. } = &*rhs.get_type().as_ref().unwrap().borrow() {
+                    if let Type::Ptr { ptr: l, .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
+                        lhs.set_type(Rc::clone(&r));
+                        rhs.set_type(Rc::clone(&l));
                     }
                 }
 
                 // TYPE: make sure its not circular pointers
-                let ty = lhs.get_type().clone();
+                let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
                 node.set_type(ty);
             }
 
-            Node::Addr { expr, ty } => {
+            Node::Addr { expr, ty: _ty } => {
                 self.walk(env, expr.as_mut(), true);
                 Self::check_lval(expr.as_ref());
-                *ty = expr.get_type().ptr_of()
+
+                let ptr = types::ptr_of(Rc::clone(&expr.get_type().as_ref().unwrap()));
+                node.set_type(Rc::new(RefCell::new(ptr)));
             }
 
             Node::Deref { expr } => {
                 self.walk(env, expr.as_mut(), true);
-                match expr.get_type().as_ptr() {
-                    Some(ty) => {
-                        let ty = ty.clone();
-                        node.set_type(ty)
-                    }
+
+                match types::as_ptr(Rc::clone(&expr.get_type().as_ref().unwrap())) {
+                    Some(ty) => node.set_type(Rc::clone(&ty)),
                     None => fail!("operand must be a pointer"),
                 };
             }
@@ -299,16 +302,16 @@ impl<'a> Semantics<'a> {
             Node::Sizeof { expr } => {
                 self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
-                    val: expr.get_type().size() as u32,
-                    ty: Type::Int,
+                    val: types::size_of(&*expr.get_type().as_ref().unwrap().borrow()) as u32,
+                    ty: Rc::new(RefCell::new(Type::Int)),
                 };
             }
 
             Node::Alignof { expr } => {
                 self.walk(env, expr.as_mut(), false);
                 *node = Node::Constant {
-                    val: expr.get_type().align() as u32,
-                    ty: Type::Int,
+                    val: types::align_of(&*expr.get_type().as_ref().unwrap().borrow()) as u32,
+                    ty: Rc::new(RefCell::new(Type::Int)),
                 };
             }
 
@@ -334,9 +337,9 @@ impl<'a> Semantics<'a> {
             }
 
             Node::Expression { expr } => self.walk(env, expr.as_mut(), true),
-            Node::Statement { stmt, ty } => {
+            Node::Statement { stmt, ty: _ty } => {
                 self.walk(env, stmt.as_mut(), true);
-                *ty = Type::Int
+                node.set_type(Rc::new(RefCell::new(Type::Int)))
             }
             Node::Noop {} => {}
             _ => fail!("unexpected node: {:?}", node),

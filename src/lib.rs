@@ -5,6 +5,10 @@
 mod util;
 pub use util::*;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+type RefType = Rc<RefCell<types::Type>>;
+
 pub mod codegen;
 pub mod frontend;
 pub mod ir;

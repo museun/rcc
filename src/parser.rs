@@ -1,9 +1,9 @@
+use super::*;
 use kind::Kind;
 use node::{Comp, Node};
 use span::Span;
 use tokens::{Token, Tokens, Type as TokType};
-use types::{SizeOf, Type};
-use util::*;
+use types::Type;
 
 use std::collections::HashMap;
 
@@ -62,7 +62,7 @@ impl Parser {
             expect_token(tokens, '{');
 
             return Node::Func {
-                ty,
+                ty: Rc::new(RefCell::new(ty)),
                 body: Kind::make(self.compound(tokens)),
                 name,
                 args,
@@ -71,10 +71,10 @@ impl Parser {
             };
         }
 
-        let data = if is_extern { 0 } else { ty.size() }; // -1 for no data
+        let data = if is_extern { 0 } else { types::size_of(&ty) };
 
         let node = Node::Vardef {
-            ty: self.read_array(tokens, ty),
+            ty: Rc::new(RefCell::new(self.read_array(tokens, ty))),
             name,
             init: Kind::empty(),
             offset: 0,
@@ -95,12 +95,12 @@ impl Parser {
             Kind::empty()
         };
 
-        let data = ty.size();
+        let data = types::size_of(&ty);
         Node::Vardef {
             name,
             init,
             offset: 0,
-            ty,
+            ty: Rc::new(RefCell::new(ty)),
             data,
             is_extern: false,
         }
@@ -241,9 +241,10 @@ impl Parser {
     fn declaration(&mut self, tokens: &mut Tokens) -> Node {
         let ty = self.type_(tokens);
 
-        let size = ty.size();
+        let size = types::size_of(&ty);
         let name = self.ident(tokens);
         let array = self.read_array(tokens, ty);
+
         let init = if consume(tokens, '=') {
             Kind::make(self.assign(tokens))
         } else {
@@ -255,7 +256,7 @@ impl Parser {
             name,
             init,
             offset: 0,
-            ty: array,
+            ty: Rc::new(RefCell::new(array)),
             data: size,
             is_extern: false,
         }
@@ -415,7 +416,7 @@ impl Parser {
         if consume(tokens, '&') {
             return Node::Addr {
                 expr: Kind::make(self.multiply(tokens)),
-                ty: Type::Int, // ?? what to do here
+                ty: Rc::new(RefCell::new(Type::Int)), // TODO: ?? what to do here
             };
         }
         if consume(tokens, Token::Sizeof) {
@@ -440,7 +441,7 @@ impl Parser {
                     expect_token(tokens, ')');
                     return Node::Statement {
                         stmt: Kind::make(stmt),
-                        ty: Type::Int,
+                        ty: Rc::new(RefCell::new(Type::Int)),
                     };
                 }
                 let node = self.assign(tokens);
@@ -450,12 +451,15 @@ impl Parser {
 
             Token::Num(n) => Node::Constant {
                 val: *n,
-                ty: Type::Int,
+                ty: Rc::new(RefCell::new(Type::Int)),
             },
 
             Token::Str(s) => Node::Str {
                 str: s.to_string(),
-                ty: Type::array_of(&Type::Char, s.len()),
+                ty: Rc::new(RefCell::new(types::array_of(
+                    Rc::new(RefCell::new(Type::Char)),
+                    s.len(),
+                ))),
             },
 
             Token::Ident(ref name) => {
@@ -530,7 +534,7 @@ impl Parser {
 
         let mut ty = ty;
         for el in param.iter().rev() {
-            ty = ty.array_of(*el as usize);
+            ty = types::array_of(Rc::new(RefCell::new(ty)), *el as usize);
         }
         ty
     }
@@ -600,13 +604,13 @@ impl Parser {
                     _ => {} // no tag
                 };
 
-                Type::struct_of(&members.as_ref().unwrap())
+                types::struct_of(&members.as_ref().unwrap())
             }
             _ => unreachable!(),
         };
 
         while consume(tokens, '*') {
-            ty = ty.ptr_of();
+            ty = types::ptr_of(Rc::new(RefCell::new(ty)));
         }
         ty
     }

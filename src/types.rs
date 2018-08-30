@@ -1,6 +1,6 @@
+use super::*;
 use kind::Kind;
 use node::Node;
-use util::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -9,14 +9,14 @@ pub enum Type {
     Ptr {
         size: i32,
         align: i32,
-        ptr: Box<Type>,
+        ptr: RefType,
     },
     Array {
         size: i32,
         align: i32,
-        base: Box<Type>,
+        base: RefType,
         len: usize,
-        data: Vec<Type>,
+        data: Vec<RefType>,
     },
     Struct {
         size: i32,
@@ -25,131 +25,108 @@ pub enum Type {
     },
 }
 
-impl Type {
-    pub fn as_ptr(&self) -> Option<&Self> {
-        match self {
-            Type::Ptr { ref ptr, .. } => Some(ptr),
-            _ => None,
-        }
+pub fn as_ptr(ty: RefType) -> Option<RefType> {
+    match &*ty.borrow() {
+        Type::Ptr { ptr, .. } => Some(Rc::clone(&ptr)),
+        _ => None,
     }
+}
 
-    pub fn as_ptr_mut(&mut self) -> Option<&mut Self> {
-        match self {
-            Type::Ptr { ref mut ptr, .. } => Some(ptr),
-            _ => None,
-        }
+pub fn ptr_of(ty: RefType) -> Type {
+    Type::Ptr {
+        size: 8,
+        align: 8,
+        ptr: Rc::clone(&ty),
     }
+}
 
-    pub fn ptr_of(&self) -> Self {
-        Type::Ptr {
-            size: 8,
-            align: 8,
-            ptr: Box::new(self.clone()),
-        }
+pub fn addr_of(ty: RefType, node: &Node) -> Node {
+    Node::Addr {
+        ty: Rc::new(RefCell::new(ptr_of(ty))),
+        expr: Kind::make(node.clone()),
     }
+}
 
-    pub fn array_of(&self, len: usize) -> Self {
-        Type::Array {
-            size: self.size(),
-            align: self.align(),
-            base: Box::new(self.clone()),
-            len,
-            data: vec![],
-        }
+pub fn array_of(ty: RefType, len: usize) -> Type {
+    Type::Array {
+        size: size_of(&*ty.borrow()),
+        align: align_of(&*ty.borrow()),
+        base: Rc::clone(&ty),
+        len,
+        data: vec![],
     }
+}
 
-    pub fn struct_of(nodes: &[Node]) -> Self {
-        let mut members = nodes
-            .iter()
-            .filter_map(|n| match n {
-                Node::Vardef { .. } => Some(n.clone()),
-                _ => None,
-            }).collect::<Vec<_>>();
-        let mut os = 0;
-        let mut align = 0;
+pub fn struct_of(nodes: &[Node]) -> Type {
+    let mut members = vec![];
+    let mut os = 0;
+    let mut align = 0;
 
-        for node in &mut members {
-            if let Node::Vardef {
-                ty, ref mut offset, ..
-            } = node
-            {
-                os = round(os, ty.align());
-                *offset = os;
-                os += ty.size();
-                if align < ty.align() {
-                    align = ty.align();
+    for node in nodes {
+        if let Node::Vardef { ty, .. } = node {
+            let al = align_of(&*ty.borrow());
+            let sz = size_of(&*ty.borrow());
+
+            os = round(os, al);
+
+            let mut newnode = node.clone();
+            match &mut newnode {
+                Node::Vardef { offset, .. } => {
+                    *offset = os;
                 }
-            } else {
-                unreachable!()
+                _ => unreachable!(),
             }
-        }
+            members.push(newnode);
 
-        Type::Struct {
-            members,
-            size: round(os, align),
-            align,
-        }
-    }
-
-    // TODO this doesn't belong here
-    pub fn addr_of(&self, node: &Node) -> Node {
-        Node::Addr {
-            ty: self.ptr_of(),
-            expr: Kind::make(node.clone()),
+            os += sz;
+            if align < al {
+                align = al;
+            }
+        } else {
+            unreachable!()
         }
     }
+
+    Type::Struct {
+        members,
+        size: round(os, align),
+        align,
+    }
 }
 
-pub trait SizeOf {
-    fn size(&self) -> i32;
+pub fn size_of(ty: &Type) -> i32 {
+    match ty {
+        Type::Char => 1,
+        Type::Int => 4,
+        Type::Ptr { size, .. } => *size,
+        Type::Array { base, len, .. } => ((size_of(&*base.borrow()) as usize) * len) as i32,
+        Type::Struct { size, .. } => *size,
+    }
 }
 
-pub trait AlignOf {
-    fn align(&self) -> i32;
+pub fn align_of(ty: &Type) -> i32 {
+    match ty {
+        Type::Char => 1,
+        Type::Int => 4,
+        Type::Ptr { align, .. } => *align,
+        Type::Array { base, .. } => align_of(&*base.borrow()),
+        Type::Struct { align, .. } => *align,
+    }
 }
 
-impl SizeOf for Type {
-    fn size(&self) -> i32 {
+use std::fmt;
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Type::*;
+
         match self {
-            Type::Char => 1,
-            Type::Int => 4,
-            &Type::Ptr { size, .. } => size,
-            Type::Array { base, len, .. } => ((base.size() as usize) * len) as i32,
-            &Type::Struct { size, .. } => size,
-        }
+            Char => write!(f, "Char")?,
+            Int => write!(f, "Int")?,
+            Ptr { .. } => write!(f, "Ptr")?,
+            Array { .. } => write!(f, "Array")?,
+            Struct { .. } => write!(f, "Struct")?,
+        };
+
+        Ok(())
     }
 }
-
-impl AlignOf for Type {
-    fn align(&self) -> i32 {
-        match self {
-            Type::Char => 1,
-            Type::Int => 4,
-            &Type::Ptr { align, .. } => align,
-            Type::Array { base, .. } => base.align(),
-            &Type::Struct { align, .. } => align,
-        }
-    }
-}
-
-// TODO redo this
-// impl fmt::Display for Type {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             Type::Char => write!(f, "Char"),
-//             Type::Int => write!(f, "Int"),
-//             Type::Ptr { ptr, size, align } => write!(f, "Ptr: {} ({},{})",
-// ptr, size, align),             Type::Array { base, len, .. } => write!(f,
-// "Arr of {}, {}", base, len),             Type::Struct { members, .. } => {
-//                 write!(f, "Struct {{")?;
-//                 for (i, member) in members.iter().enumerate() {
-//                     write!(f, "{:?}", member)?;
-//                     if i < members.len() {
-//                         write!(f, ", ")?;
-//                     }
-//                 }
-//                 write!(f, "}}")
-//             }
-//         }
-//     }
-// }

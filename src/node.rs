@@ -1,6 +1,6 @@
+use super::*;
 use kind::Kind;
 use semantics::Var;
-use types::Type;
 
 use std::fmt;
 
@@ -9,7 +9,7 @@ use std::fmt;
 pub enum Node {
     Constant {
         val: u32, // XXX: why is this a u32
-        ty: Type,
+        ty: RefType,
     },
 
     Ident {
@@ -18,7 +18,7 @@ pub enum Node {
 
     Str {
         str: String,
-        ty: Type, // array
+        ty: RefType, // array
     },
 
     Add {
@@ -74,17 +74,17 @@ pub enum Node {
 
     LVal {
         offset: i32,
-        ty: Type,
+        ty: RefType,
     },
 
     GVar {
         name: String,
-        ty: Type,
+        ty: RefType,
     },
 
     Addr {
         expr: Kind,
-        ty: Type,
+        ty: RefType,
     },
 
     Deref {
@@ -92,7 +92,7 @@ pub enum Node {
     },
 
     Vardef {
-        ty: Type,
+        ty: RefType,
         name: String,
         init: Kind,
         offset: i32,
@@ -155,13 +155,13 @@ pub enum Node {
         args: Vec<Kind>,
         body: Kind,
         stacksize: i32,
-        ty: Type,
+        ty: RefType,
         globals: Vec<Var>,
     },
 
     Statement {
         stmt: Kind,
-        ty: Type,
+        ty: RefType,
     },
 
     Expression {
@@ -186,36 +186,53 @@ impl Node {
         }
     }
 
-    pub fn get_type(&self) -> &Type {
+    pub fn get_type(&self) -> Option<RefType> {
         match self {
             Node::Add { lhs, .. }
             | Node::Sub { lhs, .. }
             | Node::Mul { lhs, .. }
             | Node::Div { lhs, .. } => lhs.get_type(),
 
-            Node::Addr { ty, .. } => ty,
-            Node::Deref { expr } | Node::Dot { expr, .. } => expr.get_type(),
+            Node::Assign { rhs, .. } => rhs.get_type(),
 
-            Node::Constant { ty, .. }
+            Node::Expression { expr, .. } | Node::Deref { expr } | Node::Dot { expr, .. } => {
+                expr.get_type()
+            }
+
+            Node::Addr { ty, .. }
+            | Node::Constant { ty, .. }
             | Node::Statement { ty, .. }
             | Node::GVar { ty, .. }
             | Node::LVal { ty, .. }
-            | Node::Vardef { ty, .. } => ty,
-            _ => fail!("doesn't have a type\n{:#?}", self),
+            | Node::Vardef { ty, .. } => Some(Rc::clone(&ty)),
+
+            Node::Func { body, .. } => body.get_type(),
+
+            _ => None,
         }
     }
 
-    pub(crate) fn set_type(&mut self, newtype: Type) {
+    pub(crate) fn set_type(&mut self, newtype: RefType) {
+        use self::Node::*;
+
         match self {
-            Node::Add { lhs, rhs }
-            | Node::Sub { lhs, rhs }
-            | Node::Mul { lhs, rhs }
-            | Node::Div { lhs, rhs } => {
-                lhs.set_type(newtype.clone());
-                rhs.set_type(newtype);
+            Add { lhs, rhs } | Sub { lhs, rhs } | Mul { lhs, rhs } | Div { lhs, rhs } => {
+                lhs.set_type(Rc::clone(&newtype));
+                rhs.set_type(Rc::clone(&newtype));
             }
-            Node::Deref { expr, .. } | Node::Dot { expr, .. } => expr.set_type(newtype),
-            Node::Assign { lhs, .. } => lhs.set_type(newtype),
+            Deref { expr, .. } | Dot { expr, .. } => expr.set_type(newtype),
+            Assign { lhs, .. } => lhs.set_type(newtype),
+
+            Constant { ty, .. }
+            | Str { ty, .. }
+            | Addr { ty, .. }
+            | LVal { ty, .. }
+            | GVar { ty, .. }
+            | Vardef { ty, .. }
+            | Statement { ty, .. }
+            | Func { ty, .. } => {
+                ::std::mem::replace(ty, newtype);
+            }
             _ => unreachable!(),
         };
     }
@@ -244,5 +261,47 @@ impl fmt::Display for Comp {
             Comp::NEq => "!=",
         };
         write!(f, "{}", w)
+    }
+}
+
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Node::*;
+
+        match self {
+            Constant { .. } => write!(f, "Constant"),
+            Ident { .. } => write!(f, "Ident"),
+            Str { .. } => write!(f, "Str"),
+            Add { .. } => write!(f, "Add"),
+            Sub { .. } => write!(f, "Sub"),
+            Mul { .. } => write!(f, "Mul"),
+            Div { .. } => write!(f, "Div"),
+            LogAnd { .. } => write!(f, "LogAnd"),
+            LogOr { .. } => write!(f, "LogOr"),
+            Equals { .. } => write!(f, "Equals"),
+            NEquals { .. } => write!(f, "NEquals"),
+            Comparison { .. } => write!(f, "Comparison"),
+            Assign { .. } => write!(f, "Assign"),
+            LVal { .. } => write!(f, "LVal"),
+            GVar { .. } => write!(f, "GVar"),
+            Addr { .. } => write!(f, "Addr"),
+            Deref { .. } => write!(f, "Deref"),
+            Vardef { .. } => write!(f, "Vardef"),
+            Struct { .. } => write!(f, "Struct"),
+            Dot { .. } => write!(f, "Dot"),
+            Return { .. } => write!(f, "Return"),
+            Sizeof { .. } => write!(f, "Sizeof"),
+            Alignof { .. } => write!(f, "Alignof"),
+            If { .. } => write!(f, "If"),
+            Else { .. } => write!(f, "Else"),
+            DoWhile { .. } => write!(f, "DoWhile"),
+            For { .. } => write!(f, "For"),
+            Call { .. } => write!(f, "Call"),
+            Func { .. } => write!(f, "Func"),
+            Statement { .. } => write!(f, "Statement"),
+            Expression { .. } => write!(f, "Expression"),
+            Compound { .. } => write!(f, "Compound"),
+            _ => Ok(()),
+        }
     }
 }
