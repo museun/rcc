@@ -290,6 +290,21 @@ impl<'a> Generate<'a> {
                 r
             }
 
+            Node::Not { expr } => {
+                let lhs = self.expression(expr);
+                let rhs = self.next_reg();
+                self.add(IR::Imm(reg_imm(rhs, 0)));
+
+                self.add(IR::Comparison(IRType::Cmp {
+                    cmp: Comp::Eq,
+                    dst: lhs,
+                    src: rhs,
+                }));
+
+                self.add(IR::Kill(reg(rhs)));
+                lhs
+            }
+
             Node::LogAnd { lhs, rhs } => {
                 let x = self.next_label();
 

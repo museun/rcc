@@ -445,6 +445,11 @@ impl Parser {
                 ty: Rc::new(RefCell::new(Type::Int)), // TODO: ?? what to do here
             };
         }
+        if consume(tokens, '!') {
+            return Node::Not {
+                expr: Kind::make(self.unary(tokens)),
+            };
+        }
         if consume(tokens, Token::Sizeof) {
             return Node::Sizeof {
                 expr: Kind::make(self.unary(tokens)),

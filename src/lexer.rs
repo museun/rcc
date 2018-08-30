@@ -348,12 +348,13 @@ const SYMBOLS: [(&str, Token); 14] = [
     ("typedef", Token::Typedef),
 ];
 
-const CHARACTERS: [(char, Option<char>); 22] = [
+const CHARACTERS: [(char, Option<char>); 23] = [
     ('&', Some('&')),
     ('|', Some('|')),
     ('=', Some('=')),
     ('!', Some('=')),
     ('-', Some('>')),
+    ('!', None),
     ('+', None),
     ('-', None),
     ('*', None),

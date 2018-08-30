@@ -41,6 +41,10 @@ pub enum Node {
         rhs: Kind,
     },
 
+    Not {
+        expr: Kind,
+    },
+
     LogAnd {
         lhs: Kind,
         rhs: Kind,
@@ -220,7 +224,7 @@ impl Node {
                 lhs.set_type(Rc::clone(&newtype));
                 rhs.set_type(Rc::clone(&newtype));
             }
-            Deref { expr, .. } | Dot { expr, .. } => expr.set_type(newtype),
+            Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } => expr.set_type(newtype),
             Assign { lhs, .. } => lhs.set_type(newtype),
 
             Constant { ty, .. }
@@ -276,6 +280,7 @@ impl fmt::Display for Node {
             Sub { .. } => write!(f, "Sub"),
             Mul { .. } => write!(f, "Mul"),
             Div { .. } => write!(f, "Div"),
+            Not { .. } => write!(f, "Not"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
             Equals { .. } => write!(f, "Equals"),
