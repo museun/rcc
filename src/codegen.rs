@@ -168,6 +168,14 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
+            IR::Xor(IRType::RegReg { dst, src }) => {
+                writeln!(
+                    buf,
+                    "  xor {},{}",
+                    REGS64[*dst as usize], REGS64[*src as usize]
+                );
+            }
+
             IR::If(IRType::RegImm { reg, val }) => {
                 writeln!(buf, "  cmp {}, 0", REGS64[*reg as usize]);
                 writeln!(buf, "  jne .L{}", val);

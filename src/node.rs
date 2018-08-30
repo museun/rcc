@@ -50,6 +50,11 @@ pub enum Node {
         rhs: Kind,
     },
 
+    Xor {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     LogAnd {
         lhs: Kind,
         rhs: Kind,
@@ -237,6 +242,7 @@ impl Node {
 
         match self {
             Or { lhs, rhs }
+            | Xor { lhs, rhs }
             | Add { lhs, rhs }
             | Sub { lhs, rhs }
             | Mul { lhs, rhs }
@@ -312,6 +318,7 @@ impl fmt::Display for Node {
             Div { .. } => write!(f, "Div"),
             Not { .. } => write!(f, "Not"),
             Or { .. } => write!(f, "Or"),
+            Xor { .. } => write!(f, "Xor"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
             Equals { .. } => write!(f, "Equals"),
