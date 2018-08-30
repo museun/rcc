@@ -470,6 +470,23 @@ impl<'a> Generate<'a> {
                 r
             }
 
+            Node::PreInc { expr } => {
+                let lhs = self.lvalue(expr);
+                self.pre_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), 1)
+            }
+            Node::PreDec { expr } => {
+                let lhs = self.lvalue(expr);
+                self.pre_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), -1)
+            }
+            Node::PostInc { expr } => {
+                let lhs = self.lvalue(expr);
+                self.post_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), 1)
+            }
+            Node::PostDec { expr } => {
+                let lhs = self.lvalue(expr);
+                self.post_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), -1)
+            }
+
             Node::Addr { expr, .. } => self.lvalue(expr),
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
@@ -569,6 +586,51 @@ impl<'a> Generate<'a> {
         self.add(ir);
         self.add(IR::Kill(reg(r2)));
         r1
+    }
+
+    fn pre_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
+        let val = self.next_reg();
+        self.add(load_instruction(ty, reg_reg(val, addr)));
+        let imm = self.next_reg();
+
+        self.add(IR::Imm(reg_imm(imm, delta)));
+        self.add(IR::Add(reg_reg(val, imm)));
+        self.add(IR::Kill(reg(imm)));
+        self.add(IR::StoreArg(
+            match ty {
+                Type::Char => Width::W8,
+                Type::Int => Width::W32,
+                Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
+                _ => unreachable!(),
+            },
+            reg_imm(addr, val),
+        ));
+        self.add(IR::Kill(reg(addr)));
+
+        val
+    }
+
+    fn post_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
+        let val = self.next_reg();
+        self.add(load_instruction(ty, reg_reg(val, addr)));
+        let imm = self.next_reg();
+
+        self.add(IR::Imm(reg_imm(imm, delta)));
+        self.add(IR::Add(reg_reg(val, imm)));
+        self.add(IR::StoreArg(
+            match ty {
+                Type::Char => Width::W8,
+                Type::Int => Width::W32,
+                Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
+                _ => unreachable!(),
+            },
+            reg_imm(addr, val),
+        ));
+        self.add(IR::Kill(reg(addr)));
+        self.add(IR::Sub(reg_reg(val, imm)));
+        self.add(IR::Kill(reg(imm)));
+
+        val
     }
 
     fn next_reg(&mut self) -> i32 {

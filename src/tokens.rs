@@ -148,6 +148,8 @@ impl From<&'static str> for Token {
             "==" => Token::MChar('=', '='),
             "!=" => Token::MChar('!', '='),
             "->" => Token::MChar('-', '>'),
+            "--" => Token::MChar('-', '-'),
+            "++" => Token::MChar('+', '+'),
             _ => panic!("invalid str/token"),
         }
     }

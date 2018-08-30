@@ -85,6 +85,22 @@ pub enum Node {
         rhs: Kind,
     },
 
+    PostInc {
+        expr: Kind,
+    },
+
+    PostDec {
+        expr: Kind,
+    },
+
+    PreInc {
+        expr: Kind,
+    },
+
+    PreDec {
+        expr: Kind,
+    },
+
     Comparison {
         lhs: Kind,
         rhs: Kind,
@@ -270,9 +286,14 @@ impl Node {
                 rhs.set_type(Rc::clone(&newtype));
             }
 
-            Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } | Neg { expr } => {
-                expr.set_type(newtype)
-            }
+            Deref { expr, .. }
+            | Dot { expr, .. }
+            | Not { expr, .. }
+            | Neg { expr }
+            | PreInc { expr }
+            | PreDec { expr }
+            | PostInc { expr }
+            | PostDec { expr } => expr.set_type(newtype),
 
             Assign { lhs, .. } => lhs.set_type(newtype),
 
@@ -350,6 +371,10 @@ impl fmt::Display for Node {
             Shl { .. } => write!(f, "Shl"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
+            PostInc { .. } => write!(f, "PostInc"),
+            PostDec { .. } => write!(f, "PostDec"),
+            PreInc { .. } => write!(f, "PreInc"),
+            PreDec { .. } => write!(f, "PreDec"),
             Comparison { .. } => write!(f, "Comparison"),
             Assign { .. } => write!(f, "Assign"),
             LVal { .. } => write!(f, "LVal"),

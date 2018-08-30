@@ -348,7 +348,7 @@ const SYMBOLS: [(&str, Token); 14] = [
     ("typedef", Token::Typedef),
 ];
 
-const CHARACTERS: [(char, Option<char>); 32] = [
+const CHARACTERS: [(char, Option<char>); 34] = [
     ('&', Some('&')),
     ('|', Some('|')),
     //
@@ -359,6 +359,9 @@ const CHARACTERS: [(char, Option<char>); 32] = [
     //
     ('<', Some('<')),
     ('>', Some('>')),
+    //
+    ('+', Some('+')),
+    ('-', Some('-')),
     //
     ('-', Some('>')),
     //
@@ -390,7 +393,7 @@ const CHARACTERS: [(char, Option<char>); 32] = [
 
 // TODO: this shouldn't be public
 pub fn is_left_char(left: char) -> bool {
-    for (ch, _) in &CHARACTERS {
+    for (ch, _) in CHARACTERS.iter() {
         if left == *ch {
             return true;
         }
@@ -399,7 +402,7 @@ pub fn is_left_char(left: char) -> bool {
 }
 
 fn is_valid_char(l: char, r: char) -> bool {
-    for (a, b) in &CHARACTERS {
+    for (a, b) in CHARACTERS.iter() {
         if l == *a && Some(r) == *b {
             return true;
         }

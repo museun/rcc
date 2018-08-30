@@ -592,6 +592,17 @@ impl Parser {
                 expr: Kind::make(self.unary(tokens)),
             };
         }
+        if consume(tokens, "--") {
+            return Node::PreDec {
+                expr: Kind::make(self.unary(tokens)),
+            };
+        }
+
+        if consume(tokens, "++") {
+            return Node::PreInc {
+                expr: Kind::make(self.unary(tokens)),
+            };
+        }
         if consume(tokens, Token::Alignof) {
             return Node::Alignof {
                 expr: Kind::make(self.unary(tokens)),
@@ -656,6 +667,22 @@ impl Parser {
     fn postfix(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.primary(tokens);
         loop {
+            if consume(tokens, "++") {
+                lhs = Node::PostInc {
+                    expr: Kind::make(lhs),
+                };
+
+                continue;
+            }
+
+            if consume(tokens, "--") {
+                lhs = Node::PostDec {
+                    expr: Kind::make(lhs),
+                };
+
+                continue;
+            }
+
             if consume(tokens, '.') {
                 lhs = Node::Dot {
                     offset: 0,
