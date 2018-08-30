@@ -229,7 +229,7 @@ impl<'a> Semantics<'a> {
                     fail!("struct expected before . operator")
                 }
 
-                // fail!("no member '{}' on struct", name)
+                fail!("no member '{}' on struct", name)
             }
 
             Node::LogAnd { lhs, rhs }
@@ -239,25 +239,17 @@ impl<'a> Semantics<'a> {
             | Node::Comparison { lhs, rhs, .. } => {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);
-
-                // let ty = lhs.get_type().clone();
-                // node.set_type(ty);
             }
 
-            Node::Mul { lhs, rhs, .. }
+            Node::Or { lhs, rhs }
+            | Node::Mul { lhs, rhs, .. }
             | Node::Div { lhs, rhs, .. }
             | Node::Add { lhs, rhs, .. }
             | Node::Sub { lhs, rhs, .. } => {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);
 
-                // XXX: this is awful
-                if let Type::Ptr { ptr: r, .. } = &*rhs.get_type().as_ref().unwrap().borrow() {
-                    if let Type::Ptr { ptr: l, .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
-                        lhs.set_type(Rc::clone(&r));
-                        rhs.set_type(Rc::clone(&l));
-                    }
-                }
+                // TODO swap pointers
 
                 // TYPE: make sure its not circular pointers
                 let ty = Rc::clone(lhs.get_type().as_ref().unwrap());

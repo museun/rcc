@@ -35,10 +35,19 @@ impl Kind {
     }
 
     pub fn get_type(&self) -> Option<RefType> {
-        match self.ty.as_ref() {
+        let ty = match self.ty.as_ref() {
             Some(ty) => Some(Rc::clone(&ty)),
             None => self.get_val().get_type(),
-        }
+        };
+        eprintln!(
+            "ty: {}",
+            match &ty {
+                Some(ty) => (&*ty.borrow()).to_string(),
+                None => "none".into(),
+            }
+        );
+
+        ty
     }
 
     pub fn set_type(&mut self, newtype: RefType) {

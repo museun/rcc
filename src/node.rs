@@ -45,6 +45,11 @@ pub enum Node {
         expr: Kind,
     },
 
+    Or {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     LogAnd {
         lhs: Kind,
         rhs: Kind,
@@ -231,13 +236,20 @@ impl Node {
         use self::Node::*;
 
         match self {
-            Add { lhs, rhs } | Sub { lhs, rhs } | Mul { lhs, rhs } | Div { lhs, rhs } => {
+            Or { lhs, rhs }
+            | Add { lhs, rhs }
+            | Sub { lhs, rhs }
+            | Mul { lhs, rhs }
+            | Div { lhs, rhs } => {
                 lhs.set_type(Rc::clone(&newtype));
                 rhs.set_type(Rc::clone(&newtype));
             }
+
             Deref { expr, .. } | Dot { expr, .. } | Not { expr, .. } => expr.set_type(newtype),
+
             Assign { lhs, .. } => lhs.set_type(newtype),
 
+            // TODO: this should only do the RHS
             Comma { lhs, rhs } => {
                 lhs.set_type(Rc::clone(&newtype));
                 rhs.set_type(Rc::clone(&newtype))
@@ -255,7 +267,7 @@ impl Node {
             | Func { ty, .. } => {
                 ::std::mem::replace(ty, newtype);
             }
-            _ => unreachable!(),
+            _ => panic!("cannot set type: {} for {}", &*newtype.borrow(), self),
         };
     }
 }
@@ -299,6 +311,7 @@ impl fmt::Display for Node {
             Mul { .. } => write!(f, "Mul"),
             Div { .. } => write!(f, "Div"),
             Not { .. } => write!(f, "Not"),
+            Or { .. } => write!(f, "Or"),
             LogAnd { .. } => write!(f, "LogAnd"),
             LogOr { .. } => write!(f, "LogOr"),
             Equals { .. } => write!(f, "Equals"),

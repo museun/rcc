@@ -346,14 +346,31 @@ impl Parser {
         lhs
     }
 
-    fn logand(&mut self, tokens: &mut Tokens) -> Node {
+    fn bit_or(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.equality(tokens);
+        while let Some((_, t)) = tokens.peek() {
+            if *t != '|' {
+                return lhs;
+            }
+
+            let _ = tokens.next_token();
+            lhs = Node::Or {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.equality(tokens)),
+            };
+        }
+
+        unreachable!()
+    }
+
+    fn logand(&mut self, tokens: &mut Tokens) -> Node {
+        let mut lhs = self.bit_or(tokens);
         'expr: loop {
             if let Some((_, Token::MChar('&', '&'))) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
                     lhs: Kind::make(lhs),
-                    rhs: Kind::make(self.equality(tokens)),
+                    rhs: Kind::make(self.bit_or(tokens)),
                 };
             } else {
                 break 'expr;
