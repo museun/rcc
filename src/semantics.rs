@@ -191,6 +191,11 @@ impl<'a> Semantics<'a> {
                 Self::check_lval(lhs.get_val());
                 self.walk(env, rhs.as_mut(), true);
 
+                eprintln!("{:#?}", rhs.get_type());
+                if let Type::Void = &*rhs.get_type().as_ref().unwrap().borrow() {
+                    fail!("cannot assign void to a lval");
+                }
+
                 let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
                 node.set_type(ty);
             }
@@ -271,7 +276,13 @@ impl<'a> Semantics<'a> {
                 self.walk(env, expr.as_mut(), true);
 
                 match types::as_ptr(Rc::clone(&expr.get_type().as_ref().unwrap())) {
-                    Some(ty) => node.set_type(Rc::clone(&ty)),
+                    Some(ty) => {
+                        if let Type::Void = &*ty.borrow() {
+                            fail!("cannot dereference a void pointer")
+                        }
+
+                        node.set_type(Rc::clone(&ty))
+                    }
                     None => fail!("operand must be a pointer"),
                 };
             }

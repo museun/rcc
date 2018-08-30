@@ -35,6 +35,7 @@ pub enum Token {
 pub enum Type {
     Char,
     Int,
+    Void,
 }
 
 #[derive(Debug, Clone)]
@@ -196,6 +197,7 @@ impl fmt::Display for Type {
         match self {
             Type::Char => write!(f, "Char"),
             Type::Int => write!(f, "Int"),
+            Type::Void => write!(f, "Void"),
         }
     }
 }

@@ -142,6 +142,7 @@ impl Parser {
             }
 
             Token::Type(_) | Token::Struct => self.declaration(tokens),
+
             Token::If => {
                 tokens.advance();
                 expect_token(tokens, '(');
@@ -158,6 +159,7 @@ impl Parser {
 
                 Node::If { cond, body, else_ }
             }
+
             Token::For => {
                 tokens.advance();
                 expect_token(tokens, '(');
@@ -266,6 +268,8 @@ impl Parser {
         let size = types::size_of(&ty);
         let name = self.ident(tokens);
         let array = self.read_array(tokens, ty);
+
+        // TODO maybe check that the array base type isn't void
 
         let init = if consume(tokens, '=') {
             Kind::make(self.assign(tokens))
@@ -574,6 +578,7 @@ impl Parser {
             &[
                 Token::Type(TokType::Char), // are you serious
                 Token::Type(TokType::Int),
+                Token::Type(TokType::Void),
                 Token::Ident("".into()),
                 Token::Struct,
             ],
@@ -583,6 +588,7 @@ impl Parser {
             Token::Type(ty) => match ty {
                 TokType::Char => Type::Char,
                 TokType::Int => Type::Int,
+                TokType::Void => Type::Void,
             },
             Token::Ident(s) => {
                 match self.env.typedefs.get(&s) {

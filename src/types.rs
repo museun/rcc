@@ -6,6 +6,7 @@ use node::Node;
 pub enum Type {
     Char,
     Int,
+    Void,
     Ptr {
         size: i32,
         align: i32,
@@ -98,6 +99,7 @@ pub fn size_of(ty: &Type) -> i32 {
     match ty {
         Type::Char => 1,
         Type::Int => 4,
+        Type::Void => 0,
         Type::Ptr { size, .. } => *size,
         Type::Array { base, len, .. } => ((size_of(&*base.borrow()) as usize) * len) as i32,
         Type::Struct { size, .. } => *size,
@@ -108,6 +110,7 @@ pub fn align_of(ty: &Type) -> i32 {
     match ty {
         Type::Char => 1,
         Type::Int => 4,
+        Type::Void => 0,
         Type::Ptr { align, .. } => *align,
         Type::Array { base, .. } => align_of(&*base.borrow()),
         Type::Struct { align, .. } => *align,
@@ -124,7 +127,7 @@ pub struct Var {
 }
 
 impl Var {
-   pub fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
+    pub fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
         Self {
             ty,
             offset: 0,
@@ -143,6 +146,7 @@ impl fmt::Display for Type {
         match self {
             Char => write!(f, "Char")?,
             Int => write!(f, "Int")?,
+            Void => write!(f, "Void")?,
             Ptr { .. } => write!(f, "Ptr")?,
             Array { .. } => write!(f, "Array")?,
             Struct { .. } => write!(f, "Struct")?,

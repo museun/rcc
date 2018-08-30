@@ -147,6 +147,7 @@ impl<'a> Generate<'a> {
                             Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                                 this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
                             }
+                            _ => unreachable!(),
                         }
                     }
 
@@ -188,6 +189,7 @@ impl<'a> Generate<'a> {
                     Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
                     }
+                    _ => unreachable!(),
                 }
 
                 self.add(IR::Kill(reg(lhs)));
@@ -367,6 +369,7 @@ impl<'a> Generate<'a> {
                     Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
                         self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)))
                     }
+                    _ => unreachable!(),
                 };
 
                 self.add(IR::Kill(reg(rhs)));
@@ -538,6 +541,7 @@ fn load_instruction(ty: &Type, irt: IRType) -> IR {
         Type::Char => IR::Load(Width::W8, irt),
         Type::Int => IR::Load(Width::W32, irt),
         Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => IR::Load(Width::W64, irt),
+        _ => unreachable!(),
     }
 }
 
