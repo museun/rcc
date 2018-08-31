@@ -30,24 +30,11 @@ impl Kind {
         self.val.as_ref().unwrap()
     }
 
-    pub fn get_val_mut(&mut self) -> &mut Node {
-        self.val.as_mut().unwrap()
-    }
-
     pub fn get_type(&self) -> Option<RefType> {
-        let ty = match self.ty.as_ref() {
+        match self.ty.as_ref() {
             Some(ty) => Some(Rc::clone(&ty)),
             None => self.get_val().get_type(),
-        };
-        eprintln!(
-            "ty: {}",
-            match &ty {
-                Some(ty) => (&*ty.borrow()).to_string(),
-                None => "none".into(),
-            }
-        );
-
-        ty
+        }
     }
 
     pub fn set_type(&mut self, newtype: RefType) {

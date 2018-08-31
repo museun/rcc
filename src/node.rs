@@ -231,16 +231,6 @@ pub enum Node {
 }
 
 impl Node {
-    /// instrinsic types
-    pub fn has_type(&self) -> bool {
-        match self {
-            Node::Constant { .. } | Node::GVar { .. } | Node::LVal { .. } | Node::Vardef { .. } => {
-                true
-            }
-            _ => false,
-        }
-    }
-
     pub fn get_type(&self) -> Option<RefType> {
         match self {
             Node::Add { lhs, .. }
@@ -260,7 +250,10 @@ impl Node {
             | Node::Statement { ty, .. }
             | Node::GVar { ty, .. }
             | Node::LVal { ty, .. }
-            | Node::Vardef { ty, .. } => Some(Rc::clone(&ty)),
+            | Node::Vardef { ty, .. } => {
+                let ty = Rc::clone(&ty);
+                Some(ty)
+            }
 
             Node::Func { body, .. } => body.get_type(),
 
@@ -320,31 +313,25 @@ impl Node {
     }
 }
 
-impl AsMut<Node> for Node {
-    fn as_mut(&mut self) -> &mut Node {
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Comp {
-    Gt,  // > same as lt assembly-wise
-    Lt,  // <
-    Ge,  // >=
-    Le,  // <=
-    Eq,  // ==
-    NEq, // !=
+    GreaterThan,   // > same as lt assembly-wise
+    LessThan,      // <
+    GreaterThanEq, // >=
+    LessThanEq,    // <=
+    Equal,         // ==
+    NotEqual,      // !=
 }
 
 impl fmt::Display for Comp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w = match self {
-            Comp::Gt => ">",
-            Comp::Lt => "<",
-            Comp::Ge => ">=",
-            Comp::Le => "<=",
-            Comp::Eq => "==",
-            Comp::NEq => "!=",
+            Comp::GreaterThan => ">",
+            Comp::LessThan => "<",
+            Comp::GreaterThanEq => ">=",
+            Comp::LessThanEq => "<=",
+            Comp::Equal => "==",
+            Comp::NotEqual => "!=",
         };
         write!(f, "{}", w)
     }
@@ -352,53 +339,12 @@ impl fmt::Display for Comp {
 
 impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::Node::*;
-
-        match self {
-            Constant { .. } => write!(f, "Constant"),
-            Ident { .. } => write!(f, "Ident"),
-            Str { .. } => write!(f, "Str"),
-            Add { .. } => write!(f, "Add"),
-            Sub { .. } => write!(f, "Sub"),
-            Mul { .. } => write!(f, "Mul"),
-            Div { .. } => write!(f, "Div"),
-            Not { .. } => write!(f, "Not"),
-            Or { .. } => write!(f, "Or"),
-            Xor { .. } => write!(f, "Xor"),
-            And { .. } => write!(f, "And"),
-            Mod { .. } => write!(f, "Mod"),
-            Shr { .. } => write!(f, "Shr"),
-            Shl { .. } => write!(f, "Shl"),
-            LogAnd { .. } => write!(f, "LogAnd"),
-            LogOr { .. } => write!(f, "LogOr"),
-            PostInc { .. } => write!(f, "PostInc"),
-            PostDec { .. } => write!(f, "PostDec"),
-            PreInc { .. } => write!(f, "PreInc"),
-            PreDec { .. } => write!(f, "PreDec"),
-            Comparison { .. } => write!(f, "Comparison"),
-            Assign { .. } => write!(f, "Assign"),
-            LVal { .. } => write!(f, "LVal"),
-            GVar { .. } => write!(f, "GVar"),
-            Addr { .. } => write!(f, "Addr"),
-            Deref { .. } => write!(f, "Deref"),
-            Vardef { .. } => write!(f, "Vardef"),
-            Struct { .. } => write!(f, "Struct"),
-            Dot { .. } => write!(f, "Dot"),
-            Return { .. } => write!(f, "Return"),
-            Sizeof { .. } => write!(f, "Sizeof"),
-            Alignof { .. } => write!(f, "Alignof"),
-            If { .. } => write!(f, "If"),
-            Else { .. } => write!(f, "Else"),
-            Conditional { .. } => write!(f, "Conditional"),
-            DoWhile { .. } => write!(f, "DoWhile"),
-            For { .. } => write!(f, "For"),
-            Call { .. } => write!(f, "Call"),
-            Func { .. } => write!(f, "Func"),
-            Statement { .. } => write!(f, "Statement"),
-            Expression { .. } => write!(f, "Expression"),
-            Compound { .. } => write!(f, "Compound"),
-            Comma { .. } => write!(f, "Comma"),
-            _ => Ok(()),
+        // this is poor but it saves a lot of editing
+        let name = format!("{:?}", self);
+        if let Some(pos) = name.find(' ') {
+            return write!(f, "{}", &name[0..pos]);
         }
+
+        write!(f, "{}", &name)
     }
 }

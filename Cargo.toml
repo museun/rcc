@@ -8,3 +8,4 @@ build = "build.rs"
 default = [] 
 dump = []
 testing = []
+tracer = []

@@ -3,7 +3,6 @@ use node::{Comp, Node};
 use types::{Type, Var};
 
 use std::fmt;
-use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IRType {
@@ -39,6 +38,51 @@ pub enum IRType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct IR {
+    pub ty: IRType,
+    pub kind: IRKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IRKind {
+    Imm,    // reg->imm
+    Mov,    // reg->reg
+    Return, // reg
+
+    Load(Width),     // reg->reg
+    Store(Width),    // reg->reg
+    StoreArg(Width), // reg->reg
+
+    Unless, // reg->imm
+    Label,  // imm OR reg_label
+    Jmp,    // imm
+    If,     // reg->imm
+
+    BpRel, // reg->imm
+
+    Add, // reg->reg
+    Sub, // reg->reg
+    Mul, // reg->reg
+    Div, // reg->reg
+    Mod, // reg->reg
+
+    Shr, // reg->reg
+    Shl, // reg->reg
+
+    Or,  // reg->reg
+    Xor, // reg->reg
+    And, // reg->reg
+
+    Neg, // reg
+
+    Comparison, // cmp, reg->reg
+
+    Kill, // reg
+    Nop,  // nothing
+    Call, // call name, [args]
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Width {
     W8,
     W32,
@@ -54,45 +98,6 @@ impl fmt::Display for Width {
         };
         write!(f, "{}", w)
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum IR {
-    Imm(IRType),    // reg->imm
-    Mov(IRType),    // reg->reg
-    Return(IRType), // reg
-
-    Load(Width, IRType),     // reg->reg
-    Store(Width, IRType),    // reg->reg
-    StoreArg(Width, IRType), // reg->reg
-
-    Unless(IRType), // reg->imm
-    Label(IRType),  // imm OR reg_label
-    Jmp(IRType),    // imm
-    If(IRType),     // reg->imm
-
-    BpRel(IRType), // reg->imm
-
-    Add(IRType), // reg->reg
-    Sub(IRType), // reg->reg
-    Mul(IRType), // reg->reg
-    Div(IRType), // reg->reg
-    Mod(IRType), // reg->reg
-
-    Shr(IRType), // reg->reg
-    Shl(IRType), // reg->reg
-
-    Or(IRType),  // reg->reg
-    Xor(IRType), // reg->reg
-    And(IRType), // reg->reg
-
-    Neg(IRType), // reg
-
-    Comparison(IRType), // cmp, reg->reg
-
-    Kill(IRType), // reg
-    Nop(IRType),  // nothing
-    Call(IRType), // call name, [args]
 }
 
 #[derive(Debug)]
@@ -147,18 +152,10 @@ impl<'a> Generate<'a> {
                             _ => unreachable!(),
                         };
 
-                        match &*arg.get_type().as_ref().unwrap().borrow() {
-                            Type::Char => {
-                                this.add(IR::StoreArg(Width::W8, reg_imm(i as i32, *offset)));
-                            }
-                            Type::Int => {
-                                this.add(IR::StoreArg(Width::W32, reg_imm(i as i32, *offset)));
-                            }
-                            Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
-                                this.add(IR::StoreArg(Width::W64, reg_imm(i as i32, *offset)));
-                            }
-                            _ => unreachable!(),
-                        }
+                        this.storearg(
+                            &*arg.get_type().as_ref().unwrap().borrow(),
+                            reg_imm(i as i32, *offset),
+                        );
                     }
 
                     this.statement(body);
@@ -187,55 +184,46 @@ impl<'a> Generate<'a> {
                 let rhs = self.expression(init);
                 let lhs = self.next_reg();
 
-                self.add(IR::BpRel(reg_imm(lhs, *offset)));
+                self.create(IRKind::BpRel, reg_imm(lhs, *offset));
 
-                match &*node.as_ref().get_type().as_ref().unwrap().borrow() {
-                    Type::Char => {
-                        self.add(IR::Store(Width::W8, reg_reg(lhs, rhs)));
-                    }
-                    Type::Int => {
-                        self.add(IR::Store(Width::W32, reg_reg(lhs, rhs)));
-                    }
-                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
-                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)));
-                    }
-                    _ => unreachable!(),
-                }
+                self.store(
+                    &*node.as_ref().get_type().as_ref().unwrap().borrow(),
+                    reg_reg(lhs, rhs),
+                );
 
-                self.add(IR::Kill(reg(lhs)));
-                self.add(IR::Kill(reg(rhs)));
+                self.kill(lhs);
+                self.kill(rhs);
             }
 
             Node::If { cond, body, else_ } => {
                 let r = self.expression(cond);
                 let x = self.next_label();
 
-                self.add(IR::Unless(reg_imm(r, x)));
-                self.add(IR::Kill(reg(r)));
-
+                self.create(IRKind::Unless, reg_imm(r, x));
+                self.kill(r);
                 self.statement(body);
 
                 if !else_.has_val() {
-                    self.add(IR::Label(imm(x)));
+                    self.create(IRKind::Label, imm(x));
                     return;
                 }
 
                 let y = self.next_label();
-                self.add(IR::Jmp(imm(y)));
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Jmp, imm(y));
+                self.create(IRKind::Label, imm(x));
 
                 self.statement(else_);
-                self.add(IR::Label(imm(y)));
+                self.create(IRKind::Label, imm(y));
             }
 
             Node::DoWhile { cond, body } => {
                 let x = self.next_label();
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Label, imm(x));
                 self.statement(body);
 
                 let r = self.expression(cond);
-                self.add(IR::If(reg_imm(r, x)));
-                self.add(IR::Kill(reg(r)));
+                self.create(IRKind::If, reg_imm(r, x));
+                self.kill(r);
             }
 
             Node::For {
@@ -250,35 +238,35 @@ impl<'a> Generate<'a> {
                 if init.has_val() {
                     self.statement(init);
                 }
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Label, imm(x));
 
                 let r = self.expression(cond);
-                self.add(IR::Unless(reg_imm(r, y)));
-                self.add(IR::Kill(reg(r)));
+                self.create(IRKind::Unless, reg_imm(r, y));
+                self.kill(r);
                 self.statement(body);
 
                 if step.has_val() {
                     self.statement(step);
                 }
-                self.add(IR::Jmp(imm(x)));
-                self.add(IR::Label(imm(y)));
+                self.create(IRKind::Jmp, imm(x));
+                self.create(IRKind::Label, imm(y));
             }
 
             Node::Return { expr } => {
                 let r = self.expression(expr);
                 if self.ret_label != 0 {
-                    self.add(IR::Mov(reg_reg(self.ret_reg, r)));
-                    self.add(IR::Kill(reg(r)));
-                    self.add(IR::Jmp(imm(self.ret_label)));
+                    self.create(IRKind::Mov, reg_reg(self.ret_reg, r));
+                    self.kill(r);
+                    self.create(IRKind::Jmp, imm(self.ret_label));
                     return;
                 }
-                self.add(IR::Return(reg(r)));
-                self.add(IR::Kill(reg(r)));
+                self.create(IRKind::Return, reg(r));
+                self.kill(r);
             }
 
             Node::Expression { expr } => {
                 let r = self.expression(expr);
-                self.add(IR::Kill(reg(r)));
+                self.kill(r);
             }
 
             Node::Compound { ref stmts } => {
@@ -286,7 +274,9 @@ impl<'a> Generate<'a> {
                     self.statement(stmt)
                 }
             }
+
             Node::Noop {} => {}
+
             // TODO make this return a Result so we can print out an instruction trace
             _ => fail!("unknown node in stmt: {:?}", node.as_ref()),
         }
@@ -296,7 +286,7 @@ impl<'a> Generate<'a> {
         match &node.as_ref() {
             Node::Constant { val, .. } => {
                 let r = self.next_reg();
-                self.add(IR::Imm(reg_imm(r, *val as i32)));
+                self.create(IRKind::Imm, reg_imm(r, *val as i32));
                 r
             }
 
@@ -305,39 +295,42 @@ impl<'a> Generate<'a> {
                 let y = self.next_label();
 
                 let r = self.expression(cond);
-                self.add(IR::Unless(reg_imm(r, x)));
+                self.create(IRKind::Unless, reg_imm(r, x));
 
                 let r2 = self.expression(then);
-                self.add(IR::Mov(reg_reg(r, r2)));
-                self.add(IR::Kill(reg(r2)));
-                self.add(IR::Jmp(imm(y)));
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Mov, reg_reg(r, r2));
+                self.kill(r2);
+                self.create(IRKind::Jmp, imm(y));
+                self.create(IRKind::Label, imm(x));
 
                 let r3 = self.expression(else_);
-                self.add(IR::Mov(reg_reg(r, r3)));
-                self.add(IR::Kill(reg(r2)));
-                self.add(IR::Label(imm(y)));
+                self.create(IRKind::Mov, reg_reg(r, r3));
+                self.kill(r2);
+                self.create(IRKind::Label, imm(y));
                 r
             }
 
             Node::Comma { lhs, rhs } => {
                 let r = self.expression(lhs);
-                self.add(IR::Kill(reg(r)));
+                self.kill(r);
                 self.expression(rhs)
             }
 
             Node::Not { expr } => {
                 let lhs = self.expression(expr);
                 let rhs = self.next_reg();
-                self.add(IR::Imm(reg_imm(rhs, 0)));
+                self.create(IRKind::Imm, reg_imm(rhs, 0));
 
-                self.add(IR::Comparison(IRType::Cmp {
-                    cmp: Comp::Eq,
-                    dst: lhs,
-                    src: rhs,
-                }));
+                self.create(
+                    IRKind::Comparison,
+                    IRType::Cmp {
+                        cmp: Comp::Equal,
+                        dst: lhs,
+                        src: rhs,
+                    },
+                );
 
-                self.add(IR::Kill(reg(rhs)));
+                self.kill(rhs);
                 lhs
             }
 
@@ -345,14 +338,14 @@ impl<'a> Generate<'a> {
                 let x = self.next_label();
 
                 let r1 = self.expression(lhs);
-                self.add(IR::Unless(reg_imm(r1, x)));
+                self.create(IRKind::Unless, reg_imm(r1, x));
 
                 let r2 = self.expression(rhs);
-                self.add(IR::Mov(reg_reg(r1, r2)));
-                self.add(IR::Kill(reg(r2)));
-                self.add(IR::Unless(reg_imm(r1, x)));
-                self.add(IR::Imm(reg_imm(r1, 1)));
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Mov, reg_reg(r1, r2));
+                self.kill(r2);
+                self.create(IRKind::Unless, reg_imm(r1, x));
+                self.create(IRKind::Imm, reg_imm(r1, 1));
+                self.create(IRKind::Label, imm(x));
                 r1
             }
 
@@ -361,17 +354,17 @@ impl<'a> Generate<'a> {
                 let y = self.next_label();
 
                 let r1 = self.expression(lhs);
-                self.add(IR::Unless(reg_imm(r1, x)));
-                self.add(IR::Imm(reg_imm(r1, 1)));
-                self.add(IR::Jmp(imm(y)));
-                self.add(IR::Label(imm(x)));
+                self.create(IRKind::Unless, reg_imm(r1, x));
+                self.create(IRKind::Imm, reg_imm(r1, 1));
+                self.create(IRKind::Jmp, imm(y));
+                self.create(IRKind::Label, imm(x));
 
                 let r2 = self.expression(rhs);
-                self.add(IR::Mov(reg_reg(r1, r2)));
-                self.add(IR::Kill(reg(r2)));
-                self.add(IR::Unless(reg_imm(r1, y)));
-                self.add(IR::Imm(reg_imm(r1, 1)));
-                self.add(IR::Label(imm(y)));
+                self.create(IRKind::Mov, reg_reg(r1, r2));
+                self.kill(r2);
+                self.create(IRKind::Unless, reg_imm(r1, y));
+                self.create(IRKind::Imm, reg_imm(r1, 1));
+                self.create(IRKind::Label, imm(y));
                 r1
             }
 
@@ -384,14 +377,17 @@ impl<'a> Generate<'a> {
                 }
 
                 let r = self.next_reg();
-                self.add(IR::Call(IRType::Call {
-                    reg: r,
-                    name: name.to_string(),
-                    args: exprs.clone(),
-                }));
+                self.create(
+                    IRKind::Call,
+                    IRType::Call {
+                        reg: r,
+                        name: name.to_string(),
+                        args: exprs.clone(),
+                    },
+                );
 
                 for ex in exprs {
-                    self.add(IR::Kill(reg(ex)));
+                    self.kill(ex);
                 }
                 r
             }
@@ -402,71 +398,65 @@ impl<'a> Generate<'a> {
                 let rhs = self.expression(rhs);
                 let lhs = self.lvalue(lhs);
 
-                match &*l.get_type().as_ref().unwrap().borrow() {
-                    Type::Char => self.add(IR::Store(Width::W8, reg_reg(lhs, rhs))),
-                    Type::Int => self.add(IR::Store(Width::W32, reg_reg(lhs, rhs))),
-                    Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => {
-                        self.add(IR::Store(Width::W64, reg_reg(lhs, rhs)))
-                    }
-                    _ => unreachable!(),
-                };
-
-                self.add(IR::Kill(reg(rhs)));
+                self.store(&*l.get_type().as_ref().unwrap().borrow(), reg_reg(lhs, rhs));
+                self.kill(rhs);
                 lhs
             }
-
-            Node::Or { lhs, rhs } => self.binary(IR::Or(IRType::Nop), lhs, rhs),
-            Node::Xor { lhs, rhs } => self.binary(IR::Xor(IRType::Nop), lhs, rhs),
-            Node::And { lhs, rhs } => self.binary(IR::And(IRType::Nop), lhs, rhs),
 
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
                 if let Type::Ptr { .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
                     let rhs = self.expression(rhs);
                     let r = self.next_reg();
-                    self.add(IR::Imm(reg_imm(
-                        r,
-                        types::size_of(
-                            &*types::as_ptr(Rc::clone(&lhs.get_type().as_ref().unwrap()))
-                                .as_ref()
-                                .unwrap()
-                                .borrow(),
+
+                    // TODO look at this
+                    self.create(
+                        IRKind::Imm,
+                        reg_imm(
+                            r,
+                            types::size_of(
+                                &*types::as_ptr(&Rc::clone(&lhs.get_type().as_ref().unwrap()))
+                                    .as_ref()
+                                    .unwrap()
+                                    .borrow(),
+                            ),
                         ),
-                    )));
-                    self.add(IR::Mul(reg_reg(rhs, r)));
-                    self.add(IR::Kill(reg(r)));
+                    );
+
+                    self.create(IRKind::Mul, reg_reg(rhs, r));
+                    self.kill(r);
 
                     let lhs = self.expression(lhs);
                     let ir = match node.as_ref() {
-                        Node::Add { .. } => IR::Add(reg_reg(lhs, rhs)),
-                        Node::Sub { .. } => IR::Sub(reg_reg(lhs, rhs)),
+                        Node::Add { .. } => IRKind::Add,
+                        Node::Sub { .. } => IRKind::Sub,
                         _ => unreachable!(),
                     };
-                    self.add(ir);
-                    self.add(IR::Kill(reg(rhs)));
+                    self.create(ir, reg_reg(lhs, rhs));
+                    self.kill(rhs);
                     return lhs;
                 }
 
                 let ir = match node.as_ref() {
-                    Node::Add { .. } => IR::Add(IRType::Nop),
-                    Node::Sub { .. } => IR::Sub(IRType::Nop),
+                    Node::Add { .. } => IRKind::Add,
+                    Node::Sub { .. } => IRKind::Sub,
                     _ => unreachable!(),
                 };
                 self.binary(ir, lhs, rhs)
             }
 
-            Node::Mul { lhs, rhs } => self.binary(IR::Mul(IRType::Nop), lhs, rhs),
+            Node::Mul { lhs, rhs } => self.binary(IRKind::Mul, lhs, rhs),
+            Node::Div { lhs, rhs } => self.binary(IRKind::Div, lhs, rhs),
+            Node::Mod { lhs, rhs } => self.binary(IRKind::Mod, lhs, rhs),
+            Node::Shr { lhs, rhs } => self.binary(IRKind::Shr, lhs, rhs),
+            Node::Shl { lhs, rhs } => self.binary(IRKind::Shl, lhs, rhs),
 
-            Node::Div { lhs, rhs } => self.binary(IR::Div(IRType::Nop), lhs, rhs),
-
-            Node::Mod { lhs, rhs } => self.binary(IR::Mod(IRType::Nop), lhs, rhs),
-
-            Node::Shr { lhs, rhs } => self.binary(IR::Shr(IRType::Nop), lhs, rhs),
-
-            Node::Shl { lhs, rhs } => self.binary(IR::Shl(IRType::Nop), lhs, rhs),
+            Node::Or { lhs, rhs } => self.binary(IRKind::Or, lhs, rhs),
+            Node::Xor { lhs, rhs } => self.binary(IRKind::Xor, lhs, rhs),
+            Node::And { lhs, rhs } => self.binary(IRKind::And, lhs, rhs),
 
             Node::Neg { expr } => {
                 let r = self.expression(expr);
-                self.add(IR::Neg(reg(r)));
+                self.create(IRKind::Neg, reg(r));
                 r
             }
 
@@ -491,40 +481,35 @@ impl<'a> Generate<'a> {
 
             Node::GVar { ty, .. } | Node::LVal { ty, .. } => {
                 let r = self.lvalue(&node);
-                self.add(load_instruction(&*ty.borrow(), reg_reg(r, r)));
+                self.load(&*ty.borrow(), reg_reg(r, r));
                 r
             }
 
             Node::Dot { expr, .. } => {
                 let r = self.lvalue(&node);
-                self.add(load_instruction(
-                    &*expr.get_type().as_ref().unwrap().borrow(),
-                    reg_reg(r, r),
-                ));
+                self.load(&*expr.get_type().as_ref().unwrap().borrow(), reg_reg(r, r));
                 r
             }
 
             Node::Deref { expr } => {
                 let r = self.expression(expr);
-                self.add(load_instruction(
-                    &*expr.get_type().as_ref().unwrap().borrow(),
-                    reg_reg(r, r),
-                ));
+                self.load(&*expr.get_type().as_ref().unwrap().borrow(), reg_reg(r, r));
                 r
             }
 
             Node::Statement { stmt, ty: _ty } => {
                 let l = self.ret_label;
                 let r = self.ret_reg;
+
                 self.ret_label = *self.label;
                 *self.label += 1;
-                let reg = self.next_reg();
-                self.add(IR::Nop(IRType::Nop));
 
+                let reg = self.next_reg();
+                self.noop();
                 self.ret_reg = reg;
 
                 self.statement(stmt);
-                self.add(IR::Label(imm(self.ret_label)));
+                self.create(IRKind::Label, imm(self.ret_label));
 
                 self.ret_label = l;
                 self.ret_reg = r;
@@ -545,21 +530,21 @@ impl<'a> Generate<'a> {
         if let Node::Dot { expr, offset, .. } = &node {
             let r1 = self.lvalue(expr);
             let r2 = self.next_reg();
-            self.add(IR::Imm(reg_imm(r2, *offset)));
-            self.add(IR::Add(reg_reg(r1, r2)));
-            self.add(IR::Kill(reg(r2)));
+            self.create(IRKind::Imm, reg_imm(r2, *offset));
+            self.create(IRKind::Add, reg_reg(r1, r2));
+            self.kill(r2);
             return r1;
         }
 
         if let Node::LVal { offset, ty: _ty } = &node {
             let r = self.next_reg();
-            self.add(IR::BpRel(reg_imm(r, *offset)));
+            self.create(IRKind::BpRel, reg_imm(r, *offset));
             return r;
         }
 
         if let Node::GVar { name, ty: _ty } = &node {
             let r = self.next_reg();
-            self.add(IR::Label(reg_label(r, name.to_string())));
+            self.create(IRKind::Label, reg_label(r, name.to_string()));
             return r;
         }
 
@@ -570,67 +555,116 @@ impl<'a> Generate<'a> {
         let r1 = self.expression(lhs);
         let r2 = self.expression(rhs);
 
-        self.add(IR::Comparison(IRType::Cmp {
-            cmp: cmp.clone(),
-            dst: r1,
-            src: r2,
-        }));
-        self.add(IR::Kill(reg(r2)));
+        self.create(
+            IRKind::Comparison,
+            IRType::Cmp {
+                cmp: cmp.clone(),
+                dst: r1,
+                src: r2,
+            },
+        );
+
+        self.kill(r2);
         r1
     }
 
-    fn binary(&mut self, mut ir: IR, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
+    fn binary(&mut self, ir: IRKind, lhs: impl AsRef<Node>, rhs: impl AsRef<Node>) -> i32 {
         let r1 = self.expression(lhs);
         let r2 = self.expression(rhs);
-        *ir = reg_reg(r1, r2);
-        self.add(ir);
-        self.add(IR::Kill(reg(r2)));
+
+        self.push(IR {
+            kind: ir,
+            ty: reg_reg(r1, r2),
+        });
+        self.kill(r2);
         r1
     }
 
     fn pre_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
         let val = self.next_reg();
-        self.add(load_instruction(ty, reg_reg(val, addr)));
+        self.load(ty, reg_reg(val, addr));
+
         let imm = self.next_reg();
+        self.create(IRKind::Imm, reg_imm(imm, delta));
+        self.create(IRKind::Add, reg_reg(val, imm));
+        self.kill(imm);
 
-        self.add(IR::Imm(reg_imm(imm, delta)));
-        self.add(IR::Add(reg_reg(val, imm)));
-        self.add(IR::Kill(reg(imm)));
-        self.add(IR::StoreArg(
-            match ty {
-                Type::Char => Width::W8,
-                Type::Int => Width::W32,
-                Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
-                _ => unreachable!(),
-            },
-            reg_imm(addr, val),
-        ));
-        self.add(IR::Kill(reg(addr)));
-
+        self.storearg(ty, reg_imm(addr, val));
+        self.kill(addr);
         val
     }
 
     fn post_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
         let val = self.next_reg();
-        self.add(load_instruction(ty, reg_reg(val, addr)));
-        let imm = self.next_reg();
+        self.load(ty, reg_reg(val, addr));
 
-        self.add(IR::Imm(reg_imm(imm, delta)));
-        self.add(IR::Add(reg_reg(val, imm)));
-        self.add(IR::StoreArg(
-            match ty {
-                Type::Char => Width::W8,
-                Type::Int => Width::W32,
-                Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
-                _ => unreachable!(),
-            },
-            reg_imm(addr, val),
-        ));
-        self.add(IR::Kill(reg(addr)));
-        self.add(IR::Sub(reg_reg(val, imm)));
-        self.add(IR::Kill(reg(imm)));
+        let imm = self.next_reg();
+        self.create(IRKind::Imm, reg_imm(imm, delta));
+        self.create(IRKind::Add, reg_reg(val, imm));
+
+        self.storearg(&ty, reg_imm(addr, val));
+
+        self.kill(addr);
+        self.create(IRKind::Sub, reg_reg(val, imm));
+        self.kill(imm);
 
         val
+    }
+
+    fn kill(&mut self, reg: i32) {
+        self.push(IR {
+            ty: IRType::Imm { val: reg },
+            kind: IRKind::Kill,
+        })
+    }
+
+    fn noop(&mut self) {
+        self.push(IR {
+            ty: IRType::Nop,
+            kind: IRKind::Nop,
+        });
+    }
+
+    fn store(&mut self, ty: &Type, irt: IRType) {
+        let w = match ty {
+            Type::Char => Width::W8,
+            Type::Int => Width::W32,
+            Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
+            _ => unreachable!(),
+        };
+
+        self.push(IR {
+            ty: irt,
+            kind: IRKind::Store(w),
+        });
+    }
+
+    fn storearg(&mut self, ty: &Type, irt: IRType) {
+        let w = match ty {
+            Type::Char => Width::W8,
+            Type::Int => Width::W32,
+            Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
+            _ => unreachable!(),
+        };
+
+        self.push(IR {
+            ty: irt,
+            kind: IRKind::StoreArg(w),
+        });
+    }
+
+    fn load(&mut self, ty: &Type, irt: IRType) {
+        let w = match ty {
+            Type::Char => Width::W8,
+            Type::Int => Width::W32,
+            Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => Width::W64,
+            _ => unreachable!(),
+        };
+
+        self.push(IR {
+            ty: irt,
+            kind: IRKind::Load(w),
+        });
     }
 
     fn next_reg(&mut self) -> i32 {
@@ -645,23 +679,16 @@ impl<'a> Generate<'a> {
         n
     }
 
-    fn add(&mut self, ir: IR) {
+    fn create(&mut self, kind: IRKind, ty: IRType) {
+        self.push(IR { ty, kind })
+    }
+
+    fn push(&mut self, ir: IR) {
         self.inst.push(ir)
     }
 }
 
 // helpers to make IRTypes
-
-#[inline]
-fn load_instruction(ty: &Type, irt: IRType) -> IR {
-    match ty {
-        Type::Char => IR::Load(Width::W8, irt),
-        Type::Int => IR::Load(Width::W32, irt),
-        Type::Ptr { .. } | Type::Array { .. } | Type::Struct { .. } => IR::Load(Width::W64, irt),
-        _ => unreachable!(),
-    }
-}
-
 #[inline]
 fn reg_reg(dst: i32, src: i32) -> IRType {
     IRType::RegReg { dst, src }
@@ -687,86 +714,15 @@ fn reg_label(reg: i32, label: String) -> IRType {
     IRType::RegLabel { reg, label }
 }
 
-// TODO: this stuff needs to be rewritten
-impl Deref for IR {
-    type Target = IRType;
-
-    fn deref(&self) -> &Self::Target {
-        use ir::IR::*;
-        match self {
-            Imm(ty)
-            | Mov(ty)
-            | Return(ty)
-            | Load(_, ty)
-            | Store(_, ty)
-            | StoreArg(_, ty)
-            | BpRel(ty)
-            | Unless(ty)
-            | Label(ty)
-            | Jmp(ty)
-            | If(ty)
-            | Add(ty)
-            | Sub(ty)
-            | Mul(ty)
-            | Div(ty)
-            | Shr(ty)
-            | Shl(ty)
-            | Mod(ty)
-            | Or(ty)
-            | Xor(ty)
-            | And(ty)
-            | Neg(ty)
-            | Comparison(ty)
-            | Kill(ty)
-            | Nop(ty)
-            | Call(ty) => ty,
-        }
-    }
-}
-
-impl DerefMut for IR {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        use ir::IR::*;
-        match self {
-            Imm(ty)
-            | Mov(ty)
-            | Return(ty)
-            | Load(_, ty)
-            | Store(_, ty)
-            | StoreArg(_, ty)
-            | BpRel(ty)
-            | Unless(ty)
-            | Label(ty)
-            | If(ty)
-            | Jmp(ty)
-            | Add(ty)
-            | Sub(ty)
-            | Mul(ty)
-            | Div(ty)
-            | Mod(ty)
-            | Shr(ty)
-            | Shl(ty)
-            | Or(ty)
-            | Xor(ty)
-            | And(ty)
-            | Neg(ty)
-            | Comparison(ty)
-            | Kill(ty)
-            | Nop(ty)
-            | Call(ty) => ty,
-        }
-    }
-}
-
 impl fmt::Display for IRType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use ir::IRType::*;
         match self {
             RegReg { dst, src } => write!(f, "r{}, r{}", dst, src),
-            RegImm { reg, val } => write!(f, "r{}, {}", reg, val),
+            RegImm { reg, val } => write!(f, "r{}, #{}", reg, val),
             RegLabel { reg, label } => write!(f, "r{}, {}", reg, label),
             Reg { src } => write!(f, "r{}", src),
-            Imm { val } => write!(f, "{}", val),
+            Imm { val } => write!(f, "#{}", val),
             Cmp { cmp, dst, src } => write!(f, "{} r{}, r{}", cmp, dst, src),
             Call { reg, name, args } => write!(f, "CALL r{} @ {}({:?})", reg, name, args),
             Nop => write!(f, "NOP"),
@@ -776,35 +732,17 @@ impl fmt::Display for IRType {
 
 impl fmt::Display for IR {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use ir::IR::*;
+        use ir::IRKind::*;
 
-        match self {
-            Imm(ty) => write!(f, "IMM {}", ty),
-            Mov(ty) => write!(f, "MOV {}", ty),
-            Return(ty) => write!(f, "RETURN {} ", ty),
-            Load(w, ty) => write!(f, "LOAD {} {}", w, ty),
-            Store(w, ty) => write!(f, "STORE {} {}", w, ty),
-            StoreArg(w, ty) => write!(f, "STOREARG {} {}", w, ty),
-            BpRel(ty) => write!(f, "BPREL {}", ty),
-            Unless(ty) => write!(f, "UNLESS {}", ty),
-            Label(ty) => write!(f, "LABEL {}", ty),
-            Jmp(ty) => write!(f, "JMP {}", ty),
-            If(ty) => write!(f, "IF {}", ty),
-            Add(ty) => write!(f, "ADD {}", ty),
-            Sub(ty) => write!(f, "SUB {}", ty),
-            Mul(ty) => write!(f, "MUL {}", ty),
-            Div(ty) => write!(f, "DIV {}", ty),
-            Shr(ty) => write!(f, "SHR {}", ty),
-            Shl(ty) => write!(f, "SHL {}", ty),
-            Mod(ty) => write!(f, "MOD {}", ty),
-            Or(ty) => write!(f, "OR {}", ty),
-            Xor(ty) => write!(f, "XOR {}", ty),
-            And(ty) => write!(f, "AND {}", ty),
-            Neg(ty) => write!(f, "NEG {}", ty),
-            Comparison(ty) => write!(f, "CMP {}", ty),
-            Kill(ty) => write!(f, "KILL {}", ty),
-            Nop(ty) => write!(f, "NOP {}", ty),
-            Call(ty) => write!(f, "CALL {}", ty),
+        let name = format!("{:?}", self.kind);
+        let pos = match name.find('(') {
+            Some(pos) => pos,
+            None => name.len(),
+        };
+        let name = name[0..pos].to_uppercase();
+        match &self.kind {
+            Load(w) | Store(w) | StoreArg(w) => write!(f, "{}{} {}", &name, w, &self.ty),
+            _ => write!(f, "{} {}", &name, &self.ty),
         }
     }
 }

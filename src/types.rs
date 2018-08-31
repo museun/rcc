@@ -26,14 +26,14 @@ pub enum Type {
     },
 }
 
-pub fn as_ptr(ty: RefType) -> Option<RefType> {
+pub fn as_ptr(ty: &RefType) -> Option<RefType> {
     match &*ty.borrow() {
         Type::Ptr { ptr, .. } => Some(Rc::clone(&ptr)),
         _ => None,
     }
 }
 
-pub fn ptr_of(ty: RefType) -> Type {
+pub fn ptr_of(ty: &RefType) -> Type {
     Type::Ptr {
         size: 8,
         align: 8,
@@ -41,14 +41,14 @@ pub fn ptr_of(ty: RefType) -> Type {
     }
 }
 
-pub fn addr_of(ty: RefType, node: &Node) -> Node {
+pub fn addr_of(ty: &RefType, node: &Node) -> Node {
     Node::Addr {
-        ty: Rc::new(RefCell::new(ptr_of(ty))),
+        ty: Rc::new(RefCell::new(ptr_of(&ty))),
         expr: Kind::make(node.clone()),
     }
 }
 
-pub fn array_of(ty: RefType, len: usize) -> Type {
+pub fn array_of(ty: &RefType, len: usize) -> Type {
     Type::Array {
         size: size_of(&*ty.borrow()),
         align: align_of(&*ty.borrow()),

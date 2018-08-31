@@ -70,13 +70,24 @@ impl<'a> Semantics<'a> {
         }
 
         if let Type::Array { base: t, .. } = &*base.get_type().unwrap().borrow() {
-            let addr = types::addr_of(Rc::clone(&t), &base);
+            let addr = types::addr_of(&Rc::clone(&t), &base);
             *base = addr;
         }
     }
 
     // TODO maybe return a new node instead of mutating the current
     fn walk(&mut self, env: &mut Environment, node: &mut Node, decay: bool) {
+        #[cfg(feature = "tracer")]
+        let _t = tracer!(
+            format!("{}", node),
+            "{}, {}",
+            decay,
+            match node.get_type().as_ref() {
+                Some(ty) => ty.borrow().to_string(),
+                None => "no type".to_string(),
+            }
+        );
+
         match node {
             Node::Constant { .. } => return,
 
@@ -292,14 +303,14 @@ impl<'a> Semantics<'a> {
                 self.walk(env, expr.as_mut(), true);
                 Self::check_lval(expr.as_ref());
 
-                let ptr = types::ptr_of(Rc::clone(&expr.get_type().as_ref().unwrap()));
+                let ptr = types::ptr_of(&Rc::clone(&expr.get_type().as_ref().unwrap()));
                 node.set_type(Rc::new(RefCell::new(ptr)));
             }
 
             Node::Deref { expr } => {
                 self.walk(env, expr.as_mut(), true);
 
-                match types::as_ptr(Rc::clone(&expr.get_type().as_ref().unwrap())) {
+                match types::as_ptr(&Rc::clone(&expr.get_type().as_ref().unwrap())) {
                     Some(ty) => {
                         if let Type::Void = &*ty.borrow() {
                             fail!("cannot dereference a void pointer")

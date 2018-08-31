@@ -1,6 +1,5 @@
-use ir::{Function, IRType, IR};
-
-use std::{mem, ops::DerefMut};
+use ir::{Function, IRKind, IR};
+use std::mem;
 
 pub struct Registers {
     used: [bool; 7],
@@ -19,10 +18,10 @@ impl Registers {
         }
 
         // remove all of the no-ops
-        let nop = mem::discriminant(&IR::Nop(IRType::Nop {}));
+        let nop = mem::discriminant(&IRKind::Nop);
         funcs
             .iter_mut()
-            .for_each(|f| f.ir.retain(|ir| mem::discriminant(ir) != nop));
+            .for_each(|f| f.ir.retain(|ir| mem::discriminant(&ir.kind) != nop));
 
         funcs
     }
@@ -31,17 +30,21 @@ impl Registers {
         use ir::IRType::*;
 
         for ir in inst.iter_mut() {
-            if let IR::Kill(Reg { src }) = &ir {
-                let r = self.map[*src as usize] as usize;
+            if let IRKind::Kill = &ir.kind {
+                let src = match ir.ty {
+                    Imm { val } => val,
+                    _ => unreachable!(),
+                };
 
+                let r = self.map[src as usize] as usize;
                 debug_assert!(self.used[r]);
                 self.used[r] = false;
 
-                *ir = IR::Nop(IRType::Nop);
+                ir.kind = IRKind::Nop;
                 continue;
             };
 
-            match ir.deref_mut() {
+            match &mut ir.ty {
                 Cmp { dst, src, .. } | RegReg { dst, src } => {
                     *dst = self.alloc(*dst);
                     *src = self.alloc(*src);
@@ -51,14 +54,14 @@ impl Registers {
                     *reg = self.alloc(*reg);
                 }
 
-                IRType::Call { reg, args, .. } => {
+                Call { reg, args, .. } => {
                     *reg = self.alloc(*reg);
                     for arg in args {
                         *arg = self.alloc(*arg)
                     }
                 }
 
-                IRType::Imm { .. } | IRType::Nop { .. } => {
+                Imm { .. } | Nop => {
                     // doesn't need register allocations
                 }
             }

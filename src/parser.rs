@@ -423,7 +423,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.relational(tokens)),
-                        comp: Comp::Eq,
+                        comp: Comp::Equal,
                     };
                 }
                 Token::MChar('!', '=') => {
@@ -431,7 +431,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.relational(tokens)),
-                        comp: Comp::NEq,
+                        comp: Comp::NotEqual,
                     };
                 }
                 _ => break 'expr,
@@ -475,7 +475,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.shift(tokens)),
-                        comp: Comp::Lt,
+                        comp: Comp::LessThan,
                     };
                 }
                 tok if *tok == '>' => {
@@ -483,7 +483,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(self.shift(tokens)),
                         rhs: Kind::make(lhs),
-                        comp: Comp::Gt,
+                        comp: Comp::GreaterThan,
                     };
                 }
                 tok if *tok == Token::MChar('<', '=') => {
@@ -491,7 +491,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.shift(tokens)),
-                        comp: Comp::Le,
+                        comp: Comp::LessThanEq,
                     };
                 }
                 tok if *tok == Token::MChar('>', '=') => {
@@ -499,7 +499,7 @@ impl Parser {
                     lhs = Node::Comparison {
                         lhs: Kind::make(self.shift(tokens)),
                         rhs: Kind::make(lhs),
-                        comp: Comp::Ge,
+                        comp: Comp::GreaterThanEq,
                     };
                 }
                 _ => break 'expr,
@@ -636,7 +636,7 @@ impl Parser {
             Token::Str(s) => Node::Str {
                 str: s.to_string(),
                 ty: Rc::new(RefCell::new(types::array_of(
-                    Rc::new(RefCell::new(Type::Char)),
+                    &Rc::new(RefCell::new(Type::Char)),
                     s.len(),
                 ))),
             },
@@ -729,7 +729,7 @@ impl Parser {
 
         let mut ty = ty;
         for el in param.iter().rev() {
-            ty = types::array_of(Rc::new(RefCell::new(ty)), *el as usize);
+            ty = types::array_of(&Rc::new(RefCell::new(ty)), *el as usize);
         }
         ty
     }
@@ -814,7 +814,7 @@ impl Parser {
         };
 
         while consume(tokens, '*') {
-            ty = types::ptr_of(Rc::new(RefCell::new(ty)));
+            ty = types::ptr_of(&Rc::new(RefCell::new(ty)));
         }
         ty
     }

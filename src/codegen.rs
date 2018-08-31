@@ -1,6 +1,6 @@
+use super::*;
 use ir::Function;
 use node::Comp;
-use util::*;
 
 use std::fmt::Write;
 
@@ -78,12 +78,12 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
     use ir::*;
 
     for ir in &func.ir {
-        match ir {
-            IR::Imm(RegImm { reg, val }) => {
+        match (&ir.kind, &ir.ty) {
+            (IRKind::Imm, RegImm { reg, val }) => {
                 writeln!(buf, "  mov {}, {}", REGS64[*reg as usize], val);
             }
 
-            IR::Mov(RegReg { dst, src }) => {
+            (IRKind::Mov, RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  mov {}, {}",
@@ -91,12 +91,12 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::Return(Reg { src }) => {
+            (IRKind::Return, Reg { src }) => {
                 writeln!(buf, "  mov rax, {}", REGS64[*src as usize]);
                 writeln!(buf, "  jmp {}", ret);
             }
 
-            IR::Load(w, RegReg { dst, src }) => {
+            (IRKind::Load(w), RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  mov {}, [{}]",
@@ -117,7 +117,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 }
             }
 
-            IR::Store(w, RegReg { dst, src }) => {
+            (IRKind::Store(w), RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  mov [{}], {}",
@@ -130,7 +130,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::StoreArg(w, RegImm { reg, val }) => {
+            (IRKind::StoreArg(w), RegImm { reg, val }) => {
                 writeln!(
                     buf,
                     "  mov [rbp-{}], {}",
@@ -143,24 +143,24 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::Label(IRType::Imm { val }) => {
+            (IRKind::Label, IRType::Imm { val }) => {
                 writeln!(buf, ".L{}:", val);
             }
 
-            IR::Label(IRType::RegLabel { reg, label }) => {
+            (IRKind::Label, IRType::RegLabel { reg, label }) => {
                 writeln!(buf, "  lea {}, {}", REGS64[*reg as usize], label);
             }
 
-            IR::Unless(RegImm { reg, val }) => {
+            (IRKind::Unless, RegImm { reg, val }) => {
                 writeln!(buf, "  cmp {}, 0", REGS64[*reg as usize]);
                 writeln!(buf, "  je .L{}", val);
             }
 
-            IR::Jmp(IRType::Imm { val }) => {
+            (IRKind::Jmp, IRType::Imm { val }) => {
                 writeln!(buf, "  jmp .L{}", val);
             }
 
-            IR::Or(IRType::RegReg { dst, src }) => {
+            (IRKind::Or, IRType::RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  or {},{}",
@@ -168,7 +168,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::Xor(IRType::RegReg { dst, src }) => {
+            (IRKind::Xor, IRType::RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  xor {},{}",
@@ -176,7 +176,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::And(IRType::RegReg { dst, src }) => {
+            (IRKind::And, IRType::RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  and {},{}",
@@ -184,12 +184,12 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::If(IRType::RegImm { reg, val }) => {
+            (IRKind::If, IRType::RegImm { reg, val }) => {
                 writeln!(buf, "  cmp {}, 0", REGS64[*reg as usize]);
                 writeln!(buf, "  jne .L{}", val);
             }
 
-            IR::Add(RegReg { dst, src }) => {
+            (IRKind::Add, RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  add {}, {}",
@@ -197,7 +197,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::Sub(RegReg { dst, src }) => {
+            (IRKind::Sub, RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  sub {}, {}",
@@ -205,47 +205,47 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            IR::BpRel(RegImm { reg, val }) => {
+            (IRKind::BpRel, RegImm { reg, val }) => {
                 writeln!(buf, "  lea {}, [rbp-{}]", REGS64[*reg as usize], val);
             }
 
-            IR::Mul(RegReg { dst, src }) => {
+            (IRKind::Mul, RegReg { dst, src }) => {
                 writeln!(buf, "  mov rax, {}", REGS64[*src as usize]);
                 writeln!(buf, "  mul {}", REGS64[*dst as usize]);
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
             }
 
-            IR::Div(RegReg { dst, src }) => {
+            (IRKind::Div, RegReg { dst, src }) => {
                 writeln!(buf, "  mov rax, {}", REGS64[*dst as usize]);
                 writeln!(buf, "  cqo");
                 writeln!(buf, "  div {}", REGS64[*src as usize]);
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
             }
 
-            IR::Mod(RegReg { dst, src }) => {
+            (IRKind::Mod, RegReg { dst, src }) => {
                 writeln!(buf, "  mov rax, {}", REGS64[*dst as usize]);
                 writeln!(buf, "  cqo");
                 writeln!(buf, "  div {}", REGS64[*src as usize]);
                 writeln!(buf, "  mov {}, rdx", REGS64[*dst as usize]);
             }
 
-            IR::Shl(RegReg { dst, src }) => {
+            (IRKind::Shl, RegReg { dst, src }) => {
                 writeln!(buf, "  mov cl, {}", REGS8[*src as usize]);
                 writeln!(buf, "  shl {}, cl", REGS64[*dst as usize]);
             }
 
-            IR::Shr(RegReg { dst, src }) => {
+            (IRKind::Shr, RegReg { dst, src }) => {
                 writeln!(buf, "  mov cl, {}", REGS8[*src as usize]);
                 writeln!(buf, "  shr {}, cl", REGS64[*dst as usize]);
             }
 
-            IR::Neg(Reg { src }) => {
+            (IRKind::Neg, Reg { src }) => {
                 writeln!(buf, "  neg {}", REGS64[*src as usize]);
             }
 
-            IR::Comparison(Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
+            (IRKind::Comparison, Cmp { dst, src, ref cmp }) => emit_cmp(&mut buf, cmp, *dst, *src),
 
-            IR::Call(IRType::Call { reg, name, args }) => {
+            (IRKind::Call, IRType::Call { reg, name, args }) => {
                 for (i, arg) in args.iter().enumerate() {
                     writeln!(buf, "  mov {}, {}", caller64[i], REGS64[*arg as usize]);
                 }
@@ -260,8 +260,9 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  mov {}, rax", REGS64[*reg as usize]);
             }
 
-            IR::Nop(_) => {}
-            ty => fail!("unknown operator: {}", ty),
+            (IRKind::Nop, _) => {}
+
+            _ => fail!("unknown operator: {}", ir),
         }
     }
 
@@ -283,10 +284,10 @@ fn emit_cmp<W: Write>(mut buf: W, cmp: &Comp, dst: i32, src: i32) {
         REGS64[dst as usize], REGS64[src as usize]
     );
     let _ = match cmp {
-        Comp::Lt | Comp::Gt => writeln!(buf, "  setl {}", REGS8[dst as usize]),
-        Comp::Le | Comp::Ge => writeln!(buf, "  setle {}", REGS8[dst as usize]),
-        Comp::Eq => writeln!(buf, "  sete {}", REGS8[dst as usize]),
-        Comp::NEq => writeln!(buf, "  setne {}", REGS8[dst as usize]),
+        Comp::LessThan | Comp::GreaterThan => writeln!(buf, "  setl {}", REGS8[dst as usize]),
+        Comp::LessThanEq | Comp::GreaterThanEq => writeln!(buf, "  setle {}", REGS8[dst as usize]),
+        Comp::Equal => writeln!(buf, "  sete {}", REGS8[dst as usize]),
+        Comp::NotEqual => writeln!(buf, "  setne {}", REGS8[dst as usize]),
     };
     writeln!(
         buf,
