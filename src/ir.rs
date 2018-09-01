@@ -429,6 +429,8 @@ impl<'a> Generate<'a> {
             | Node::SubAssign { lhs, rhs }
             | Node::AndAssign { lhs, rhs }
             | Node::XorAssign { lhs, rhs }
+            | Node::ShlAssign { lhs, rhs }
+            | Node::ShrAssign { lhs, rhs }
             | Node::OrAssign { lhs, rhs } => self.assign_op(
                 node.as_ref(),
                 &*lhs.get_type().as_ref().unwrap().borrow(),
@@ -652,6 +654,8 @@ impl<'a> Generate<'a> {
             Node::AndAssign { .. } => IRKind::And,
             Node::XorAssign { .. } => IRKind::Xor,
             Node::OrAssign { .. } => IRKind::Or,
+            Node::ShlAssign { .. } => IRKind::Shl,
+            Node::ShrAssign { .. } => IRKind::Shr,
             _ => unreachable!(),
         };
 

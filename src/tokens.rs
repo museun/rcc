@@ -7,12 +7,13 @@ use std::ops::{Index, IndexMut};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    MChar(char, char), // double-width chars
-    Char(char),        // single-width others
-    Num(u32),          // constant
-    Ident(String),     // name
-    Type(Type),        // types
-    Str(String),       // string
+    MChar(char, char, Option<char>), // double/triple-width chars
+
+    Char(char),    // single-width others
+    Num(u32),      // constant
+    Ident(String), // name
+    Type(Type),    // types
+    Str(String),   // string
 
     If,      // if
     Else,    // else
@@ -146,19 +147,22 @@ impl From<&'static str> for Token {
         match c {
             "else" => Token::Else,
             // TODO make this better
-            "==" => Token::MChar('=', '='),
-            "!=" => Token::MChar('!', '='),
-            "->" => Token::MChar('-', '>'),
-            "--" => Token::MChar('-', '-'),
-            "++" => Token::MChar('+', '+'),
-            "*=" => Token::MChar('*', '='),
-            "/=" => Token::MChar('/', '='),
-            "%=" => Token::MChar('%', '='),
-            "+=" => Token::MChar('+', '='),
-            "-=" => Token::MChar('-', '='),
-            "&=" => Token::MChar('&', '='),
-            "^=" => Token::MChar('^', '='),
-            "|=" => Token::MChar('|', '='),
+            "==" => Token::MChar('=', '=', None),
+            "!=" => Token::MChar('!', '=', None),
+            "->" => Token::MChar('-', '>', None),
+            "--" => Token::MChar('-', '-', None),
+            "++" => Token::MChar('+', '+', None),
+            //
+            "<<=" => Token::MChar('<', '<', Some('=')),
+            ">>=" => Token::MChar('>', '>', Some('=')),
+            "*=" => Token::MChar('*', '=', None),
+            "/=" => Token::MChar('/', '=', None),
+            "%=" => Token::MChar('%', '=', None),
+            "+=" => Token::MChar('+', '=', None),
+            "-=" => Token::MChar('-', '=', None),
+            "&=" => Token::MChar('&', '=', None),
+            "^=" => Token::MChar('^', '=', None),
+            "|=" => Token::MChar('|', '=', None),
             _ => panic!("invalid str/token"),
         }
     }
@@ -178,7 +182,8 @@ impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Token::Char(c) => write!(f, "{} : Char", c),
-            Token::MChar(l, r) => write!(f, "{}{} : MChar", l, r),
+            Token::MChar(l, r, None) => write!(f, "{}{} : MChar", l, r),
+            Token::MChar(l, r, Some(e)) => write!(f, "{}{}{} : MChar", l, r, e),
             Token::Num(n) => write!(f, "{} : Num", n),
             Token::Ident(name) => write!(f, "{} : Ident", name),
             Token::Type(ty) => write!(f, "{} : Type", ty),

@@ -207,6 +207,8 @@ impl<'a> Semantics<'a> {
             | Node::AndAssign { lhs, rhs }
             | Node::XorAssign { lhs, rhs }
             | Node::OrAssign { lhs, rhs }
+            | Node::ShlAssign { lhs, rhs }
+            | Node::ShrAssign { lhs, rhs }
             | Node::Assign { lhs, rhs } => {
                 self.walk(env, lhs.as_mut(), false); // can't decay this
                 Self::check_lval(lhs.get_val());
@@ -393,7 +395,9 @@ impl<'a> Semantics<'a> {
 }
 
 use std::collections::VecDeque;
+#[derive(Default)]
 pub struct Environment(VecDeque<Scope>);
+
 impl Environment {
     pub fn new() -> Self {
         let mut v = VecDeque::new();

@@ -17,6 +17,23 @@ pub enum Color {
     BrightWhite,
 }
 
+static COLORS: [Color; 14] = [
+    Color::Red,
+    Color::Green,
+    Color::Yellow,
+    Color::Blue,
+    Color::Magenta,
+    Color::Cyan,
+    Color::White,
+    Color::BrightRed,
+    Color::BrightGreen,
+    Color::BrightYellow,
+    Color::BrightBlue,
+    Color::BrightMagenta,
+    Color::BrightCyan,
+    Color::BrightWhite,
+];
+
 impl Color {
     pub fn len() -> usize {
         7 * 2
@@ -170,20 +187,3 @@ impl<'a> Drop for Tracer<'a> {
         eprintln!("{}{}", lede, self.label);
     }
 }
-
-static COLORS: [Color; 14] = [
-    Color::Red,
-    Color::Green,
-    Color::Yellow,
-    Color::Blue,
-    Color::Magenta,
-    Color::Cyan,
-    Color::White,
-    Color::BrightRed,
-    Color::BrightGreen,
-    Color::BrightYellow,
-    Color::BrightBlue,
-    Color::BrightMagenta,
-    Color::BrightCyan,
-    Color::BrightWhite,
-];

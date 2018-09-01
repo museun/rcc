@@ -422,13 +422,27 @@ impl Parser {
             };
         }
 
+        if consume(tokens, "<<=") {
+            return Node::ShlAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.assign(tokens)),
+            };
+        }
+
+        if consume(tokens, ">>=") {
+            return Node::ShrAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.assign(tokens)),
+            };
+        }
+
         lhs
     }
 
     fn logor(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.logand(tokens);
         'expr: loop {
-            if let Some((_, Token::MChar('|', '|'))) = tokens.peek() {
+            if let Some((_, Token::MChar('|', '|', None))) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogOr {
                     lhs: Kind::make(lhs),
@@ -495,7 +509,7 @@ impl Parser {
     fn logand(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.bit_or(tokens);
         'expr: loop {
-            if let Some((_, Token::MChar('&', '&'))) = tokens.peek() {
+            if let Some((_, Token::MChar('&', '&', None))) = tokens.peek() {
                 tokens.advance();
                 lhs = Node::LogAnd {
                     lhs: Kind::make(lhs),
@@ -513,7 +527,7 @@ impl Parser {
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for rel");
             match next {
-                Token::MChar('=', '=') => {
+                Token::MChar('=', '=', None) => {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
@@ -521,7 +535,7 @@ impl Parser {
                         comp: Comp::Equal,
                     };
                 }
-                Token::MChar('!', '=') => {
+                Token::MChar('!', '=', None) => {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
@@ -540,14 +554,14 @@ impl Parser {
         'expr: loop {
             let (_, next) = tokens.peek().expect("token for shift");
             match next {
-                tok if *tok == Token::MChar('<', '<') => {
+                tok if *tok == Token::MChar('<', '<', None) => {
                     tokens.advance();
                     lhs = Node::Shl {
                         lhs: Kind::make(lhs),
                         rhs: Kind::make(self.add(tokens)),
                     };
                 }
-                tok if *tok == Token::MChar('>', '>') => {
+                tok if *tok == Token::MChar('>', '>', None) => {
                     tokens.advance();
                     lhs = Node::Shr {
                         lhs: Kind::make(lhs),
@@ -581,7 +595,7 @@ impl Parser {
                         comp: Comp::GreaterThan,
                     };
                 }
-                tok if *tok == Token::MChar('<', '=') => {
+                tok if *tok == Token::MChar('<', '=', None) => {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(lhs),
@@ -589,7 +603,7 @@ impl Parser {
                         comp: Comp::LessThanEq,
                     };
                 }
-                tok if *tok == Token::MChar('>', '=') => {
+                tok if *tok == Token::MChar('>', '=', None) => {
                     tokens.advance();
                     lhs = Node::Comparison {
                         lhs: Kind::make(self.shift(tokens)),

@@ -152,6 +152,16 @@ pub enum Node {
         rhs: Kind,
     },
 
+    ShlAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    ShrAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     LVal {
         offset: i32,
         ty: RefType,
@@ -288,6 +298,8 @@ impl Node {
             | Node::AndAssign { rhs, .. }
             | Node::XorAssign { rhs, .. }
             | Node::OrAssign { rhs, .. }
+            | Node::ShlAssign { rhs, .. }
+            | Node::ShrAssign { rhs, .. }
             | Node::Assign { rhs, .. } => rhs.get_type(),
 
             Node::PostInc { expr }
@@ -351,6 +363,8 @@ impl Node {
             | Node::AndAssign { lhs, .. }
             | Node::XorAssign { lhs, .. }
             | Node::OrAssign { lhs, .. }
+            | Node::ShlAssign { lhs, .. }
+            | Node::ShrAssign { lhs, .. }
             | Assign { lhs, .. } => lhs.set_type(newtype),
 
             // TODO: this should only do the RHS

@@ -180,9 +180,15 @@ impl Lexical for CharLexer {
 
             let l = iter.next().unwrap();
             if let Some(p) = iter.peek() {
-                if is_valid_char(l, *p) {
+                if is_valid_char(l, *p, None) {
                     let r = iter.next().unwrap();
-                    return State::Produce(1, Token::MChar(l, r));
+                    if let Some(e) = iter.peek() {
+                        if is_valid_char(l, r, Some(*e)) {
+                            let e = iter.next();
+                            return State::Produce(2, Token::MChar(l, r, e));
+                        }
+                    }
+                    return State::Produce(1, Token::MChar(l, r, None));
                 }
             }
             return State::Produce(0, Token::Char(l));
@@ -349,62 +355,63 @@ const SYMBOLS: [(&str, Token); 15] = [
     ("break", Token::Break),
 ];
 
-// TODO figure out <<= and >>=
-const CHARACTERS: [(char, Option<char>); 42] = [
-    ('&', Some('&')),
-    ('|', Some('|')),
+const CHARACTERS: [(char, Option<char>, Option<char>); 44] = [
+    ('&', Some('&'), None),
+    ('|', Some('|'), None),
     //
-    ('=', Some('=')),
-    ('!', Some('=')),
-    ('>', Some('=')),
-    ('<', Some('=')),
+    ('=', Some('='), None),
+    ('!', Some('='), None),
+    ('>', Some('='), None),
+    ('<', Some('='), None),
     //
-    ('*', Some('=')),
-    ('/', Some('=')),
-    ('%', Some('=')),
-    ('+', Some('=')),
-    ('-', Some('=')),
-    ('&', Some('=')),
-    ('^', Some('=')),
-    ('|', Some('=')),
+    ('<', Some('<'), Some('=')),
+    ('>', Some('>'), Some('=')),
+    ('*', Some('='), None),
+    ('/', Some('='), None),
+    ('%', Some('='), None),
+    ('+', Some('='), None),
+    ('-', Some('='), None),
+    ('&', Some('='), None),
+    ('^', Some('='), None),
+    ('|', Some('='), None),
     //
-    ('<', Some('<')),
-    ('>', Some('>')),
+    ('<', Some('<'), None),
+    ('>', Some('>'), None),
     //
-    ('+', Some('+')),
-    ('-', Some('-')),
+    ('+', Some('+'), None),
+    ('-', Some('-'), None),
     //
-    ('-', Some('>')),
+    ('-', Some('>'), None),
     //
-    ('?', None), // ? :
-    (':', None), // ? :
+    ('?', None, None), // ? :
+    (':', None, None), // ? :
     //
-    ('!', None),
-    ('+', None),
-    ('-', None),
-    ('*', None),
-    ('/', None),
-    (';', None),
-    ('=', None),
-    ('(', None),
-    (')', None),
-    ('{', None),
-    ('}', None),
-    ('[', None),
-    (']', None),
-    (',', None),
-    ('<', None),
-    ('>', None),
-    ('&', None),
-    ('.', None),
-    ('|', None),
-    ('^', None),
-    ('%', None),
+    ('!', None, None),
+    ('+', None, None),
+    ('-', None, None),
+    ('*', None, None),
+    ('/', None, None),
+    (';', None, None),
+    ('=', None, None),
+    ('(', None, None),
+    (')', None, None),
+    ('{', None, None),
+    ('}', None, None),
+    ('[', None, None),
+    (']', None, None),
+    (',', None, None),
+    ('<', None, None),
+    ('>', None, None),
+    ('&', None, None),
+    ('.', None, None),
+    ('|', None, None),
+    ('^', None, None),
+    ('%', None, None),
 ];
 
 // TODO: this shouldn't be public
 pub fn is_left_char(left: char) -> bool {
-    for (ch, _) in CHARACTERS.iter() {
+    for (ch, _, _) in CHARACTERS.iter() {
         if left == *ch {
             return true;
         }
@@ -412,9 +419,9 @@ pub fn is_left_char(left: char) -> bool {
     false
 }
 
-fn is_valid_char(l: char, r: char) -> bool {
-    for (a, b) in CHARACTERS.iter() {
-        if l == *a && Some(r) == *b {
+fn is_valid_char(l: char, r: char, end: Option<char>) -> bool {
+    for (a, b, c) in CHARACTERS.iter() {
+        if l == *a && Some(r) == *b && end == *c {
             return true;
         }
     }
