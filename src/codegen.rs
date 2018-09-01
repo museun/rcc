@@ -315,7 +315,7 @@ fn escape(s: &str) -> String {
         return escape("\0");
     }
 
-    s.replace('\\', "\\\\")
+    s.replace('\\', "\\")
         .chars()
         .map(|c| {
             if c.is_control() {

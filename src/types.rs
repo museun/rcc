@@ -141,6 +141,23 @@ impl Var {
 }
 
 use std::fmt;
+impl fmt::Display for Var {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Var {} (extern: {}, data: {}, offset: {}) = {}",
+            &*self.ty.borrow(),
+            self.is_extern,
+            self.data,
+            self.offset,
+            match &self.global {
+                Some((k, v)) => format!("\"{}\" -> \"{}\"", k, v),
+                None => "None".into(),
+            }
+        )
+    }
+}
+
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::Type::*;

@@ -692,7 +692,7 @@ impl fmt::Display for IRType {
             Reg { src } => write!(f, "r{}", src),
             Imm { val } => write!(f, "#{}", val),
             Cmp { cmp, dst, src } => write!(f, "{} r{}, r{}", cmp, dst, src),
-            Call { reg, name, args } => write!(f, "CALL r{} @ {}({:?})", reg, name, args),
+            Call { reg, name, args } => write!(f, "r{} @ {}({:?})", reg, name, args),
             Nop => write!(f, "NOP"),
         }
     }

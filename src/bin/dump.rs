@@ -62,7 +62,7 @@ fn compile(file: &str, input: &str) {
         if !func.globals.is_empty() {
             eprintln!("  globals:");
             for g in &func.globals {
-                eprintln!("    {:?}", g);
+                eprintln!("    {}", g);
             }
             eprintln!();
         }
@@ -78,7 +78,7 @@ fn compile(file: &str, input: &str) {
         if !func.globals.is_empty() {
             eprintln!("  globals:");
             for g in &func.globals {
-                eprintln!("    {:?}", g);
+                eprintln!("    {}", g);
             }
             eprintln!();
         }
