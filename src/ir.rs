@@ -594,9 +594,9 @@ impl<'a> Generate<'a> {
             reg_reg(val, addr),
         );
         self.create(IRKind::Add, reg_imm(val, delta));
-        self.storearg(
+        self.store(
             &*kind.get_type().as_ref().unwrap().borrow(),
-            reg_imm(addr, val),
+            reg_reg(addr, val),
         );
         self.kill(addr);
         val
