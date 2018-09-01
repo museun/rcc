@@ -587,13 +587,21 @@ impl<'a> Generate<'a> {
     }
 
     fn pre_inc(&mut self, kind: &Kind, delta: i32) -> i32 {
+        let scale = match kind.get_type() {
+            Some(ty) => match &*ty.borrow() {
+                Type::Ptr { ptr, .. } => types::size_of(&*ptr.borrow()),
+                _ => 1,
+            },
+            _ => fail!("must have a type"),
+        };
+
         let addr = self.lvalue(kind);
         let val = self.next_reg();
         self.load(
             &*kind.get_type().as_ref().unwrap().borrow(),
             reg_reg(val, addr),
         );
-        self.create(IRKind::Add, reg_imm(val, delta));
+        self.create(IRKind::Add, reg_imm(val, delta * scale));
         self.store(
             &*kind.get_type().as_ref().unwrap().borrow(),
             reg_reg(addr, val),
@@ -603,8 +611,16 @@ impl<'a> Generate<'a> {
     }
 
     fn post_inc(&mut self, kind: &Kind, delta: i32) -> i32 {
+        let scale = match kind.get_type() {
+            Some(ty) => match &*ty.borrow() {
+                Type::Ptr { ptr, .. } => types::size_of(&*ptr.borrow()),
+                _ => 1,
+            },
+            _ => fail!("must have a type"),
+        };
+
         let val = self.pre_inc(kind, delta);
-        self.create(IRKind::Sub, reg_imm(val, delta));
+        self.create(IRKind::Sub, reg_imm(val, delta * scale));
         val
     }
 

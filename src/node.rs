@@ -242,6 +242,10 @@ impl Node {
 
             Node::Assign { rhs, .. } => rhs.get_type(),
 
+            Node::PostInc { expr } | Node::PostDec { expr } | Node::PreInc { expr } | Node::PreDec { expr } => {
+                expr.get_type()
+            }
+
             Node::Expression { expr, .. }
             | Node::Neg { expr }
             | Node::Deref { expr }
