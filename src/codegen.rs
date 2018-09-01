@@ -176,6 +176,14 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
+            (IRKind::Xor, IRType::RegImm { reg, val }) => {
+                writeln!(
+                    buf,
+                    "  xor {},{}",
+                    REGS64[*reg as usize], val
+                );
+            }
+
             (IRKind::And, IRType::RegReg { dst, src }) => {
                 writeln!(
                     buf,

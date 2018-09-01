@@ -352,7 +352,7 @@ const SYMBOLS: [(&str, Token); 15] = [
     ("break", Token::Break),
 ];
 
-const CHARACTERS: [(char, Option<char>, Option<char>); 44] = [
+const CHARACTERS: [(char, Option<char>, Option<char>); 45] = [
     ('&', Some('&'), None),
     ('|', Some('|'), None),
     //
@@ -404,6 +404,7 @@ const CHARACTERS: [(char, Option<char>, Option<char>); 44] = [
     ('|', None, None),
     ('^', None, None),
     ('%', None, None),
+    ('~', None, None),
 ];
 
 // TODO: this shouldn't be public

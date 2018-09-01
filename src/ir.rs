@@ -486,6 +486,12 @@ impl<'a> Generate<'a> {
             Node::Shr { lhs, rhs } => self.binary(IRKind::Shr, lhs, rhs),
             Node::Shl { lhs, rhs } => self.binary(IRKind::Shl, lhs, rhs),
 
+            Node::BNot { expr } => {
+                let r = self.expression(expr);
+                self.create(IRKind::Add, reg_imm(r, -1));
+                r
+            }
+
             Node::Or { lhs, rhs } => self.binary(IRKind::Or, lhs, rhs),
             Node::Xor { lhs, rhs } => self.binary(IRKind::Xor, lhs, rhs),
             Node::And { lhs, rhs } => self.binary(IRKind::And, lhs, rhs),

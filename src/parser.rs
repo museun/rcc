@@ -677,6 +677,11 @@ impl Parser {
                 expr: Kind::make(self.unary(tokens)),
             };
         }
+        if consume(tokens, '~') {
+            return Node::BNot {
+                expr: Kind::make(self.unary(tokens)),
+            };
+        }
         if consume(tokens, Token::Sizeof) {
             return Node::Sizeof {
                 expr: Kind::make(self.unary(tokens)),
@@ -762,7 +767,6 @@ impl Parser {
                 lhs = Node::PostInc {
                     expr: Kind::make(lhs),
                 };
-
                 continue;
             }
 
@@ -770,7 +774,6 @@ impl Parser {
                 lhs = Node::PostDec {
                     expr: Kind::make(lhs),
                 };
-
                 continue;
             }
 

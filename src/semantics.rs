@@ -303,6 +303,7 @@ impl<'a> Semantics<'a> {
             | Node::PostDec { expr }
             | Node::PreInc { expr }
             | Node::PreDec { expr }
+            | Node::BNot { expr }
             | Node::Not { expr }
             | Node::Neg { expr } => {
                 self.walk(env, expr.as_mut(), true);

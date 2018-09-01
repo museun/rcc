@@ -45,6 +45,10 @@ pub enum Node {
         expr: Kind,
     },
 
+    BNot {
+        expr: Kind,
+    },
+
     Or {
         lhs: Kind,
         rhs: Kind,
@@ -309,6 +313,7 @@ impl Node {
 
             Node::Expression { expr, .. }
             | Node::Neg { expr }
+            | Node::BNot { expr }
             | Node::Deref { expr }
             | Node::Dot { expr, .. } => expr.get_type(),
 
@@ -349,6 +354,7 @@ impl Node {
             Deref { expr, .. }
             | Dot { expr, .. }
             | Not { expr, .. }
+            | BNot { expr }
             | Neg { expr }
             | PreInc { expr }
             | PreDec { expr }
