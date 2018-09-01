@@ -349,7 +349,8 @@ const SYMBOLS: [(&str, Token); 15] = [
     ("break", Token::Break),
 ];
 
-const CHARACTERS: [(char, Option<char>); 34] = [
+// TODO figure out <<= and >>=
+const CHARACTERS: [(char, Option<char>); 42] = [
     ('&', Some('&')),
     ('|', Some('|')),
     //
@@ -357,6 +358,15 @@ const CHARACTERS: [(char, Option<char>); 34] = [
     ('!', Some('=')),
     ('>', Some('=')),
     ('<', Some('=')),
+    //
+    ('*', Some('=')),
+    ('/', Some('=')),
+    ('%', Some('=')),
+    ('+', Some('=')),
+    ('-', Some('=')),
+    ('&', Some('=')),
+    ('^', Some('=')),
+    ('|', Some('=')),
     //
     ('<', Some('<')),
     ('>', Some('>')),

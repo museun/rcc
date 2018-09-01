@@ -199,7 +199,15 @@ impl<'a> Semantics<'a> {
                 self.walk(env, body.as_mut(), true);
             }
 
-            Node::Assign { lhs, rhs } => {
+            Node::MulAssign { lhs, rhs }
+            | Node::DivAssign { lhs, rhs }
+            | Node::ModAssign { lhs, rhs }
+            | Node::AddAssign { lhs, rhs }
+            | Node::SubAssign { lhs, rhs }
+            | Node::AndAssign { lhs, rhs }
+            | Node::XorAssign { lhs, rhs }
+            | Node::OrAssign { lhs, rhs }
+            | Node::Assign { lhs, rhs } => {
                 self.walk(env, lhs.as_mut(), false); // can't decay this
                 Self::check_lval(lhs.get_val());
                 self.walk(env, rhs.as_mut(), true);

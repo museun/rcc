@@ -112,6 +112,46 @@ pub enum Node {
         rhs: Kind,
     },
 
+    MulAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    DivAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    ModAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    AddAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    SubAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    AndAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    XorAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
+    OrAssign {
+        lhs: Kind,
+        rhs: Kind,
+    },
+
     LVal {
         offset: i32,
         ty: RefType,
@@ -240,11 +280,20 @@ impl Node {
             | Node::Mul { lhs, .. }
             | Node::Div { lhs, .. } => lhs.get_type(),
 
-            Node::Assign { rhs, .. } => rhs.get_type(),
+            Node::MulAssign { rhs, .. }
+            | Node::DivAssign { rhs, .. }
+            | Node::ModAssign { rhs, .. }
+            | Node::AddAssign { rhs, .. }
+            | Node::SubAssign { rhs, .. }
+            | Node::AndAssign { rhs, .. }
+            | Node::XorAssign { rhs, .. }
+            | Node::OrAssign { rhs, .. }
+            | Node::Assign { rhs, .. } => rhs.get_type(),
 
-            Node::PostInc { expr } | Node::PostDec { expr } | Node::PreInc { expr } | Node::PreDec { expr } => {
-                expr.get_type()
-            }
+            Node::PostInc { expr }
+            | Node::PostDec { expr }
+            | Node::PreInc { expr }
+            | Node::PreDec { expr } => expr.get_type(),
 
             Node::Expression { expr, .. }
             | Node::Neg { expr }
@@ -294,7 +343,15 @@ impl Node {
             | PostInc { expr }
             | PostDec { expr } => expr.set_type(newtype),
 
-            Assign { lhs, .. } => lhs.set_type(newtype),
+            Node::MulAssign { lhs, .. }
+            | Node::DivAssign { lhs, .. }
+            | Node::ModAssign { lhs, .. }
+            | Node::AddAssign { lhs, .. }
+            | Node::SubAssign { lhs, .. }
+            | Node::AndAssign { lhs, .. }
+            | Node::XorAssign { lhs, .. }
+            | Node::OrAssign { lhs, .. }
+            | Assign { lhs, .. } => lhs.set_type(newtype),
 
             // TODO: this should only do the RHS
             Comma { lhs, rhs } => {

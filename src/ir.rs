@@ -61,18 +61,17 @@ pub enum IRKind {
 
     BpRel, // reg->imm
 
-    Add, // reg->reg OR reg->imm
-    Sub, // reg->reg OR reg->imm
     Mul, // reg->reg OR reg->imm
     Div, // reg->reg
     Mod, // reg->reg
+    Add, // reg->reg OR reg->imm
+    Sub, // reg->reg OR reg->imm
+    And, // reg->reg
+    Xor, // reg->reg
+    Or,  // reg->reg
 
     Shr, // reg->reg
     Shl, // reg->reg
-
-    Or,  // reg->reg
-    Xor, // reg->reg
-    And, // reg->reg
 
     Neg, // reg
 
@@ -423,6 +422,20 @@ impl<'a> Generate<'a> {
                 r
             }
 
+            Node::MulAssign { lhs, rhs }
+            | Node::DivAssign { lhs, rhs }
+            | Node::ModAssign { lhs, rhs }
+            | Node::AddAssign { lhs, rhs }
+            | Node::SubAssign { lhs, rhs }
+            | Node::AndAssign { lhs, rhs }
+            | Node::XorAssign { lhs, rhs }
+            | Node::OrAssign { lhs, rhs } => self.assign_op(
+                node.as_ref(),
+                &*lhs.get_type().as_ref().unwrap().borrow(),
+                lhs,
+                rhs,
+            ),
+
             Node::Assign { lhs, rhs } => {
                 let l = lhs;
 
@@ -621,6 +634,31 @@ impl<'a> Generate<'a> {
 
         let val = self.pre_inc(kind, delta);
         self.create(IRKind::Sub, reg_imm(val, delta * scale));
+        val
+    }
+
+    fn assign_op(&mut self, node: &Node, ty: &Type, lhs: &Kind, rhs: &Kind) -> i32 {
+        let src = self.expression(rhs);
+        let dst = self.lvalue(lhs);
+        let val = self.next_reg();
+
+        self.load(ty, reg_reg(val, dst));
+        let ir = match node {
+            Node::MulAssign { .. } => IRKind::Mul,
+            Node::DivAssign { .. } => IRKind::Div,
+            Node::ModAssign { .. } => IRKind::Mod,
+            Node::AddAssign { .. } => IRKind::Add,
+            Node::SubAssign { .. } => IRKind::Sub,
+            Node::AndAssign { .. } => IRKind::And,
+            Node::XorAssign { .. } => IRKind::Xor,
+            Node::OrAssign { .. } => IRKind::Or,
+            _ => unreachable!(),
+        };
+
+        self.create(ir, reg_reg(val, src));
+        self.kill(src);
+        self.store(ty, reg_reg(dst, val));
+        self.kill(dst);
         val
     }
 

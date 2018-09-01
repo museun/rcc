@@ -358,14 +358,71 @@ impl Parser {
 
     fn assign(&mut self, tokens: &mut Tokens) -> Node {
         let lhs = self.conditional(tokens);
-        if !consume(tokens, '=') {
-            return lhs;
+
+        if consume(tokens, '=') {
+            return Node::Assign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
         }
 
-        Node::Assign {
-            lhs: Kind::make(lhs),
-            rhs: Kind::make(self.conditional(tokens)),
+        if consume(tokens, "*=") {
+            return Node::MulAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
         }
+
+        if consume(tokens, "/=") {
+            return Node::DivAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "%=") {
+            return Node::ModAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "+=") {
+            return Node::AddAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "-=") {
+            return Node::SubAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "&=") {
+            return Node::AndAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "^=") {
+            return Node::XorAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        if consume(tokens, "|=") {
+            return Node::OrAssign {
+                lhs: Kind::make(lhs),
+                rhs: Kind::make(self.conditional(tokens)),
+            };
+        }
+
+        lhs
     }
 
     fn logor(&mut self, tokens: &mut Tokens) -> Node {

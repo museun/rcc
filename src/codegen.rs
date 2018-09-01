@@ -218,6 +218,7 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
             }
 
             (IRKind::Mul, RegReg { dst, src }) => {
+                // this could just be a SHL if src < 256 && src's 1s == 1
                 writeln!(buf, "  mov rax, {}", REGS64[*src as usize]);
                 writeln!(buf, "  mul {}", REGS64[*dst as usize]);
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
