@@ -7,7 +7,7 @@ pub fn scan<'a>(
     file: &'a str,
     input: &'a str,
     lexers: &[&'static dyn Lexical],
-) -> Vec<(Span<'a>, Token)> {
+) -> Vec<(Span, Token)> {
     let mut data = vec![];
     let mut skip = 0;
 
@@ -35,15 +35,12 @@ pub fn scan<'a>(
                 State::Error(err) => error = Some(err),
                 State::Consume(n) => skip += n,
                 State::Produce(n, token) => {
-                    // TODO pass the current start postion to the lexers
-                    // update the comment with the correct position
                     let token = match token {
-                        Token::Comment(_, b) => Token::Comment(i, b), /* this is raw offset
-                                                                        * into the file */
+                        Token::Comment(_, b) => Token::Comment(i, b),
                         tok => tok,
                     };
                     skip += n;
-                    data.push((span, token));
+                    data.push((span.clone(), token)); // why
                 }
             }
             break 'inner;

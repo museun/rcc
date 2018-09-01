@@ -41,19 +41,19 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone)]
-pub struct Tokens<'a> {
-    data: Vec<(Span<'a>, Token)>,
-    input: &'a str,
+pub struct Tokens {
+    data: Vec<(Span, Token)>,
+    input: String, // sad
     pos: usize,
 }
 
-impl<'a> Tokens<'a> {
-    pub fn tokenize(file: &'a str, input: &'a str) -> Self {
+impl Tokens {
+    pub fn tokenize(file: &str, input: &str) -> Self {
         let data = lexer::scan(file, input, &LEXERS);
 
         Tokens {
             data,
-            input,
+            input: input.into(),
             pos: 0,
         }
     }
@@ -62,12 +62,8 @@ impl<'a> Tokens<'a> {
         self.data.is_empty()
     }
 
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn pos(&self) -> Span {
-        self.data[self.pos].0
+    pub fn pos(&self) -> usize {
+        self.pos
     }
 
     pub fn next_token(&mut self) -> Option<&(Span, Token)> {
@@ -98,18 +94,31 @@ impl<'a> Tokens<'a> {
         self.pos += 1;
     }
 
-    pub fn input_at(&self, pos: usize) -> &'a str {
-        &self.input[pos..]
+    pub fn input_at(&self, pos: &Span) -> &str {
+        let lines = self.input.lines();
+        lines
+            .skip(pos.row() - 1)
+            .take(1)
+            .next()
+            .expect("span to be in file")
     }
 
-    pub fn tokens_at(&self, pos: usize) -> impl Iterator<Item = &(Span, Token)> {
-        self.data.iter().skip(pos)
+    pub fn current_span(&self) -> &Span {
+        &self.data[self.pos].0
+    }
+
+    pub fn previous_span(&self) -> Option<&Span> {
+        self.data.get(self.pos - 1).map(|s| &s.0) // why won't as_ref work here?
+    }
+
+    pub fn span_at(&self, pos: usize) -> &(Span, Token) {
+        self.data.get(pos).expect("valid position")
     }
 }
 
 // TODO impl range
 
-impl<'a> Index<usize> for Tokens<'a> {
+impl Index<usize> for Tokens {
     type Output = Token;
 
     fn index(&self, p: usize) -> &Self::Output {
@@ -117,7 +126,7 @@ impl<'a> Index<usize> for Tokens<'a> {
     }
 }
 
-impl<'a> IndexMut<usize> for Tokens<'a> {
+impl IndexMut<usize> for Tokens {
     fn index_mut(&mut self, p: usize) -> &mut Self::Output {
         &mut self.data[p].1
     }
@@ -130,6 +139,12 @@ impl Token {
             Token::Char(c) => c,
             _ => unreachable!(),
         }
+    }
+
+    pub fn as_string(&self) -> String {
+        let s = self.to_string();
+        let s = s.split(':').next().unwrap();
+        s.trim().to_string() // why
     }
 }
 
@@ -208,7 +223,7 @@ impl fmt::Display for Type {
     }
 }
 
-impl<'a> fmt::Display for Tokens<'a> {
+impl fmt::Display for Tokens {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let max = self
             .data

@@ -65,10 +65,10 @@ impl Parser {
                 while consume(tokens, ',') {
                     args.push(Kind::make(self.param(tokens)));
                 }
-                expect_token(tokens, ')');
+                expect(tokens, ')', None);
             }
 
-            expect_token(tokens, '{');
+            expect(tokens, '{', None);
             if is_typedef {
                 fail!("typedef {} has function definition", name);
             }
@@ -84,7 +84,7 @@ impl Parser {
         }
 
         let ty = self.read_array(tokens, ty);
-        expect_token(tokens, ';');
+        expect(tokens, ';', None);
         if is_typedef {
             self.env
                 .front_mut()
@@ -142,7 +142,7 @@ impl Parser {
     }
 
     fn statement(&mut self, tokens: &mut Tokens) -> Node {
-        let (pos, next) = tokens.peek().expect("token for statement");
+        let (_pos, next) = tokens.peek().expect("token for statement");
 
         match next {
             Token::Typedef => {
@@ -169,10 +169,10 @@ impl Parser {
 
             Token::If => {
                 tokens.advance();
-                expect_token(tokens, '(');
+                expect(tokens, '(', None);
                 let cond = Kind::make(self.expression(tokens));
 
-                expect_token(tokens, ')');
+                expect(tokens, ')', None);
                 let body = Kind::make(self.statement(tokens));
 
                 let else_ = if consume(tokens, Token::Else) {
@@ -186,7 +186,7 @@ impl Parser {
 
             Token::For => {
                 tokens.advance();
-                expect_token(tokens, '(');
+                expect(tokens, '(', None);
                 let init = if self.is_typename(tokens) {
                     self.declaration(tokens)
                 } else if consume(tokens, ';') {
@@ -197,7 +197,7 @@ impl Parser {
 
                 let cond = if !consume(tokens, ';') {
                     let cond = self.expression(tokens);
-                    expect_token(tokens, ';');
+                    expect(tokens, ';', None);
                     cond
                 } else {
                     Node::Noop {}
@@ -207,7 +207,7 @@ impl Parser {
                     let step = Node::Expression {
                         expr: Kind::make(self.expression(tokens)),
                     };
-                    expect_token(tokens, ')');
+                    expect(tokens, ')', None);
                     step
                 } else {
                     Node::Noop {}
@@ -225,10 +225,10 @@ impl Parser {
             Token::While => {
                 tokens.advance();
 
-                expect_token(tokens, '(');
+                expect(tokens, '(', None);
                 let cond = self.expression(tokens);
 
-                expect_token(tokens, ')');
+                expect(tokens, ')', None);
                 let body = self.statement(tokens);
 
                 Node::For {
@@ -243,11 +243,11 @@ impl Parser {
                 tokens.advance();
                 let body = self.statement(tokens);
 
-                expect_token(tokens, Token::While);
-                expect_token(tokens, '(');
+                expect(tokens, Token::While, None); // TODO maybe put a message here
+                expect(tokens, '(', None);
                 let cond = self.expression(tokens);
-                expect_token(tokens, ')');
-                expect_token(tokens, ';');
+                expect(tokens, ')', None);
+                expect(tokens, ';', None);
 
                 Node::DoWhile {
                     body: Kind::make(body),
@@ -265,7 +265,7 @@ impl Parser {
                 let node = Node::Return {
                     expr: Kind::make(self.expression(tokens)),
                 };
-                expect_token(tokens, ';');
+                expect(tokens, ';', None);
                 node
             }
 
@@ -289,7 +289,8 @@ impl Parser {
                 }
             }
             _ => {
-                expect_fail("", pos, "no token") // expected
+                // TODO better msg
+                expect_fail(&tokens, &MessageType::User("no token"))
             }
         }
     }
@@ -298,7 +299,7 @@ impl Parser {
         let node = Node::Expression {
             expr: Kind::make(self.expression(tokens)),
         };
-        expect_token(tokens, ';');
+        expect(tokens, ';', None);
         node
     }
 
@@ -317,7 +318,7 @@ impl Parser {
             Kind::empty()
         };
 
-        expect_token(tokens, ';');
+        expect(tokens, ';', None);
         Node::Vardef {
             name,
             init,
@@ -334,7 +335,7 @@ impl Parser {
             return cond;
         }
         let then = self.expression(tokens);
-        expect_token(tokens, ':');
+        expect(tokens, ':', None);
 
         let else_ = self.conditional(tokens);
         Node::Conditional {
@@ -721,19 +722,19 @@ impl Parser {
     }
 
     fn primary(&mut self, tokens: &mut Tokens) -> Node {
-        let (pos, next) = tokens.next_token().expect("token for term");
+        let (_pos, next) = tokens.next_token().expect("token for term");
         match next {
             tok if *tok == '(' => {
                 if consume(tokens, '{') {
                     let stmt = self.compound(tokens);
-                    expect_token(tokens, ')');
+                    expect(tokens, ')', None);
                     return Node::Statement {
                         stmt: Kind::make(stmt),
                         ty: Rc::new(RefCell::new(Type::Int)),
                     };
                 }
                 let node = self.expression(tokens);
-                expect_token(tokens, ')');
+                expect(tokens, ')', None);
                 node
             }
 
@@ -746,7 +747,7 @@ impl Parser {
                 str: s.to_string(),
                 ty: Rc::new(RefCell::new(types::array_of(
                     &Rc::new(RefCell::new(Type::Char)),
-                    //TODO: handle this in Types
+                    // TODO: handle this in Types
                     s.len() + 1, // count the \0
                 ))),
             },
@@ -766,11 +767,11 @@ impl Parser {
                 while consume(tokens, ',') {
                     args.push(Kind::make(self.assign(tokens)));
                 }
-                expect_token(tokens, ')');
+                expect(tokens, ')', None);
                 Node::Call { name, args }
             }
-
-            _ => expect_fail("", pos, "number or ident"),
+            // TODO: better message
+            _ => expect_fail(&tokens, &MessageType::User("number or ident")),
         }
     }
 
@@ -820,7 +821,7 @@ impl Parser {
                         rhs: Kind::make(self.assign(tokens)),
                     }),
                 };
-                expect_token(tokens, ']');
+                expect(tokens, ']', None);
                 continue;
             }
             return lhs;
@@ -832,9 +833,12 @@ impl Parser {
         while consume(tokens, '[') {
             match self.expression(tokens) {
                 Node::Constant { val, .. } => param.push(val),
-                _ => expect_fail("", &tokens.pos(), "number"),
+                _ => {
+                    // TODO better msg
+                    expect_fail(&tokens, &MessageType::User("number"));
+                }
             };
-            expect_token(tokens, ']');
+            expect(tokens, ']', None);
         }
 
         let mut ty = ty;
@@ -845,7 +849,9 @@ impl Parser {
     }
 
     fn ident(&mut self, tokens: &mut Tokens) -> String {
-        if let (_, Token::Ident(name)) = expect(tokens, Token::Ident("".into()), "identifier") {
+        if let (_, Token::Ident(name)) =
+            expect_discriminant(tokens, Token::Ident("".into()), Some("identifier"))
+        {
             return name;
         }
         unreachable!()
@@ -873,7 +879,9 @@ impl Parser {
             Token::Ident(s) => {
                 return match self.find(&s, &FieldType::Typedef) {
                     Some(ty) => ty,
-                    None => fail!("{} unknown type", s),
+                    None => {
+                        expect_fail(tokens, &MessageType::User(&format!("{}: unknown type", s)));
+                    }
                 };
             }
             Token::Struct => {
@@ -975,17 +983,17 @@ fn consume(tokens: &mut Tokens, tok: impl Into<Token>) -> bool {
 }
 
 #[inline]
-fn expect_tokens<'a>(tokens: &'a mut Tokens, toks: &[Token]) -> (Span<'a>, Token) {
+fn expect_tokens(tokens: &mut Tokens, toks: &[Token]) -> (Span, Token) {
     use std::mem::discriminant;
     let (pos, next) = tokens.next_token().expect("get next token");
     for tok in toks {
         if discriminant(next) == discriminant(tok) {
-            return (*pos, next.clone());
+            return (pos.clone(), next.clone());
         }
     }
 
     const SOURCE_LINE: &str = "source=> ";
-    let (pos, next) = (*pos, next.clone());
+    let (pos, next) = (pos, next.clone());
     // TODO fix this
     let (input, adjusted) = midpoint("", 0, 80 - SOURCE_LINE.len());
 
@@ -1015,79 +1023,96 @@ fn expect_tokens<'a>(tokens: &'a mut Tokens, toks: &[Token]) -> (Span<'a>, Token
     );
 }
 
+enum MessageType<'a> {
+    User(&'a str),
+    Token(Token),
+    None,
+}
+
 #[inline]
-fn expect_token(tokens: &mut Tokens, tok: impl Into<Token>) {
+fn expect(tokens: &mut Tokens, tok: impl Into<Token>, msg: Option<&str>) -> (Span, Token) {
     let tok = tok.into();
 
     let (pos, next) = tokens.next_token().expect("get next token");
     if *next == tok {
-        return;
+        return (pos.clone(), next.clone());
     }
 
-    const SOURCE_LINE: &str = "source=> ";
-    let (pos, next) = (*pos, next.clone());
-    // TODO fix this
-    let (input, adjusted) = midpoint("", 0, 80 - SOURCE_LINE.len());
-
-    eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
-    draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
-
-    fail!(
-        "{} {} was expected. found {} at position: {}.\n",
-        wrap_color!(Color::Red {}, "ERROR:"),
-        wrap_color!(Color::Green {}, tok.get_char()),
-        wrap_color!(Color::Cyan {}, "{}", next),
-        wrap_color!(Color::Blue {}, pos),
-    );
+    match msg {
+        Some(msg) => expect_fail(&tokens, &MessageType::User(msg)),
+        None => expect_fail(&tokens, &MessageType::Token(tok)),
+    }
 }
 
-/// this uses a discriminant comparison
 #[inline]
-#[allow(dead_code)]
-fn expect<'a>(
-    tokens: &'a mut Tokens,
+fn expect_discriminant(
+    tokens: &mut Tokens,
     tok: impl Into<Token>,
-    msg: impl AsRef<str>,
-) -> (Span<'a>, Token) {
+    msg: Option<&str>,
+) -> (Span, Token) {
     use std::mem::discriminant;
-    let (pos, next) = tokens.next_token().expect("get next token");
-    if discriminant(next) == discriminant(&tok.into()) {
-        return (*pos, next.clone());
+
+    let tok = tok.into();
+    if let Some((pos, next)) = tokens.next_token() {
+        if discriminant(next) == discriminant(&tok) {
+            return (pos.clone(), next.clone());
+        }
     }
-    expect_fail("", pos, msg.as_ref());
+
+    match msg {
+        Some(msg) => expect_fail(&tokens, &MessageType::User(msg)),
+        None => expect_fail(&tokens, &MessageType::Token(tok)),
+    }
 }
 
-#[inline]
-fn expect_type<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, TokType) {
-    let (pos, next) = tokens.next_token().expect("get next token");
-    if let Token::Type(ty) = next {
-        return (*pos, ty.clone());
-    }
-    expect_fail("", pos, msg.as_ref());
-}
-
-#[inline]
-fn expect_ident<'a>(tokens: &'a mut Tokens, msg: impl AsRef<str>) -> (Span<'a>, String) {
-    let (pos, next) = tokens.next_token().expect("get next token");
-    if let Token::Ident(name) = next {
-        return (*pos, name.to_string());
-    }
-    expect_fail("", pos, msg.as_ref());
-}
-
-// lifetimes ??
-fn expect_fail<'a>(input: &str, span: &'a Span<'a>, msg: &str) -> ! {
+fn expect_fail(tokens: &Tokens, msg: &MessageType) -> ! {
     const SOURCE_LINE: &str = "source=> ";
-    // TODO: fix this
-    let (input, adjusted) = midpoint(&input, 0, 80 - SOURCE_LINE.len());
+
+    let span = tokens.current_span();
+    let prev = tokens.previous_span();
+
+    let prev = match prev {
+        Some(prev) => prev,
+        None => span,
+    };
+
+    let input = tokens.input_at(prev);
+    let (input, adjusted) = midpoint(&input, prev.column() - 1, 80 - SOURCE_LINE.len());
 
     eprintln!("{}{}", wrap_color!(Color::Yellow {}, SOURCE_LINE), input);
     draw_caret(SOURCE_LINE.len() + adjusted, Color::Red {});
 
-    fail!(
-        "{} {} was expected. at position: {}.\n",
-        wrap_color!(Color::Red {}, "ERROR:"),
-        wrap_color!(Color::Cyan {}, msg),
-        wrap_color!(Color::Blue {}, span),
-    );
+    match msg {
+        MessageType::User(msg) => {
+            fail!(
+                "{} {} at position: {}.\n",
+                wrap_color!(Color::Red {}, "ERROR:"),
+                wrap_color!(Color::Cyan {}, msg),
+                wrap_color!(Color::Blue {}, prev),
+            );
+        }
+        MessageType::Token(tok) => {
+            fail!(
+                "{} {} was expected at position: {}.\n",
+                wrap_color!(Color::Red {}, "ERROR:"),
+                wrap_color!(Color::Cyan {}, tok.as_string()),
+                wrap_color!(Color::Blue {}, prev),
+            );
+        }
+        MessageType::None => {
+            fail!(
+                "{} unknown error at position: {}.\n",
+                wrap_color!(Color::Red {}, "ERROR:"),
+                wrap_color!(Color::Blue {}, prev),
+            );
+        }
+    }
 }
+
+// fail!(
+//     "{} {} was expected. found {} at position: {}.\n",
+//     wrap_color!(Color::Red {}, "ERROR:"),
+//     wrap_color!(Color::Green {}, tok.get_char()),
+//     wrap_color!(Color::Cyan {}, "{}", next),
+//     wrap_color!(Color::Blue {}, pos),
+// );
