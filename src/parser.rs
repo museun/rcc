@@ -362,63 +362,63 @@ impl Parser {
         if consume(tokens, '=') {
             return Node::Assign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "*=") {
             return Node::MulAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "/=") {
             return Node::DivAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "%=") {
             return Node::ModAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "+=") {
             return Node::AddAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "-=") {
             return Node::SubAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "&=") {
             return Node::AndAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "^=") {
             return Node::XorAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 
         if consume(tokens, "|=") {
             return Node::OrAssign {
                 lhs: Kind::make(lhs),
-                rhs: Kind::make(self.conditional(tokens)),
+                rhs: Kind::make(self.assign(tokens)),
             };
         }
 

@@ -443,8 +443,8 @@ impl<'a> Generate<'a> {
                 let lhs = self.lvalue(lhs);
 
                 self.store(&*l.get_type().as_ref().unwrap().borrow(), reg_reg(lhs, rhs));
-                self.kill(rhs);
-                lhs
+                self.kill(lhs);
+                rhs
             }
 
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
