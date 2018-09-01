@@ -13,7 +13,7 @@ pub struct Semantics<'a> {
 impl<'a> Semantics<'a> {
     pub fn analyze(nodes: &mut [Node]) -> (&mut [Node]) {
         let mut label = 0;
-        let mut env = Environment::new(None);
+        let mut env = Environment::new();
 
         let mut globals = vec![];
         for mut node in nodes.iter_mut() {
@@ -33,7 +33,7 @@ impl<'a> Semantics<'a> {
             {
                 let var = Var::global(Rc::clone(&ty), &name, "", *data, *is_extern);
                 globals.push(var.clone());
-                env.insert(name.clone(), var);
+                env.insert(&name, &var);
                 continue;
             }
 
@@ -76,7 +76,7 @@ impl<'a> Semantics<'a> {
     }
 
     // TODO maybe return a new node instead of mutating the current
-    fn walk(&mut self, env: &mut Environment, node: &mut Node, decay: bool) {
+    fn walk(&mut self, mut env: &mut Environment, node: &mut Node, decay: bool) {
         #[cfg(feature = "tracer")]
         let _t = tracer!(
             format!("{}", node),
@@ -151,8 +151,8 @@ impl<'a> Semantics<'a> {
                 *offset = self.stacksize;
 
                 env.insert(
-                    name.to_string(),
-                    Var {
+                    &name,
+                    &Var {
                         ty: ty.clone(),
                         offset: self.stacksize,
                         global: None,
@@ -182,14 +182,16 @@ impl<'a> Semantics<'a> {
                 step,
                 body,
             } => {
+                env.new_scope();
                 if init.has_val() {
-                    self.walk(env, init.as_mut(), true);
+                    self.walk(&mut env, init.as_mut(), true);
                 }
-                self.walk(env, cond.as_mut(), true);
+                self.walk(&mut env, cond.as_mut(), true);
                 if step.has_val() {
-                    self.walk(env, step.as_mut(), true);
+                    self.walk(&mut env, step.as_mut(), true);
                 }
-                self.walk(env, body.as_mut(), true);
+                self.walk(&mut env, body.as_mut(), true);
+                env.swap();
             }
 
             Node::DoWhile { body, cond, .. } => {
@@ -359,10 +361,11 @@ impl<'a> Semantics<'a> {
             }
 
             Node::Compound { stmts } => {
-                let mut newenv = Environment::new(Some(env));
+                env.new_scope();
                 for stmt in stmts {
-                    self.walk(&mut newenv, stmt.as_mut(), true)
+                    self.walk(&mut env, stmt.as_mut(), true)
                 }
+                env.swap();
             }
 
             Node::Expression { expr } => self.walk(env, expr.as_mut(), true),
@@ -382,34 +385,39 @@ impl<'a> Semantics<'a> {
     }
 }
 
-pub struct Environment<'a> {
-    vars: HashMap<String, Var>,
-    prev: Option<&'a Environment<'a>>,
-}
-
-impl<'a> Environment<'a> {
-    pub fn new(prev: Option<&'a Environment>) -> Self {
-        Self {
-            vars: HashMap::new(),
-            prev,
-        }
+use std::collections::VecDeque;
+pub struct Environment(VecDeque<Scope>);
+impl Environment {
+    pub fn new() -> Self {
+        Self { 0: VecDeque::new() }
     }
 
-    pub fn prev(&self) -> Option<&'a Environment<'a>> {
-        self.prev
+    pub fn new_scope(&mut self) {
+        self.0.push_front(Scope::new())
     }
 
-    pub fn insert(&mut self, name: String, var: Var) {
-        self.vars.insert(name, var);
+    pub fn swap(&mut self) {
+        let old = self.0.pop_front().unwrap();
+        self.0.push_back(old)
+    }
+
+    pub fn insert(&mut self, k: &str, var: &Var) {
+        self.0[0].0.insert(k.to_string(), var.clone());
     }
 
     pub fn find(&self, name: &str) -> Option<&Var> {
-        if self.vars.contains_key(name) {
-            Some(&self.vars[name])
-        } else if let Some(prev) = self.prev {
-            prev.find(name)
-        } else {
-            None
+        for scope in &self.0 {
+            if scope.0.contains_key(name) {
+                return Some(&scope.0[name]);
+            }
         }
+        None
+    }
+}
+
+struct Scope(HashMap<String, Var>);
+impl Scope {
+    pub fn new() -> Self {
+        Self { 0: HashMap::new() }
     }
 }
