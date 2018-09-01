@@ -7,26 +7,6 @@ use types::Type;
 
 use std::collections::{HashMap, VecDeque};
 
-#[derive(Debug, Clone)]
-struct Environment {
-    tags: HashMap<String, Type>,
-    typedefs: HashMap<String, Type>,
-}
-
-impl Environment {
-    pub fn new() -> Self {
-        Self {
-            tags: HashMap::new(),
-            typedefs: HashMap::new(),
-        }
-    }
-}
-
-enum FieldType {
-    Typedef,
-    Tag,
-}
-
 pub struct Parser {
     env: VecDeque<Environment>,
 }
@@ -1109,10 +1089,23 @@ fn expect_fail(tokens: &Tokens, msg: &MessageType) -> ! {
     }
 }
 
-// fail!(
-//     "{} {} was expected. found {} at position: {}.\n",
-//     wrap_color!(Color::Red {}, "ERROR:"),
-//     wrap_color!(Color::Green {}, tok.get_char()),
-//     wrap_color!(Color::Cyan {}, "{}", next),
-//     wrap_color!(Color::Blue {}, pos),
-// );
+// TODO refactor this and semantics environment to be a generic environment type
+#[derive(Debug, Clone)]
+struct Environment {
+    tags: HashMap<String, Type>,
+    typedefs: HashMap<String, Type>,
+}
+
+impl Environment {
+    pub fn new() -> Self {
+        Self {
+            tags: HashMap::new(),
+            typedefs: HashMap::new(),
+        }
+    }
+}
+
+enum FieldType {
+    Typedef,
+    Tag,
+}

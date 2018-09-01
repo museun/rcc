@@ -2,7 +2,7 @@ use super::*;
 use node::Node;
 use types::{Type, Var};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 pub struct Semantics<'a> {
     stacksize: i32,
@@ -14,15 +14,9 @@ impl<'a> Semantics<'a> {
     pub fn analyze(nodes: &mut [Node]) -> (&mut [Node]) {
         let mut label = 0;
         let mut env = Environment::new();
-
         let mut globals = vec![];
-        for mut node in nodes.iter_mut() {
-            let mut this = Self {
-                stacksize: 0,
-                globals: vec![],
-                label: &mut label,
-            };
 
+        for mut node in nodes.iter_mut() {
             if let Node::Vardef {
                 name,
                 ty,
@@ -37,14 +31,25 @@ impl<'a> Semantics<'a> {
                 continue;
             }
 
-            this.walk(&mut env, &mut node, true);
-
             if let Node::Func {
                 stacksize,
                 globals: v,
+                args,
+                body,
                 ..
             } = &mut node
             {
+                let mut this = Self {
+                    stacksize: 0,
+                    globals: vec![],
+                    label: &mut label,
+                };
+
+                for arg in args {
+                    this.walk(&mut env, arg.val.as_mut().unwrap(), true);
+                }
+                this.walk(&mut env, body.val.as_mut().unwrap(), true);
+
                 *stacksize = this.stacksize;
                 v.extend(this.globals);
                 v.extend(globals.clone());
@@ -191,7 +196,7 @@ impl<'a> Semantics<'a> {
                     self.walk(&mut env, step.as_mut(), true);
                 }
                 self.walk(&mut env, body.as_mut(), true);
-                env.swap();
+                env.end_scope();
             }
 
             Node::DoWhile { body, cond, .. } => {
@@ -362,19 +367,12 @@ impl<'a> Semantics<'a> {
                 // TYPE: maybe set default type to int
             }
 
-            Node::Func { args, body, .. } => {
-                for arg in args {
-                    self.walk(env, arg.as_mut(), true)
-                }
-                self.walk(env, body.as_mut(), true)
-            }
-
             Node::Compound { stmts } => {
                 env.new_scope();
                 for stmt in stmts {
                     self.walk(&mut env, stmt.as_mut(), true)
                 }
-                env.swap();
+                env.end_scope();
             }
 
             Node::Expression { expr } => self.walk(env, expr.as_mut(), true),
@@ -382,8 +380,11 @@ impl<'a> Semantics<'a> {
                 self.walk(env, stmt.as_mut(), true);
                 node.set_type(Rc::new(RefCell::new(Type::Int)))
             }
+
+            // these shouldn't be handled here
             Node::Noop {} => {}
-            _ => fail!("unexpected node: {:?}", node),
+            Node::Func { .. } => {}
+            _ => eprintln!("unexpected node: {:?}", node),
         }
     }
 
@@ -394,7 +395,6 @@ impl<'a> Semantics<'a> {
     }
 }
 
-use std::collections::VecDeque;
 #[derive(Default)]
 pub struct Environment(VecDeque<Scope>);
 
@@ -409,7 +409,7 @@ impl Environment {
         self.0.push_front(Scope::new())
     }
 
-    pub fn swap(&mut self) {
+    pub fn end_scope(&mut self) {
         let old = self.0.pop_front().unwrap();
         self.0.push_back(old)
     }
