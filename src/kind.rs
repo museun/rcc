@@ -23,7 +23,11 @@ impl Kind {
     }
 
     pub fn has_val(&self) -> bool {
-        self.val.is_some()
+        match &self.val {
+            Some(val) if **val == Node::Noop {} => false,
+            Some(_) => true,
+            None => false,
+        }
     }
 
     pub fn get_val(&self) -> &Node {

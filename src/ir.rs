@@ -257,9 +257,12 @@ impl<'a> Generate<'a> {
                 }
                 self.create(IRKind::Label, imm(x));
 
-                let r = self.expression(cond);
-                self.create(IRKind::Unless, reg_imm(r, y));
-                self.kill(r);
+                if cond.has_val() {
+                    let r = self.expression(cond);
+                    self.create(IRKind::Unless, reg_imm(r, y));
+                    self.kill(r);
+                }
+
                 self.statement(body);
 
                 if step.has_val() {

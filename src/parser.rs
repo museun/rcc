@@ -189,18 +189,29 @@ impl Parser {
                 expect_token(tokens, '(');
                 let init = if self.is_typename(tokens) {
                     self.declaration(tokens)
+                } else if consume(tokens, ';') {
+                    Node::Noop {}
                 } else {
                     self.expression_statement(tokens)
                 };
 
-                let cond = self.expression(tokens);
-                expect_token(tokens, ';');
-
-                let step = Node::Expression {
-                    expr: Kind::make(self.expression(tokens)),
+                let cond = if !consume(tokens, ';') {
+                    let cond = self.expression(tokens);
+                    expect_token(tokens, ';');
+                    cond
+                } else {
+                    Node::Noop {}
                 };
 
-                expect_token(tokens, ')');
+                let step = if !consume(tokens, ')') {
+                    let step = Node::Expression {
+                        expr: Kind::make(self.expression(tokens)),
+                    };
+                    expect_token(tokens, ')');
+                    step
+                } else {
+                    Node::Noop {}
+                };
 
                 let body = self.statement(tokens);
                 Node::For {
