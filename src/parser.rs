@@ -5,36 +5,40 @@ use span::Span;
 use tokens::{Token, Tokens, Type as TokType};
 use types::Type;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone)]
 struct Environment {
-    tags: HashMap<String, Vec<Node>>,
-    typedefs: HashMap<String, Type>, // XXX: does this have to be a RefType?
-    prev: Option<Box<Environment>>,
+    tags: HashMap<String, Type>,
+    typedefs: HashMap<String, Type>,
 }
 
 impl Environment {
-    pub fn new(env: Option<Environment>) -> Self {
+    pub fn new() -> Self {
         Self {
             tags: HashMap::new(),
             typedefs: HashMap::new(),
-            prev: env.and_then(|env| Some(Box::new(env))),
         }
     }
 }
 
+enum FieldType {
+    Typedef,
+    Tag,
+}
+
 pub struct Parser {
-    env: Environment,
+    env: VecDeque<Environment>,
 }
 
 impl Parser {
     pub fn parse(mut tokens: Tokens) -> Vec<Node> {
         let tokens = &mut tokens;
 
-        let mut this = Parser {
-            env: Environment::new(None),
-        };
+        let mut env = VecDeque::new();
+        env.push_front(Environment::new());
+
+        let mut this = Parser { env };
 
         let mut nodes = vec![];
         while let Some((_, tok)) = tokens.peek() {
@@ -47,7 +51,9 @@ impl Parser {
     }
 
     fn root(&mut self, tokens: &mut Tokens) -> Node {
+        let is_typedef = consume(tokens, Token::Typedef);
         let is_extern = consume(tokens, Token::Extern);
+
         let ty = self.type_(tokens);
         let name = self.ident(tokens);
 
@@ -61,7 +67,11 @@ impl Parser {
                 }
                 expect_token(tokens, ')');
             }
+
             expect_token(tokens, '{');
+            if is_typedef {
+                fail!("typedef {} has function definition", name);
+            }
 
             return Node::Func {
                 ty: Rc::new(RefCell::new(ty)),
@@ -73,19 +83,27 @@ impl Parser {
             };
         }
 
-        let data = if is_extern { 0 } else { types::size_of(&ty) };
+        let ty = self.read_array(tokens, ty);
+        expect_token(tokens, ';');
+        if is_typedef {
+            self.env
+                .front_mut()
+                .expect("root environment")
+                .typedefs
+                .insert(name.clone(), ty);
 
-        let node = Node::Vardef {
-            ty: Rc::new(RefCell::new(self.read_array(tokens, ty))),
+            return Node::Noop {}; // TODO: this should have a better name
+        }
+
+        let data = if is_extern { 0 } else { types::size_of(&ty) };
+        Node::Vardef {
+            ty: Rc::new(RefCell::new(ty)),
             name,
             init: Kind::empty(),
             offset: 0,
             data,
             is_extern,
-        };
-
-        expect_token(tokens, ';');
-        node
+        }
     }
 
     fn param(&mut self, tokens: &mut Tokens) -> Node {
@@ -109,16 +127,16 @@ impl Parser {
     }
 
     fn compound(&mut self, tokens: &mut Tokens) -> Node {
-        let newenv = Environment::new(Some(self.env.clone()));
-        self.env = newenv;
+        let env = Environment::new();
+        self.env.push_front(env);
 
         let mut stmts = vec![];
         while !consume(tokens, '}') {
             stmts.push(Kind::make(self.statement(tokens)))
         }
 
-        // nice
-        self.env = *(self.env.prev.as_ref().unwrap()).clone();
+        let old = self.env.pop_front().expect("get first environment");
+        self.env.push_back(old);
 
         Node::Compound { stmts }
     }
@@ -135,7 +153,11 @@ impl Parser {
                         fail!("typename name is empty");
                     }
 
-                    self.env.typedefs.insert(name.clone(), ty.borrow().clone());
+                    self.env
+                        .front_mut()
+                        .expect("get first environment")
+                        .typedefs
+                        .insert(name.clone(), ty.borrow().clone());
                     return node;
                 }
                 unreachable!();
@@ -741,6 +763,7 @@ impl Parser {
         unreachable!()
     }
 
+    // TODO split this up
     fn type_(&mut self, tokens: &mut Tokens) -> Type {
         let (_pos, token) = expect_tokens(
             tokens,
@@ -760,10 +783,10 @@ impl Parser {
                 TokType::Void => Type::Void,
             },
             Token::Ident(s) => {
-                match self.env.typedefs.get(&s) {
-                    Some(ty) => ty.clone(), // this returns a RefType
+                return match self.find(&s, &FieldType::Typedef) {
+                    Some(ty) => ty,
                     None => fail!("{} unknown type", s),
-                }
+                };
             }
             Token::Struct => {
                 let tag = if let Some((_, Token::Ident(s))) = tokens.peek() {
@@ -774,7 +797,7 @@ impl Parser {
                     None
                 };
 
-                let mut members = if consume(tokens, '{') {
+                let members = if consume(tokens, '{') {
                     let mut v = vec![];
                     while !consume(tokens, '}') {
                         v.push(self.declaration(tokens));
@@ -784,31 +807,37 @@ impl Parser {
                     None
                 };
 
-                match (tag.is_none(), members.is_none()) {
-                    (true, true) => {
-                        fail!("bad struct definition");
-                    }
-                    (false, false) => {
-                        self.env.tags.insert(
-                            tag.as_ref().unwrap().to_string(),
-                            members.as_ref().unwrap().clone(),
-                        );
-                    }
-                    (false, true) => {
-                        let tag = tag.unwrap();
-                        members = self
-                            .env
-                            .tags
-                            .get(tag.as_str())
-                            .and_then(|m| Some(m.clone()));
-                        if members.is_none() {
-                            fail!("incomplete type: {}", tag);
-                        }
-                    }
-                    _ => {} // no tag
+                if tag.is_none() && members.is_none() {
+                    fail!("bad struct definition");
+                }
+
+                let mut ty = if tag.is_some() && members.is_none() {
+                    self.find(tag.as_ref().unwrap().as_str(), &FieldType::Tag)
+                } else {
+                    None
                 };
 
-                types::struct_of(&members.as_ref().unwrap())
+                if ty.is_none() {
+                    ty = Some(Type::Struct {
+                        size: 0,
+                        align: 0,
+                        members: vec![],
+                    })
+                }
+
+                if members.is_some() {
+                    // add member
+                    ty.as_mut().unwrap().add_members(&members.as_ref().unwrap());
+                    if tag.is_some() {
+                        self.env
+                            .front_mut()
+                            .expect("to get first environment")
+                            .tags
+                            .insert(tag.clone().unwrap(), ty.clone().unwrap());
+                    }
+                }
+
+                ty.unwrap()
             }
             _ => unreachable!(),
         };
@@ -819,13 +848,29 @@ impl Parser {
         ty
     }
 
-    #[inline]
     fn is_typename(&self, tokens: &mut Tokens) -> bool {
         match tokens.peek() {
             Some((_, Token::Type(_))) | Some((_, Token::Struct)) => true,
-            Some((_, Token::Ident(n))) => self.env.typedefs.contains_key(n),
+            Some((_, Token::Ident(n))) => self.find(n, &FieldType::Typedef).is_some(),
             _ => false,
         }
+    }
+
+    fn find(&self, name: &str, ty: &FieldType) -> Option<Type> {
+        for env in &self.env {
+            match ty {
+                FieldType::Typedef => match env.typedefs.get(name) {
+                    Some(td) => return Some(td.clone()),
+                    None => continue,
+                },
+                FieldType::Tag => match env.tags.get(name) {
+                    Some(tag) => return Some(tag.clone()),
+                    None => continue,
+                },
+            }
+        }
+
+        None
     }
 }
 

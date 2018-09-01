@@ -217,6 +217,10 @@ impl<'a> Semantics<'a> {
                 if let Type::Struct { ref members, .. } =
                     &*expr.get_type().as_ref().unwrap().borrow()
                 {
+                    if members.is_empty() {
+                        fail!("incomplete type for struct {}", name);
+                    }
+
                     let mut typ = None;
                     for member in members {
                         if let Node::Vardef {

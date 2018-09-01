@@ -26,6 +26,45 @@ pub enum Type {
     },
 }
 
+impl Type {
+    pub fn add_members(&mut self, nodes: &[Node]) {
+        if let Type::Struct {
+            size,
+            align,
+            members,
+        } = self
+        {
+            let mut os = 0;
+            for node in nodes {
+                if let Node::Vardef { ty, .. } = node {
+                    let al = align_of(&*ty.borrow());
+                    let sz = size_of(&*ty.borrow());
+
+                    os = round(os, al);
+
+                    let mut newnode = node.clone();
+                    match &mut newnode {
+                        Node::Vardef { offset, .. } => {
+                            *offset = os;
+                        }
+                        _ => unreachable!(),
+                    }
+                    members.push(newnode);
+
+                    os += sz;
+                    if *align < al {
+                        *align = al;
+                    }
+                }
+            }
+
+            *size = round(os, *align)
+        } else {
+            panic!("can only add members to structs")
+        }
+    }
+}
+
 pub fn as_ptr(ty: &RefType) -> Option<RefType> {
     match &*ty.borrow() {
         Type::Ptr { ptr, .. } => Some(Rc::clone(&ptr)),
@@ -55,43 +94,6 @@ pub fn array_of(ty: &RefType, len: usize) -> Type {
         base: Rc::clone(&ty),
         len,
         data: vec![],
-    }
-}
-
-pub fn struct_of(nodes: &[Node]) -> Type {
-    let mut members = vec![];
-    let mut os = 0;
-    let mut align = 0;
-
-    for node in nodes {
-        if let Node::Vardef { ty, .. } = node {
-            let al = align_of(&*ty.borrow());
-            let sz = size_of(&*ty.borrow());
-
-            os = round(os, al);
-
-            let mut newnode = node.clone();
-            match &mut newnode {
-                Node::Vardef { offset, .. } => {
-                    *offset = os;
-                }
-                _ => unreachable!(),
-            }
-            members.push(newnode);
-
-            os += sz;
-            if align < al {
-                align = al;
-            }
-        } else {
-            unreachable!()
-        }
-    }
-
-    Type::Struct {
-        members,
-        size: round(os, align),
-        align,
     }
 }
 

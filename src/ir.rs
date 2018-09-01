@@ -168,6 +168,7 @@ impl<'a> Generate<'a> {
                     };
                     out.push(function);
                 }
+                Node::Noop {} => {}
                 node => fail!("expected a function node, got: {:?} ", node),
             }
         }
