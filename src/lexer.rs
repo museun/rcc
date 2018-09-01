@@ -419,7 +419,7 @@ pub fn is_left_char(left: char) -> bool {
     false
 }
 
-fn is_valid_char(l: char, r: char, end: Option<char>) -> bool {
+pub fn is_valid_char(l: char, r: char, end: Option<char>) -> bool {
     for (a, b, c) in CHARACTERS.iter() {
         if l == *a && Some(r) == *b && end == *c {
             return true;

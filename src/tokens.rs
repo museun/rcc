@@ -142,29 +142,18 @@ impl PartialEq<char> for Token {
     }
 }
 
-impl From<&'static str> for Token {
-    fn from(c: &'static str) -> Token {
-        match c {
-            "else" => Token::Else,
-            // TODO make this better
-            "==" => Token::MChar('=', '=', None),
-            "!=" => Token::MChar('!', '=', None),
-            "->" => Token::MChar('-', '>', None),
-            "--" => Token::MChar('-', '-', None),
-            "++" => Token::MChar('+', '+', None),
-            //
-            "<<=" => Token::MChar('<', '<', Some('=')),
-            ">>=" => Token::MChar('>', '>', Some('=')),
-            "*=" => Token::MChar('*', '=', None),
-            "/=" => Token::MChar('/', '=', None),
-            "%=" => Token::MChar('%', '=', None),
-            "+=" => Token::MChar('+', '=', None),
-            "-=" => Token::MChar('-', '=', None),
-            "&=" => Token::MChar('&', '=', None),
-            "^=" => Token::MChar('^', '=', None),
-            "|=" => Token::MChar('|', '=', None),
-            _ => panic!("invalid str/token"),
+impl<'a> From<&'a str> for Token {
+    fn from(input: &'a str) -> Token {
+        debug_assert!(input.len() >= 2 && input.len() <= 3);
+
+        let mut chars = input.chars();
+        let (left, middle, right) = (chars.next().unwrap(), chars.next().unwrap(), chars.next());
+
+        if !lexer::is_valid_char(left, middle, right) {
+            panic!("invalid str/token")
         }
+
+        Token::MChar(left, middle, right)
     }
 }
 

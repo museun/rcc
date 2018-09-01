@@ -175,7 +175,7 @@ impl Parser {
                 expect_token(tokens, ')');
                 let body = Kind::make(self.statement(tokens));
 
-                let else_ = if consume(tokens, "else") {
+                let else_ = if consume(tokens, Token::Else) {
                     Kind::make(self.statement(tokens))
                 } else {
                     Kind::empty()
