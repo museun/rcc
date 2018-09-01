@@ -189,12 +189,20 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 writeln!(buf, "  jne .L{}", val);
             }
 
+            (IRKind::BpRel, RegImm { reg, val }) => {
+                writeln!(buf, "  lea {}, [rbp-{}]", REGS64[*reg as usize], val);
+            }
+
             (IRKind::Add, RegReg { dst, src }) => {
                 writeln!(
                     buf,
                     "  add {}, {}",
                     REGS64[*dst as usize], REGS64[*src as usize]
                 );
+            }
+
+            (IRKind::Add, RegImm { reg, val }) => {
+                writeln!(buf, "  add {}, {}", REGS64[*reg as usize], val);
             }
 
             (IRKind::Sub, RegReg { dst, src }) => {
@@ -205,14 +213,20 @@ fn generate<W: Write>(mut buf: &mut W, abi: &ABI, func: &Function, label: &mut u
                 );
             }
 
-            (IRKind::BpRel, RegImm { reg, val }) => {
-                writeln!(buf, "  lea {}, [rbp-{}]", REGS64[*reg as usize], val);
+            (IRKind::Sub, RegImm { reg, val }) => {
+                writeln!(buf, "  sub {}, {}", REGS64[*reg as usize], val);
             }
 
             (IRKind::Mul, RegReg { dst, src }) => {
                 writeln!(buf, "  mov rax, {}", REGS64[*src as usize]);
                 writeln!(buf, "  mul {}", REGS64[*dst as usize]);
                 writeln!(buf, "  mov {}, rax", REGS64[*dst as usize]);
+            }
+
+            (IRKind::Mul, RegImm { reg, val }) => {
+                writeln!(buf, "  mov rax, {}", val);
+                writeln!(buf, "  mul {}", REGS64[*reg as usize]);
+                writeln!(buf, "  mov {}, rax", REGS64[*reg as usize]);
             }
 
             (IRKind::Div, RegReg { dst, src }) => {

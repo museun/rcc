@@ -1,4 +1,5 @@
 use super::*;
+use kind::Kind;
 use node::{Comp, Node};
 use types::{Type, Var};
 
@@ -60,9 +61,9 @@ pub enum IRKind {
 
     BpRel, // reg->imm
 
-    Add, // reg->reg
-    Sub, // reg->reg
-    Mul, // reg->reg
+    Add, // reg->reg OR reg->imm
+    Sub, // reg->reg OR reg->imm
+    Mul, // reg->reg OR reg->imm
     Div, // reg->reg
     Mod, // reg->reg
 
@@ -407,24 +408,14 @@ impl<'a> Generate<'a> {
             Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
                 if let Type::Ptr { .. } = &*lhs.get_type().as_ref().unwrap().borrow() {
                     let rhs = self.expression(rhs);
-                    let r = self.next_reg();
-
-                    // TODO look at this
-                    self.create(
-                        IRKind::Imm,
-                        reg_imm(
-                            r,
-                            types::size_of(
-                                &*types::as_ptr(&Rc::clone(&lhs.get_type().as_ref().unwrap()))
-                                    .as_ref()
-                                    .unwrap()
-                                    .borrow(),
-                            ),
-                        ),
+                    let size = types::size_of(
+                        &*types::as_ptr(&Rc::clone(&lhs.get_type().as_ref().unwrap()))
+                            .as_ref()
+                            .unwrap()
+                            .borrow(),
                     );
 
-                    self.create(IRKind::Mul, reg_reg(rhs, r));
-                    self.kill(r);
+                    self.create(IRKind::Mul, reg_imm(rhs, size));
 
                     let lhs = self.expression(lhs);
                     let ir = match node.as_ref() {
@@ -461,22 +452,10 @@ impl<'a> Generate<'a> {
                 r
             }
 
-            Node::PreInc { expr } => {
-                let lhs = self.lvalue(expr);
-                self.pre_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), 1)
-            }
-            Node::PreDec { expr } => {
-                let lhs = self.lvalue(expr);
-                self.pre_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), -1)
-            }
-            Node::PostInc { expr } => {
-                let lhs = self.lvalue(expr);
-                self.post_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), 1)
-            }
-            Node::PostDec { expr } => {
-                let lhs = self.lvalue(expr);
-                self.post_inc(lhs, &*expr.get_type().as_ref().unwrap().borrow(), -1)
-            }
+            Node::PreInc { expr } => self.pre_inc(expr, 1),
+            Node::PreDec { expr } => self.pre_inc(expr, -1),
+            Node::PostInc { expr } => self.post_inc(expr, 1),
+            Node::PostDec { expr } => self.post_inc(expr, -1),
 
             Node::Addr { expr, .. } => self.lvalue(expr),
 
@@ -529,12 +508,9 @@ impl<'a> Generate<'a> {
         }
 
         if let Node::Dot { expr, offset, .. } = &node {
-            let r1 = self.lvalue(expr);
-            let r2 = self.next_reg();
-            self.create(IRKind::Imm, reg_imm(r2, *offset));
-            self.create(IRKind::Add, reg_reg(r1, r2));
-            self.kill(r2);
-            return r1;
+            let r = self.lvalue(expr);
+            self.create(IRKind::Add, reg_imm(r, *offset));
+            return r;
         }
 
         if let Node::LVal { offset, ty: _ty } = &node {
@@ -581,34 +557,25 @@ impl<'a> Generate<'a> {
         r1
     }
 
-    fn pre_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
+    fn pre_inc(&mut self, kind: &Kind, delta: i32) -> i32 {
+        let addr = self.lvalue(kind);
         let val = self.next_reg();
-        self.load(ty, reg_reg(val, addr));
-
-        let imm = self.next_reg();
-        self.create(IRKind::Imm, reg_imm(imm, delta));
-        self.create(IRKind::Add, reg_reg(val, imm));
-        self.kill(imm);
-
-        self.storearg(ty, reg_imm(addr, val));
+        self.load(
+            &*kind.get_type().as_ref().unwrap().borrow(),
+            reg_reg(val, addr),
+        );
+        self.create(IRKind::Add, reg_imm(val, delta));
+        self.storearg(
+            &*kind.get_type().as_ref().unwrap().borrow(),
+            reg_imm(addr, val),
+        );
         self.kill(addr);
         val
     }
 
-    fn post_inc(&mut self, addr: i32, ty: &Type, delta: i32) -> i32 {
-        let val = self.next_reg();
-        self.load(ty, reg_reg(val, addr));
-
-        let imm = self.next_reg();
-        self.create(IRKind::Imm, reg_imm(imm, delta));
-        self.create(IRKind::Add, reg_reg(val, imm));
-
-        self.storearg(&ty, reg_imm(addr, val));
-
-        self.kill(addr);
-        self.create(IRKind::Sub, reg_reg(val, imm));
-        self.kill(imm);
-
+    fn post_inc(&mut self, kind: &Kind, delta: i32) -> i32 {
+        let val = self.pre_inc(kind, delta);
+        self.create(IRKind::Sub, reg_imm(val, delta));
         val
     }
 
