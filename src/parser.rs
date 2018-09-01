@@ -659,7 +659,8 @@ impl Parser {
                 str: s.to_string(),
                 ty: Rc::new(RefCell::new(types::array_of(
                     &Rc::new(RefCell::new(Type::Char)),
-                    s.len(),
+                    //TODO: handle this in Types
+                    s.len() + 1, // count the \0
                 ))),
             },
 
