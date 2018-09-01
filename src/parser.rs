@@ -244,6 +244,11 @@ impl Parser {
                 }
             }
 
+            Token::Break => {
+                tokens.advance();
+                Node::Break {}
+            }
+
             Token::Return => {
                 tokens.advance();
                 let node = Node::Return {

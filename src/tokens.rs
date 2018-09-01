@@ -24,7 +24,8 @@ pub enum Token {
     Alignof, // _Alignof
     Extern,  // extern
     Struct,  // struct
-    Typedef, // typdef
+    Typedef, // typedef
+    Break,   // break
 
     Comment(usize, usize), // comment. start, end
 
@@ -186,6 +187,7 @@ impl fmt::Display for Token {
             Token::Alignof => write!(f, "Alignof"),
             Token::Struct => write!(f, "Struct"),
             Token::Typedef => write!(f, "Typedef"),
+            Token::Break => write!(f, "Break"),
 
             Token::Comment(start, end) => write!(f, "Comment({}, {})", start, end),
 

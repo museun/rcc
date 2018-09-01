@@ -117,6 +117,8 @@ pub struct Generate<'a> {
 
     // why are these mutable references
     reg: i32,
+
+    break_label: i32,
     ret_label: i32,
     ret_reg: i32,
 }
@@ -141,9 +143,12 @@ impl<'a> Generate<'a> {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(1 << 12),
                         label: &mut label,
+
+                        reg: 1,
+
+                        break_label: -1,
                         ret_label: 0,
                         ret_reg: 0,
-                        reg: 1,
                     };
 
                     for (i, arg) in args.iter().enumerate() {
@@ -220,12 +225,19 @@ impl<'a> Generate<'a> {
 
             Node::DoWhile { cond, body } => {
                 let x = self.next_label();
+
+                let start = self.break_label;
+                self.break_label = self.next_label();
+
                 self.create(IRKind::Label, imm(x));
                 self.statement(body);
 
                 let r = self.expression(cond);
                 self.create(IRKind::If, reg_imm(r, x));
                 self.kill(r);
+
+                self.create(IRKind::Label, imm(self.break_label));
+                self.break_label = start;
             }
 
             Node::For {
@@ -236,6 +248,9 @@ impl<'a> Generate<'a> {
             } => {
                 let x = self.next_label();
                 let y = self.next_label();
+
+                let start = self.break_label;
+                self.break_label = self.next_label();
 
                 if init.has_val() {
                     self.statement(init);
@@ -252,6 +267,17 @@ impl<'a> Generate<'a> {
                 }
                 self.create(IRKind::Jmp, imm(x));
                 self.create(IRKind::Label, imm(y));
+
+                self.create(IRKind::Label, imm(self.break_label));
+                self.break_label = start;
+            }
+
+            Node::Break => {
+                if self.break_label < 0 {
+                    fail!("stray break statement")
+                }
+
+                self.create(IRKind::Jmp, imm(self.break_label));
             }
 
             Node::Return { expr } => {

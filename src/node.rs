@@ -195,6 +195,8 @@ pub enum Node {
         body: Kind,
     },
 
+    Break,
+
     Call {
         name: String,
         args: Vec<Kind>,

@@ -89,7 +89,7 @@ impl<'a> Semantics<'a> {
         );
 
         match node {
-            Node::Constant { .. } => return,
+            Node::Constant { .. } | Node::Break => return,
 
             Node::Str { str, ty } => {
                 let label = self.next_label();
@@ -204,7 +204,6 @@ impl<'a> Semantics<'a> {
                 Self::check_lval(lhs.get_val());
                 self.walk(env, rhs.as_mut(), true);
 
-                eprintln!("{:#?}", rhs.get_type());
                 if let Type::Void = &*rhs.get_type().as_ref().unwrap().borrow() {
                     fail!("cannot assign void to a lval");
                 }
@@ -389,7 +388,9 @@ use std::collections::VecDeque;
 pub struct Environment(VecDeque<Scope>);
 impl Environment {
     pub fn new() -> Self {
-        Self { 0: VecDeque::new() }
+        let mut v = VecDeque::new();
+        v.push_front(Scope::new());
+        Self { 0: v }
     }
 
     pub fn new_scope(&mut self) {
