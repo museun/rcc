@@ -51,8 +51,31 @@ impl Tokens {
     pub fn tokenize(file: &str, input: &str) -> Self {
         let data = lexer::scan(file, input);
 
+        let mut new = Vec::with_capacity(data.len());
+        let mut last: Option<(Span, Token)> = None;
+        for (s, t) in &data {
+            match (&last, t) {
+                (Some((ref s, Token::Str(ref left))), Token::Str(right)) => {
+                    let str = Token::Str(format!("{}{}", left, right));
+                    last = Some((s.clone(), str))
+                }
+                (Some((_, Token::Str(_))), _) => {
+                    new.push(last.map(|(s, t)| (s, t.clone())).unwrap());
+                    new.push((s.clone(), t.clone()));
+                    last = None
+                }
+                (None, Token::Str(_)) => {
+                    last = Some((s.clone(), t.clone()));
+                }
+                _ => {
+                    new.push((s.clone(), t.clone()));
+                }
+            }
+        }
+        new.shrink_to_fit();
+
         Tokens {
-            data,
+            data: new,
             input: input.into(),
             pos: 0,
         }

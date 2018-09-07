@@ -144,10 +144,24 @@ fn unknown_lexer(_lexer: &mut Input<'_>) -> State {
 
 fn whitespace_lexer(lexer: &mut Input<'_>) -> State {
     // need to check for \\\s+[\r|\n]
-    if !lexer.current().is_ascii_whitespace() {
+    let c = lexer.current();
+    if !c.is_ascii_whitespace() && c != '\\' {
         return State::Yield;
     }
-    let skip = lexer.take_while(char::is_ascii_whitespace).count();
+
+    let mut skip = 0;
+    while let Some(c) = lexer.next() {
+        if c == '\\' && lexer.peek().unwrap() == '\n' {
+            skip += 1;
+            continue;
+        }
+        if c.is_ascii_whitespace() {
+            skip += 1;
+        } else {
+            break;
+        }
+    }
+
     State::Consume(skip)
 }
 
@@ -158,8 +172,24 @@ fn comment_lexer(lexer: &mut Input<'_>) -> State {
 
     match lexer.next() {
         Some('/') => {
-            lexer.advance(1);
-            let skip = lexer.take_while(|&c| c != '\n').count() + 2;
+            let mut cont = false;
+            let mut skip = 2;
+            while let Some(p) = lexer.next() {
+                match p {
+                    '\\' => cont = true,
+                    '\n' if cont => {
+                        cont = false;
+                        skip += 2;
+                        continue;
+                    }
+                    '\n' => break,
+                    _ => {
+                        cont = false;
+                        skip += 1;
+                    }
+                }
+            }
+
             State::Produce(skip, Token::Comment(0, skip))
         }
         Some('*') => {
