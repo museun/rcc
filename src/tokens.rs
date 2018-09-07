@@ -1,4 +1,4 @@
-use lexer::{self, LEXERS};
+use lexer;
 use span::Span;
 use util::*;
 
@@ -49,7 +49,7 @@ pub struct Tokens {
 
 impl Tokens {
     pub fn tokenize(file: &str, input: &str) -> Self {
-        let data = lexer::scan(file, input, &LEXERS);
+        let data = lexer::scan(file, input);
 
         Tokens {
             data,
@@ -174,7 +174,7 @@ impl<'a> From<&'a str> for Token {
 
 impl From<char> for Token {
     fn from(c: char) -> Token {
-        if lexer::is_left_char(c) {
+        if lexer::is_first_char(c) {
             return Token::Char(c);
         }
 
