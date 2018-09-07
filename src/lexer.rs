@@ -214,16 +214,48 @@ fn digit_lexer(lexer: &mut Input<'_>) -> State {
     if !lexer.current().is_ascii_digit() {
         return State::Yield;
     }
+    let digit = lexer.current();
 
-    lexer.move_to(lexer.pos() - 1);
-
+    // TODO: this is ugly
     let mut skip = 0;
-    let input: u32 = lexer
-        .take_while(char::is_ascii_digit)
-        .filter_map(|c| c.to_digit(10))
-        .inspect(|_| skip += 1)
-        .fold(0, |a, n| 10 * a + n);
-    skip -= 1;
+    let input = match digit {
+        '0' => {
+            // hex or octal
+            match lexer.next().unwrap() {
+                'x' | 'X' => {
+                    let input = lexer
+                        .take_while(char::is_ascii_hexdigit)
+                        .filter_map(|c| c.to_digit(16))
+                        .inspect(|_| skip += 1)
+                        .fold(0, |a, n| 16 * a + n);
+                    skip += 1;
+                    input
+                }
+                _ => {
+                    lexer.move_to(lexer.pos() - 2);
+                    let input = lexer
+                        .take_while(|&c| match c {
+                            '0'...'7' => true,
+                            _ => false,
+                        }).filter_map(|c| c.to_digit(8))
+                        .inspect(|_| skip += 1)
+                        .fold(0, |a, n| 8 * a + n);
+                    skip -= 1;
+                    input
+                }
+            }
+        }
+        _ => {
+            lexer.move_to(lexer.pos() - 1);
+            let input = lexer
+                .take_while(char::is_ascii_digit)
+                .filter_map(|c| c.to_digit(10))
+                .inspect(|_| skip += 1)
+                .fold(0, |a, n| 10 * a + n);
+            skip -= 1;
+            input
+        }
+    };
 
     State::Produce(skip, Token::Num(input))
 }
