@@ -337,7 +337,8 @@ impl<'a> Semantics<'a> {
                             fail!("cannot dereference a void pointer")
                         }
 
-                        node.set_type(Rc::clone(&ty))
+                        node.set_type(Rc::clone(&ty));
+                        self.maybe_decay(node, decay)
                     }
                     None => fail!("operand must be a pointer"),
                 };
