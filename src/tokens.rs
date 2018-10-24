@@ -97,9 +97,14 @@ impl Tokens {
                     self.pos += 1;
                     return Some(tok);
                 }
-                tok => return tok,
+                _ => return None,
             }
         }
+    }
+
+    /// this doesn't eat comments
+    pub fn current(&self) -> Option<&(Span, Token)> {
+        self.data.get(self.pos)
     }
 
     /// this also eats comments
@@ -108,11 +113,12 @@ impl Tokens {
             match self.data.get(self.pos) {
                 Some((_, Token::Comment(_, _))) => self.pos += 1,
                 Some(tok) => return Some(tok),
-                tok => return tok,
+                _ => return None,
             }
         }
     }
 
+    /// this doesn't eat comments..
     pub fn advance(&mut self) {
         self.pos += 1;
     }

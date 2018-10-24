@@ -1,11 +1,11 @@
 int garr[1] = {5};
 
-int add_arr(int a[][2]) {
-    return a[0][0] + a[1][0];
-}
-
 int add(int x, int y) {
     return x + y;
+}
+
+int add_arr(int (*a)[2]) {
+    return a[0][0] + a[1][0];
 }
 
 int* alloc(int x) {

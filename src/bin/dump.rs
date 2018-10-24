@@ -48,6 +48,8 @@ fn compile(file: &str, input: &str) {
     eprintln!("{}", tokens);
 
     let mut ast = Parser::parse(tokens);
+    //panic!("break");
+
     eprintln!("{}", wrap_color!(Color::Yellow {}, "ast:"));
     eprintln!("{:#?}", ast);
 

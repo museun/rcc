@@ -1,16 +1,18 @@
+#![allow(cyclomatic_complexity)]
+
 use super::*;
 use node::Node;
 use types::{Type, Var};
 
 use std::collections::{HashMap, VecDeque};
 
-pub struct Semantics<'a> {
+pub struct Semantics {
     stacksize: i32,
-    label: &'a mut u32,
+    label: u32,
     globals: Vec<Var>,
 }
 
-impl<'a> Semantics<'a> {
+impl Semantics {
     pub fn analyze(nodes: &mut [Node]) -> (&mut [Node]) {
         let mut label = 0;
         let mut env = Environment::new();
@@ -20,12 +22,12 @@ impl<'a> Semantics<'a> {
             if let Node::Vardef {
                 name,
                 ty,
-                data,
                 is_extern,
                 ..
             } = &node
             {
-                let var = Var::global(Rc::clone(&ty), &name, "", *data, *is_extern);
+                // TODO look at this. this should be using global for the ""
+                let var = Var::global(Rc::clone(&ty), &name, "", *is_extern);
                 globals.push(var.clone());
                 env.insert(&name, &var);
                 continue;
@@ -42,7 +44,7 @@ impl<'a> Semantics<'a> {
                 let mut this = Self {
                     stacksize: 0,
                     globals: vec![],
-                    label: &mut label,
+                    label: label,
                 };
 
                 for arg in args {
@@ -53,6 +55,8 @@ impl<'a> Semantics<'a> {
                 *stacksize = this.stacksize;
                 v.extend(this.globals);
                 v.extend(globals.clone());
+
+                label = this.label;
             }
         }
 
@@ -98,7 +102,7 @@ impl<'a> Semantics<'a> {
 
             Node::Str { str, ty } => {
                 let label = self.next_label();
-                let var = Var::global(Rc::clone(&ty), &label, str, 0, false);
+                let var = Var::global(Rc::clone(&ty), &label, str, false);
                 self.globals.push(var);
 
                 // this doesn't seem right
@@ -149,7 +153,6 @@ impl<'a> Semantics<'a> {
                 offset,
                 ty,
                 is_extern,
-                data,
             } => {
                 self.stacksize = round(self.stacksize, types::align_of(&*ty.borrow()));
                 self.stacksize += types::size_of(&*ty.borrow());
@@ -162,7 +165,6 @@ impl<'a> Semantics<'a> {
                         offset: self.stacksize,
                         global: None,
                         is_extern: *is_extern,
-                        data: *data,
                     },
                 );
 
@@ -277,15 +279,26 @@ impl<'a> Semantics<'a> {
             | Node::Shr { lhs, rhs }
             | Node::Shl { lhs, rhs }
             | Node::Mul { lhs, rhs, .. }
-            | Node::Div { lhs, rhs, .. }
-            | Node::Add { lhs, rhs, .. }
-            | Node::Sub { lhs, rhs, .. } => {
+            | Node::Div { lhs, rhs, .. } => {
                 self.walk(env, lhs.as_mut(), true);
                 self.walk(env, rhs.as_mut(), true);
 
-                // TODO swap pointers
+                let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
+                node.set_type(ty);
+            }
 
-                // TYPE: make sure its not circular pointers
+            Node::Add { lhs, rhs } | Node::Sub { lhs, rhs } => {
+                self.walk(env, lhs.as_mut(), true);
+                self.walk(env, rhs.as_mut(), true);
+
+                // TODO swap types if rhs == pointer
+
+                if let Some(ty) = rhs.get_type() {
+                    if let Type::Ptr { .. } = &*ty.borrow() {
+                        fail!("'pointer {} pointer' is not defined", node)
+                    }
+                }
+
                 let ty = Rc::clone(lhs.get_type().as_ref().unwrap());
                 node.set_type(ty);
             }
@@ -320,17 +333,16 @@ impl<'a> Semantics<'a> {
                 node.set_type(ty);
             }
 
-            Node::Addr { expr, ty: _ty } => {
+            Node::Addr { expr, ty } => {
                 self.walk(env, expr.as_mut(), true);
                 Self::check_lval(expr.as_ref());
 
-                let ptr = types::ptr_of(&Rc::clone(&expr.get_type().as_ref().unwrap()));
+                let ptr = types::ptr_of(&Rc::clone(ty));
                 node.set_type(Rc::new(RefCell::new(ptr)));
             }
 
             Node::Deref { expr } => {
                 self.walk(env, expr.as_mut(), true);
-
                 match types::as_ptr(&Rc::clone(&expr.get_type().as_ref().unwrap())) {
                     Some(ty) => {
                         if let Type::Void = &*ty.borrow() {
@@ -338,7 +350,7 @@ impl<'a> Semantics<'a> {
                         }
 
                         node.set_type(Rc::clone(&ty));
-                        self.maybe_decay(node, decay)
+                        self.maybe_decay(node, decay);
                     }
                     None => fail!("operand must be a pointer"),
                 };
@@ -392,7 +404,7 @@ impl<'a> Semantics<'a> {
 
     fn next_label(&mut self) -> String {
         let label = format!(".L.str{}", self.label);
-        *self.label += 1;
+        self.label += 1;
         label
     }
 }

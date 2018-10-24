@@ -194,7 +194,6 @@ pub enum Node {
         name: String,
         init: Kind,
         offset: i32,
-        data: i32,
         is_extern: bool,
     },
 
@@ -337,23 +336,22 @@ impl Node {
         use self::Node::*;
 
         match self {
-            Or { lhs, rhs }
-            | Xor { lhs, rhs }
-            | And { lhs, rhs }
-            | Mod { lhs, rhs }
-            | Shr { lhs, rhs }
-            | Shl { lhs, rhs }
-            | Add { lhs, rhs }
-            | Sub { lhs, rhs }
-            | Mul { lhs, rhs }
-            | Div { lhs, rhs } => {
+            Or { lhs, .. }
+            | Xor { lhs, .. }
+            | And { lhs, .. }
+            | Mod { lhs, .. }
+            | Shr { lhs, .. }
+            | Shl { lhs, .. }
+            | Add { lhs, .. }
+            | Sub { lhs, .. }
+            | Mul { lhs, .. }
+            | Div { lhs, .. } => {
                 lhs.set_type(Rc::clone(&newtype));
-                rhs.set_type(Rc::clone(&newtype));
             }
 
-            Deref { expr, .. }
+            Deref { expr }
             | Dot { expr, .. }
-            | Not { expr, .. }
+            | Not { expr }
             | BNot { expr }
             | Neg { expr }
             | PreInc { expr }
@@ -374,10 +372,7 @@ impl Node {
             | Assign { lhs, .. } => lhs.set_type(newtype),
 
             // TODO: this should only do the RHS
-            Comma { lhs, rhs } => {
-                lhs.set_type(Rc::clone(&newtype));
-                rhs.set_type(Rc::clone(&newtype))
-            }
+            Comma { rhs, .. } => rhs.set_type(Rc::clone(&newtype)),
 
             Conditional { then, .. } => then.set_type(newtype),
 

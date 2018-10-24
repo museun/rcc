@@ -109,10 +109,10 @@ pub struct Function {
 }
 
 #[derive(Debug)]
-pub struct Generate<'a> {
+pub struct Generate {
     inst: Vec<IR>,
 
-    label: &'a mut i32,
+    label: i32,
 
     // why are these mutable references
     reg: i32,
@@ -122,7 +122,7 @@ pub struct Generate<'a> {
     ret_reg: i32,
 }
 
-impl<'a> Generate<'a> {
+impl Generate {
     pub fn generate(nodes: &[Node]) -> Vec<Function> {
         let mut label = 1;
         let mut out = vec![];
@@ -141,7 +141,7 @@ impl<'a> Generate<'a> {
                     let mut this = Self {
                         // TODO be smarter about this
                         inst: Vec::with_capacity(1 << 12),
-                        label: &mut label,
+                        label: label,
 
                         reg: 1,
 
@@ -172,6 +172,8 @@ impl<'a> Generate<'a> {
                         globals: globals.clone(),
                     };
                     out.push(function);
+
+                    label = this.label;
                 }
                 Node::Noop {} => {}
                 node => fail!("expected a function node, got: {:?} ", node),
@@ -531,8 +533,8 @@ impl<'a> Generate<'a> {
                 let l = self.ret_label;
                 let r = self.ret_reg;
 
-                self.ret_label = *self.label;
-                *self.label += 1;
+                self.ret_label = self.label;
+                self.label += 1;
 
                 let reg = self.next_reg();
                 self.noop();
@@ -735,8 +737,8 @@ impl<'a> Generate<'a> {
     }
 
     fn next_label(&mut self) -> i32 {
-        let n = *self.label;
-        *self.label += 1;
+        let n = self.label;
+        self.label += 1;
         n
     }
 

@@ -34,16 +34,20 @@ impl Parser {
         let is_typedef = consume(tokens, Token::Typedef);
         let is_extern = consume(tokens, Token::Extern);
 
-        let ty = self.type_(tokens);
+        let mut ty = self.decl_specifiers(tokens);
+        while consume(tokens, '*') {
+            ty = types::ptr_of(&Rc::new(RefCell::new(ty)));
+        }
+
         let name = self.ident(tokens);
 
         // functions
         if consume(tokens, '(') {
             let mut args = vec![];
             if !consume(tokens, ')') {
-                args.push(Kind::make(self.param(tokens)));
+                args.push(Kind::make(self.param_decl(tokens)));
                 while consume(tokens, ',') {
-                    args.push(Kind::make(self.param(tokens)));
+                    args.push(Kind::make(self.param_decl(tokens)));
                 }
                 expect(tokens, ')', None);
             }
@@ -75,34 +79,13 @@ impl Parser {
             return Node::Noop {}; // TODO: this should have a better name
         }
 
-        let data = if is_extern { 0 } else { types::size_of(&ty) };
+        // let data = if is_extern { 0 } else { types::size_of(&ty) };
         Node::Vardef {
             ty: Rc::new(RefCell::new(ty)),
             name,
             init: Kind::empty(),
             offset: 0,
-            data,
             is_extern,
-        }
-    }
-
-    fn param(&mut self, tokens: &mut Tokens) -> Node {
-        let ty = self.type_(tokens);
-        let name = self.ident(tokens);
-        let init = if consume(tokens, '=') {
-            Kind::make(self.assign(tokens))
-        } else {
-            Kind::empty()
-        };
-
-        let data = types::size_of(&ty);
-        Node::Vardef {
-            name,
-            init,
-            offset: 0,
-            ty: Rc::new(RefCell::new(ty)),
-            data,
-            is_extern: false,
         }
     }
 
@@ -284,11 +267,47 @@ impl Parser {
     }
 
     fn declaration(&mut self, tokens: &mut Tokens) -> Node {
-        let ty = self.type_(tokens);
+        let ty = self.decl_specifiers(tokens);
+        let node = self.declarator(ty, tokens);
+        expect(tokens, ';', None);
+        node
+    }
 
-        let size = types::size_of(&ty);
-        let name = self.ident(tokens);
-        let array = self.read_array(tokens, ty);
+    fn param_decl(&mut self, tokens: &mut Tokens) -> Node {
+        let ty = self.decl_specifiers(tokens);
+        self.declarator(ty, tokens)
+    }
+
+    fn declarator(&mut self, mut ty: types::Type, tokens: &mut Tokens) -> Node {
+        while consume(tokens, '*') {
+            ty = types::ptr_of(&Rc::new(RefCell::new(ty)));
+        }
+        let direct = self.direct_decl(ty, tokens);
+        direct
+    }
+
+    // this is a real mess
+    fn direct_decl(&mut self, ty: types::Type, tokens: &mut Tokens) -> Node {
+        let (name, mut node) = if let Some((_, Token::Ident(name))) = tokens.current() {
+            let name = name.clone();
+            tokens.advance();
+            (Some(name), None)
+        } else if consume(tokens, '(') {
+            // TODO what type should be here?
+            let node = self.declarator(Type::Int {}, tokens);
+            expect(tokens, ')', None);
+            (None, Some(node))
+        } else {
+            expect_fail(&tokens, &MessageType::User("bad direct-declarator"))
+        };
+
+        let name = match (&node, &name) {
+            (_, Some(name)) => name,
+            (Some(Node::Vardef { name, .. }), _) => name,
+            _ => unreachable!(), // inb4
+        };
+
+        let ty = Rc::new(RefCell::new(self.read_array(tokens, ty)));
 
         // TODO maybe check that the array base type isn't void
 
@@ -298,15 +317,25 @@ impl Parser {
             Kind::empty()
         };
 
-        expect(tokens, ';', None);
-        Node::Vardef {
-            name,
-            init,
-            offset: 0,
-            ty: Rc::new(RefCell::new(array)),
-            data: size,
-            is_extern: false,
+        if node.is_none() {
+            node = Some(Node::Vardef {
+                name: name.clone(),
+                init,
+                offset: 0,
+                ty,
+                is_extern: false,
+            })
+        } else if let Some(Node::Vardef {
+            init: ref mut vinit,
+            ty: ref mut vty,
+            ..
+        }) = node
+        {
+            *vinit = init;
+            *vty = ty;
         }
+
+        node.unwrap()
     }
 
     fn conditional(&mut self, tokens: &mut Tokens) -> Node {
@@ -506,7 +535,7 @@ impl Parser {
     fn equality(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.relational(tokens);
         'expr: loop {
-            let (_, next) = tokens.peek().expect("token for rel");
+            let (_, next) = tokens.peek().expect("token for equality");
             match next {
                 Token::MChar('=', '=', None) => {
                     tokens.advance();
@@ -558,7 +587,7 @@ impl Parser {
     fn relational(&mut self, tokens: &mut Tokens) -> Node {
         let mut lhs = self.shift(tokens);
         'expr: loop {
-            let (_, next) = tokens.peek().expect("token for rel");
+            let (_, next) = tokens.peek().expect("token for relational");
             match next {
                 tok if *tok == '<' => {
                     tokens.advance();
@@ -841,11 +870,12 @@ impl Parser {
     }
 
     // TODO split this up
-    fn type_(&mut self, tokens: &mut Tokens) -> Type {
+    fn decl_specifiers(&mut self, tokens: &mut Tokens) -> Type {
+        // TODO get rid of this
         let (_pos, token) = expect_tokens(
             tokens,
             &[
-                Token::Type(TokType::Char), // are you serious
+                Token::Type(TokType::Char),
                 Token::Type(TokType::Int),
                 Token::Type(TokType::Void),
                 Token::Ident("".into()),
@@ -853,20 +883,18 @@ impl Parser {
             ],
         );
 
-        let mut ty = match token {
+        match token {
             Token::Type(ty) => match ty {
                 TokType::Char => Type::Char,
                 TokType::Int => Type::Int,
                 TokType::Void => Type::Void,
             },
-            Token::Ident(s) => {
-                return match self.find(&s, &FieldType::Typedef) {
-                    Some(ty) => ty,
-                    None => {
-                        expect_fail(tokens, &MessageType::User(&format!("{}: unknown type", s)));
-                    }
-                };
-            }
+            Token::Ident(s) => match self.find(&s, &FieldType::Typedef) {
+                Some(ty) => ty,
+                None => {
+                    expect_fail(tokens, &MessageType::User(&format!("{}: unknown type", s)));
+                }
+            },
             Token::Struct => {
                 let tag = if let Some((_, Token::Ident(s))) = tokens.peek() {
                     let s = Some(s.clone());
@@ -919,12 +947,7 @@ impl Parser {
                 ty.unwrap()
             }
             _ => unreachable!(),
-        };
-
-        while consume(tokens, '*') {
-            ty = types::ptr_of(&Rc::new(RefCell::new(ty)));
         }
-        ty
     }
 
     fn is_typename(&self, tokens: &mut Tokens) -> bool {
@@ -998,7 +1021,7 @@ fn expect_tokens(tokens: &mut Tokens, toks: &[Token]) -> (Span, Token) {
     }
 
     fail!(
-        "{} one of {} was expected. found {} at position: {}.\n",
+        "{} one of {} was expected. found {} at: {}.\n",
         wrap_color!(Color::Red {}, "ERROR:"),
         wrap_color!(Color::Green {}, out),
         wrap_color!(Color::Cyan {}, "{:?}", next),
@@ -1068,7 +1091,7 @@ fn expect_fail(tokens: &Tokens, msg: &MessageType) -> ! {
     match msg {
         MessageType::User(msg) => {
             fail!(
-                "{} {} at position: {}.\n",
+                "{} {} at: {}.\n",
                 wrap_color!(Color::Red {}, "ERROR:"),
                 wrap_color!(Color::Cyan {}, msg),
                 wrap_color!(Color::Blue {}, prev),
@@ -1076,7 +1099,7 @@ fn expect_fail(tokens: &Tokens, msg: &MessageType) -> ! {
         }
         MessageType::Token(tok) => {
             fail!(
-                "{} {} was expected at position: {}.\n",
+                "{} {} was expected at: {}.\n",
                 wrap_color!(Color::Red {}, "ERROR:"),
                 wrap_color!(Color::Cyan {}, tok.as_string()),
                 wrap_color!(Color::Blue {}, prev),
@@ -1084,7 +1107,7 @@ fn expect_fail(tokens: &Tokens, msg: &MessageType) -> ! {
         }
         MessageType::None => {
             fail!(
-                "{} unknown error at position: {}.\n",
+                "{} unknown error at: {}.\n",
                 wrap_color!(Color::Red {}, "ERROR:"),
                 wrap_color!(Color::Blue {}, prev),
             );

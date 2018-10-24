@@ -124,18 +124,16 @@ pub struct Var {
     pub ty: RefType,
     pub offset: i32,
     pub global: Option<(String, String)>, // None = local
-    pub data: i32,
     pub is_extern: bool,
 }
 
 impl Var {
-    pub fn global(ty: RefType, name: &str, s: &str, data: i32, is_extern: bool) -> Self {
+    pub fn global(ty: RefType, name: &str, s: &str, is_extern: bool) -> Self {
         Self {
             ty,
             offset: 0,
             global: Some((name.into(), s.into())),
             is_extern,
-            data,
         }
     }
 }
@@ -145,10 +143,9 @@ impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Var {} (extern: {}, data: {}, offset: {}) = {}",
+            "Var {} (extern: {}, offset: {}) = {}",
             &*self.ty.borrow(),
             self.is_extern,
-            self.data,
             self.offset,
             match &self.global {
                 Some((k, v)) => format!("\"{}\" -> \"{}\"", k, v),
